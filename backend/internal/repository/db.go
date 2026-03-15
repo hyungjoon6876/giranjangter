@@ -28,7 +28,7 @@ func InitDB(databaseURL string) (*sql.DB, error) {
 }
 
 func runMigrations(db *sql.DB) error {
-	paths := []string{"db/migrations/001_initial.sql", "db/migrations/002_alignment_system.sql", "db/migrations/003_item_master.sql"}
+	paths := []string{"db/migrations/001_initial.sql", "db/migrations/002_alignment_system.sql", "db/migrations/003_item_master.sql", "db/migrations/004_item_icons.sql"}
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
 		if err != nil {
@@ -44,7 +44,7 @@ func runMigrations(db *sql.DB) error {
 
 // SeedDB inserts seed data.
 func SeedDB(db *sql.DB) error {
-	paths := []string{"db/seed/seed.sql", "db/seed/items.sql"}
+	paths := []string{"db/seed/seed.sql", "db/seed/items.sql", "db/seed/item_icons.sql"}
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
 		if err != nil {

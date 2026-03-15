@@ -74,6 +74,15 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
             // Item info
             Row(
               children: [
+                if (l['iconUrl'] != null) ...[
+                  Image.network(
+                    'http://localhost:8080${l['iconUrl']}',
+                    width: 32,
+                    height: 32,
+                    errorBuilder: (_, __, ___) => const SizedBox(width: 32, height: 32),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Text(l['itemName'] ?? '', style: const TextStyle(fontSize: 16)),
                 if (l['enhancementLevel'] != null)
                   Text(' +${l['enhancementLevel']}',

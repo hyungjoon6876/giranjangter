@@ -188,6 +188,15 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
+                  if (listing['iconUrl'] != null) ...[
+                    Image.network(
+                      'http://localhost:8080${listing['iconUrl']}',
+                      width: 20,
+                      height: 20,
+                      errorBuilder: (_, __, ___) => const SizedBox(width: 20, height: 20),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Text(
                     listing['itemName'] ?? '',
                     style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),

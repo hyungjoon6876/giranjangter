@@ -32,3 +32,6 @@ frontend/.flutter-plugins-dependencies
 docker-compose.override.yml
 .playwright-mcp/
 *.png
+!backend/static/icons/*.png
+!frontend/web/icons/*.png
+!frontend/web/favicon.png

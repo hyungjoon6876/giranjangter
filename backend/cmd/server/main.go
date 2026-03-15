@@ -43,8 +43,9 @@ func main() {
 	// CORS
 	r.Use(corsMiddleware(cfg))
 
-	// Static files (uploads)
+	// Static files (uploads + icons)
 	r.Static("/uploads", cfg.UploadDir)
+	r.Static("/static", "./static")
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

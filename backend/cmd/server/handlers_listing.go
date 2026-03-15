@@ -110,10 +110,12 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			l.server_id, s.name as server_name,
 			l.status, l.trade_method, l.view_count, l.favorite_count, l.chat_count,
 			l.last_activity_at, l.created_at,
-			p.user_id as author_id, p.nickname, p.trust_badge, p.response_badge
+			p.user_id as author_id, p.nickname, p.trust_badge, p.response_badge,
+			im.icon_id
 			FROM listings l
 			JOIN servers s ON l.server_id = s.id
 			JOIN user_profiles p ON l.author_user_id = p.user_id
+			LEFT JOIN item_master im ON im.name = l.item_name
 			WHERE l.deleted_at IS NULL AND l.visibility = 'public'`
 
 		args := []interface{}{}
@@ -191,6 +193,7 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			LastActivityAt  string  `json:"lastActivityAt"`
 			CreatedAt       string  `json:"createdAt"`
 			Author          gin.H   `json:"author"`
+			IconURL         *string `json:"iconUrl"`
 		}
 
 		var items []listingItem
@@ -198,13 +201,15 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			var item listingItem
 			var authorID, nickname, trustBadge, responseBadge string
 			var lastActivity, created time.Time
+			var iconID *string
 
 			err := rows.Scan(&item.ListingID, &item.ListingType, &item.Title, &item.ItemName,
 				&item.PriceType, &item.PriceAmount, &item.EnhancementLvl,
 				&item.ServerID, &item.ServerName,
 				&item.Status, &item.TradeMethod, &item.ViewCount, &item.FavoriteCount, &item.ChatCount,
 				&lastActivity, &created,
-				&authorID, &nickname, &trustBadge, &responseBadge)
+				&authorID, &nickname, &trustBadge, &responseBadge,
+				&iconID)
 			if err != nil {
 				continue
 			}
@@ -215,6 +220,10 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 				"nickname":      nickname,
 				"trustBadge":    trustBadge,
 				"responseBadge": responseBadge,
+			}
+			if iconID != nil {
+				url := "/static/icons/" + *iconID + ".png"
+				item.IconURL = &url
 			}
 			items = append(items, item)
 		}
@@ -282,6 +291,7 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 			UpdatedAt       time.Time `json:"-"`
 		}
 
+		var iconID *string
 		err := db.QueryRow(`
 			SELECT l.id, l.listing_type, l.title, l.item_name, l.description,
 				l.price_type, l.price_amount, l.quantity, l.enhancement_level, l.options_text,
@@ -290,11 +300,13 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 				l.preferred_meeting_area_text, l.available_time_text,
 				l.author_user_id, p.nickname, p.trust_badge, p.response_badge, p.completed_trade_count,
 				l.view_count, l.favorite_count, l.chat_count,
-				l.reserved_chat_room_id, l.last_activity_at, l.created_at, l.updated_at
+				l.reserved_chat_room_id, l.last_activity_at, l.created_at, l.updated_at,
+				im.icon_id
 			FROM listings l
 			JOIN servers s ON l.server_id = s.id
 			JOIN categories c ON l.category_id = c.id
 			JOIN user_profiles p ON l.author_user_id = p.user_id
+			LEFT JOIN item_master im ON im.name = l.item_name
 			WHERE l.id = $1 AND l.deleted_at IS NULL`, id,
 		).Scan(&l.ID, &l.ListingType, &l.Title, &l.ItemName, &l.Description,
 			&l.PriceType, &l.PriceAmount, &l.Quantity, &l.Enhancement, &l.OptionsText,
@@ -303,7 +315,8 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 			&l.MeetingArea, &l.TimeText,
 			&l.AuthorID, &l.Nickname, &l.TrustBadge, &l.ResponseBadge, &l.TradeCount,
 			&l.ViewCount, &l.FavoriteCount, &l.ChatCount,
-			&l.ReservedChatID, &l.LastActivityAt, &l.CreatedAt, &l.UpdatedAt)
+			&l.ReservedChatID, &l.LastActivityAt, &l.CreatedAt, &l.UpdatedAt,
+			&iconID)
 
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -331,6 +344,12 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 			}
 		}
 
+		var iconURL *string
+		if iconID != nil {
+			u := "/static/icons/" + *iconID + ".png"
+			iconURL = &u
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"listingId":                l.ID,
 			"listingType":              l.ListingType,
@@ -351,6 +370,7 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 			"tradeMethod":              l.TradeMethod,
 			"preferredMeetingAreaText":  l.MeetingArea,
 			"availableTimeText":         l.TimeText,
+			"iconUrl":                  iconURL,
 			"author": gin.H{
 				"userId":              l.AuthorID,
 				"nickname":            l.Nickname,
