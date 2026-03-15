@@ -4,9 +4,11 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useListing, useToggleFavorite } from "@/lib/hooks/use-listings";
 import { useCreateChat } from "@/lib/hooks/use-chats";
+import { useToast } from "@/lib/hooks/use-toast";
 import { TypeBadge, Badge } from "@/components/ui/badge";
 import { AuthorSection, InfoRow, tradeMethodLabel } from "@/components/listing/listing-info";
 import { Loading } from "@/components/ui/loading";
+import { ErrorState } from "@/components/ui/error-state";
 import { ReportModal } from "@/components/forms/report-modal";
 import { formatPrice, statusLabel, statusColor } from "@/lib/utils";
 import { assetUrl } from "@/lib/api-client";
@@ -14,12 +16,14 @@ import { assetUrl } from "@/lib/api-client";
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data: listing, isLoading } = useListing(id);
+  const { data: listing, isLoading, isError, refetch } = useListing(id);
   const toggleFav = useToggleFavorite();
   const createChat = useCreateChat();
+  const { addToast } = useToast();
   const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <Loading />;
+  if (isError) return <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} />;
   if (!listing) return <div className="p-6 text-center text-text-secondary">매물을 찾을 수 없습니다</div>;
 
   const l = listing;
@@ -30,7 +34,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       const chat = await createChat.mutateAsync(l.listingId);
       router.push(`/chats/${chat.chatRoomId}`);
     } catch {
-      alert("채팅을 시작할 수 없습니다");
+      addToast("error", "채팅을 시작할 수 없습니다");
     }
   };
 
@@ -94,10 +98,12 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Action bar - sticky on all breakpoints */}
       {actions.length > 0 && (
-        <div className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3">
+        <div role="toolbar" aria-label="매물 액션" className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3">
           {actions.includes("favorite") && (
             <button
               onClick={() => toggleFav.mutate({ id: l.listingId, isFavorited: l.isFavorited ?? false })}
+              aria-pressed={l.isFavorited ?? false}
+              aria-label={l.isFavorited ? "찜 취소" : "찜하기"}
               className="p-3 bg-card border border-border rounded-lg hover:bg-medium transition-colors text-text-secondary"
             >
               {l.isFavorited ? "관심" : "관심"}
