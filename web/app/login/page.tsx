@@ -75,21 +75,6 @@ export default function LoginPage() {
     }
   };
 
-  // Dev login (only show when no GOOGLE_CLIENT_ID or for testing)
-  const handleDevLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.login("google", `dev_user_${Date.now()}`);
-      queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
-    } catch {
-      setError("로그인에 실패했습니다");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
@@ -103,18 +88,9 @@ export default function LoginPage() {
           <p className="text-sm text-text-secondary mt-2">로그인 중...</p>
         )}
 
-        {/* Dev login - for testing */}
-        <button
-          onClick={handleDevLogin}
-          disabled={loading}
-          className="w-full mt-3 flex items-center justify-center gap-3 border border-border rounded-lg py-3 px-4 text-sm text-text-secondary hover:bg-medium transition-colors disabled:opacity-50"
-        >
-          개발자 로그인 (테스트)
-        </button>
-
         <button
           onClick={() => router.push("/")}
-          className="mt-4 text-sm text-text-secondary hover:text-gold"
+          className="mt-6 text-sm text-text-secondary hover:text-gold"
         >
           둘러보기
         </button>
