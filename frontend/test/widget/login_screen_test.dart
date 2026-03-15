@@ -17,9 +17,6 @@ void main() {
     test('shows "둘러보기" button', () {},
         skip: 'Requires --platform chrome');
 
-    test('shows dev login button in debug mode', () {},
-        skip: 'Requires --platform chrome');
-
     test('Google login button hidden when no client ID', () {},
         skip: 'Requires --platform chrome');
   });

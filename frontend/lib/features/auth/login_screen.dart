@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -91,21 +91,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _devLogin() async {
-    setState(() => _loading = true);
-    try {
-      final api = ref.read(apiClientProvider);
-      final result = await api.login('google', 'dev_user_${DateTime.now().millisecondsSinceEpoch}');
-      ref.read(currentUserProvider.notifier).set(result['user'] as Map<String, dynamic>);
-      if (mounted) context.go('/');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('로그인 실패: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -178,27 +163,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                   ),
-              ],
-
-              // Dev login (debug mode only)
-              if (kDebugMode) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: 320,
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    onPressed: _loading ? null : _devLogin,
-                    icon: const Icon(Icons.developer_mode, size: 18),
-                    label: const Text('개발자 로그인 (테스트)', style: TextStyle(fontSize: 14)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.goldLight,
-                      side: const BorderSide(color: AppColors.gold),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
               ],
 
               const SizedBox(height: 16),
