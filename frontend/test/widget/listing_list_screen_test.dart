@@ -20,9 +20,9 @@ void main() {
     // These tests are skipped until the ApiClient is made injectable/mockable.
     // The render expectations document what SHOULD be verified.
 
-    test('renders app bar with title "기란장터"', skip: true, () {
-      // Expected: AppBar contains Text("기란장터") with gold color, fontSize 22
-      // The title is always rendered regardless of loading state.
+    test('renders app bar with logo image', skip: true, () {
+      // Expected: AppBar contains Image.asset logo (height: 32)
+      // The logo is always rendered regardless of loading state.
       // Skipped: ListingListScreen calls api.getListings() in initState,
       // leaving pending Dio timers. Requires ApiClient mock to test in isolation.
     });
