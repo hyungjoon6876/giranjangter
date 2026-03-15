@@ -86,6 +86,7 @@ func main() {
 		// Public routes
 		v1.GET("/servers", listServers(db))
 		v1.GET("/categories", listCategories(db))
+		v1.GET("/items/search", searchItems(db))
 
 		// Auth routes
 		v1.POST("/auth/login", handleLogin(db, auth, cfg))
