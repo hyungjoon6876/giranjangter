@@ -35,9 +35,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
   lincle-web:
     build:
@@ -50,9 +51,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
     depends_on:
       lincle-api:
         condition: service_healthy
@@ -65,11 +67,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      lincle-api:
-        condition: service_healthy
-      lincle-web:
-        condition: service_healthy
     restart: unless-stopped
 
 volumes:
