@@ -8,9 +8,15 @@ interface ChatListItemProps {
 }
 
 export function ChatListItem({ chat, isActive, onClick }: ChatListItemProps) {
+  const label = chat.unreadCount > 0
+    ? `${chat.counterparty.nickname} — ${chat.unreadCount}개 안 읽은 메시지`
+    : chat.counterparty.nickname;
+
   return (
     <button
       onClick={onClick}
+      aria-current={isActive ? "true" : undefined}
+      aria-label={label}
       className={`w-full text-left p-3 border-b border-border transition-colors ${
         isActive ? "bg-[rgba(74,127,181,0.15)] border-l-2 border-l-gold" : "hover:bg-medium"
       }`}
@@ -26,7 +32,7 @@ export function ChatListItem({ chat, isActive, onClick }: ChatListItemProps) {
         <div className="text-sm text-text-secondary truncate mt-1">{chat.lastMessage.bodyText}</div>
       )}
       {chat.unreadCount > 0 && (
-        <span className="inline-block mt-1 bg-gold text-darkest text-xs px-1.5 py-0.5 rounded-full">
+        <span aria-hidden="true" className="inline-block mt-1 bg-gold text-darkest text-xs px-1.5 py-0.5 rounded-full">
           {chat.unreadCount}
         </span>
       )}
