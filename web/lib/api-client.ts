@@ -133,7 +133,25 @@ class ApiClient {
 
   // Chat
   async createChat(listingId: string): Promise<{ chatRoomId: string }> {
-    return this.fetch(`/listings/${listingId}/chats`, { method: "POST" });
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (this.accessToken) headers["Authorization"] = `Bearer ${this.accessToken}`;
+
+    const res = await fetch(`${API_BASE}/listings/${listingId}/chats`, {
+      method: "POST",
+      headers,
+    });
+
+    // 409 = chat room already exists; backend returns the existing chatRoomId
+    if (res.status === 201 || res.status === 409) {
+      return res.json();
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
+      throw err;
+    }
+
+    return res.json();
   }
 
   async getChats(): Promise<PaginatedResponse<ChatRoom>> {
