@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useCreateListing } from "@/lib/hooks/use-listings";
+import { useToast } from "@/lib/hooks/use-toast";
 
 export default function CreateListingPage() {
   const router = useRouter();
   const createListing = useCreateListing();
+  const { addToast } = useToast();
   const { data: servers = [] } = useQuery({ queryKey: ["servers"], queryFn: () => apiClient.getServers() });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: () => apiClient.getCategories() });
 
@@ -38,8 +40,8 @@ export default function CreateListingPage() {
     try {
       await createListing.mutateAsync(data);
       router.push("/");
-    } catch (e) {
-      alert(`등록 실패: ${JSON.stringify(e)}`);
+    } catch {
+      addToast("error", "등록에 실패했습니다");
     }
   };
 
@@ -72,16 +74,16 @@ export default function CreateListingPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>서버 *</label>
-            <select className={inputClass} value={form.serverId} onChange={(e) => update("serverId", e.target.value)} required>
+            <label htmlFor="serverId" className={labelClass}>서버 *</label>
+            <select id="serverId" className={inputClass} value={form.serverId} onChange={(e) => update("serverId", e.target.value)} required aria-required="true">
               <option value="">선택</option>
               {servers.map((s) => <option key={s.serverId} value={s.serverId}>{s.serverName}</option>)}
             </select>
           </div>
 
           <div>
-            <label className={labelClass}>카테고리 *</label>
-            <select className={inputClass} value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)} required>
+            <label htmlFor="categoryId" className={labelClass}>카테고리 *</label>
+            <select id="categoryId" className={inputClass} value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)} required aria-required="true">
               <option value="">선택</option>
               {categories.filter((c) => !c.parentId).map((c) => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
             </select>
@@ -90,12 +92,12 @@ export default function CreateListingPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>아이템명 *</label>
-            <input className={inputClass} value={form.itemName} onChange={(e) => update("itemName", e.target.value)} required />
+            <label htmlFor="itemName" className={labelClass}>아이템명 *</label>
+            <input id="itemName" className={inputClass} value={form.itemName} onChange={(e) => update("itemName", e.target.value)} required aria-required="true" />
           </div>
           <div>
-            <label className={labelClass}>강화 수치 (선택)</label>
-            <input className={inputClass} type="number" value={form.enhancementLevel} onChange={(e) => update("enhancementLevel", e.target.value)} />
+            <label htmlFor="enhancementLevel" className={labelClass}>강화 수치 (선택)</label>
+            <input id="enhancementLevel" className={inputClass} type="number" value={form.enhancementLevel} onChange={(e) => update("enhancementLevel", e.target.value)} />
           </div>
         </div>
 
@@ -103,13 +105,13 @@ export default function CreateListingPage() {
         <h3 className={sectionClass}>상세 정보</h3>
 
         <div>
-          <label className={labelClass}>제목 *</label>
-          <input className={inputClass} value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="예: 집행검 +9 급처합니다" required minLength={2} />
+          <label htmlFor="title" className={labelClass}>제목 *</label>
+          <input id="title" className={inputClass} value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="예: 집행검 +9 급처합니다" required aria-required="true" minLength={2} />
         </div>
 
         <div>
-          <label className={labelClass}>설명 *</label>
-          <textarea className={`${inputClass} h-28`} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="아이템 상세 설명" required minLength={10} />
+          <label htmlFor="description" className={labelClass}>설명 *</label>
+          <textarea id="description" className={`${inputClass} h-28`} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="아이템 상세 설명" required aria-required="true" minLength={10} />
         </div>
 
         {/* Section: 가격 */}
@@ -117,16 +119,16 @@ export default function CreateListingPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>가격 유형</label>
-            <select className={inputClass} value={form.priceType} onChange={(e) => update("priceType", e.target.value)}>
+            <label htmlFor="priceType" className={labelClass}>가격 유형</label>
+            <select id="priceType" className={inputClass} value={form.priceType} onChange={(e) => update("priceType", e.target.value)} aria-required="true">
               <option value="fixed">고정가</option>
               <option value="negotiable">협상가능</option>
               <option value="offer">제안받음</option>
             </select>
           </div>
           <div>
-            <label className={labelClass}>가격 (원)</label>
-            <input className={inputClass} type="number" value={form.priceAmount} onChange={(e) => update("priceAmount", e.target.value)} disabled={form.priceType === "offer"} />
+            <label htmlFor="priceAmount" className={labelClass}>가격 (원)</label>
+            <input id="priceAmount" className={inputClass} type="number" value={form.priceAmount} onChange={(e) => update("priceAmount", e.target.value)} disabled={form.priceType === "offer"} />
           </div>
         </div>
 
@@ -134,8 +136,8 @@ export default function CreateListingPage() {
         <h3 className={sectionClass}>거래</h3>
 
         <div>
-          <label className={labelClass}>거래 방식</label>
-          <select className={inputClass} value={form.tradeMethod} onChange={(e) => update("tradeMethod", e.target.value)}>
+          <label htmlFor="tradeMethod" className={labelClass}>거래 방식</label>
+          <select id="tradeMethod" className={inputClass} value={form.tradeMethod} onChange={(e) => update("tradeMethod", e.target.value)} aria-required="true">
             <option value="in_game">인게임</option>
             <option value="offline_pc_bang">PC방/오프라인</option>
             <option value="either">무관</option>
