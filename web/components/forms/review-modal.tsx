@@ -41,6 +41,7 @@ export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewMo
             <button
               key={r}
               type="button"
+              aria-pressed={rating === r}
               onClick={() => setRating(r)}
               className={`flex-1 py-3 rounded-lg text-sm font-medium border transition-colors ${
                 rating === r
@@ -53,6 +54,7 @@ export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewMo
           ))}
         </div>
         <textarea
+          aria-label="코멘트"
           className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold h-24 placeholder:text-text-dim"
           placeholder="한줄 코멘트 (선택)"
           value={comment}

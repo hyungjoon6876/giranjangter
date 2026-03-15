@@ -63,6 +63,11 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
                 연결이 끊어졌습니다. 재연결 중...
               </div>
             )}
+            {connectionStatus === "disconnected" && (
+              <div role="alert" className="bg-[#e74c3c]/10 text-[#e74c3c] text-xs text-center py-2 px-4">
+                연결이 끊어졌습니다. 페이지를 새로고침해주세요.
+              </div>
+            )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
               {messages.map((m) => (
                 <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId} />

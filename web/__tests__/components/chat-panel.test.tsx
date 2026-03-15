@@ -58,9 +58,11 @@ describe("ChatPanel — SSE banner", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("does not show banner when SSE is disconnected", () => {
+  it("shows disconnected banner when SSE is disconnected", () => {
     renderWithSSE("disconnected");
-    expect(screen.queryByRole("alert")).toBeNull();
+    const alert = screen.getByRole("alert");
+    expect(alert).toBeDefined();
+    expect(alert.textContent).toContain("새로고침");
   });
 
   it("does not show banner when no active chat", () => {

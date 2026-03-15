@@ -35,14 +35,23 @@ export function useSSE() {
     };
 
     es.addEventListener("new_message", (e) => {
-      const data = JSON.parse(e.data);
-      qc.invalidateQueries({ queryKey: ["messages", data.chatRoomId] });
-      qc.invalidateQueries({ queryKey: ["chats"] });
+      try {
+        const data = JSON.parse(e.data);
+        qc.invalidateQueries({ queryKey: ["messages", data.chatRoomId] });
+        qc.invalidateQueries({ queryKey: ["chats"] });
+      } catch (err) {
+        console.error("[SSE] Failed to parse new_message:", err);
+      }
     });
 
-    es.addEventListener("status_change", () => {
-      qc.invalidateQueries({ queryKey: ["listings"] });
-      qc.invalidateQueries({ queryKey: ["chats"] });
+    es.addEventListener("status_change", (e) => {
+      try {
+        if (e.data) JSON.parse(e.data);
+        qc.invalidateQueries({ queryKey: ["listings"] });
+        qc.invalidateQueries({ queryKey: ["chats"] });
+      } catch (err) {
+        console.error("[SSE] Failed to parse status_change:", err);
+      }
     });
 
     es.onerror = () => {

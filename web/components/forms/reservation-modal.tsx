@@ -42,15 +42,15 @@ export function ReservationModal({ open, onClose, chatId, onCreated }: Reservati
     <Modal open={open} onClose={onClose} title="예약 제안">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <input type="date" className={inputClass} value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} required />
-          <input type="time" className={inputClass} value={form.scheduledTime} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} required />
+          <input type="date" aria-label="거래 날짜" className={inputClass} value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} required />
+          <input type="time" aria-label="거래 시간" className={inputClass} value={form.scheduledTime} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} required />
         </div>
-        <select className={inputClass} value={form.meetingType} onChange={(e) => setForm({ ...form, meetingType: e.target.value })}>
+        <select aria-label="접선 방식" className={inputClass} value={form.meetingType} onChange={(e) => setForm({ ...form, meetingType: e.target.value })}>
           <option value="in_game">인게임</option>
           <option value="offline_pc_bang">PC방/오프라인</option>
         </select>
-        <input className={inputClass} placeholder="접선 장소" value={form.meetingPointText} onChange={(e) => setForm({ ...form, meetingPointText: e.target.value })} />
-        <textarea className={`${inputClass} h-20`} placeholder="메모 (선택)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <input aria-label="접선 장소" className={inputClass} placeholder="접선 장소" value={form.meetingPointText} onChange={(e) => setForm({ ...form, meetingPointText: e.target.value })} />
+        <textarea aria-label="메모" className={`${inputClass} h-20`} placeholder="메모 (선택)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         <button type="submit" disabled={submitting} className="w-full btn-gold-gradient text-white py-3 rounded-lg font-semibold disabled:opacity-50">
           {submitting ? "제안 중..." : "예약 제안"}
         </button>

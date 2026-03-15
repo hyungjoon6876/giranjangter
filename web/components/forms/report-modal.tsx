@@ -53,6 +53,7 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
           ))}
         </div>
         <textarea
+          aria-label="상세 설명"
           className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold h-20 placeholder:text-text-dim"
           placeholder="상세 설명 (선택)"
           value={description}

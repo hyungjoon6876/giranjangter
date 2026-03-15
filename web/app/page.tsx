@@ -8,6 +8,7 @@ import { ListingFilters } from "@/components/listing/listing-filters";
 import { ListingGrid } from "@/components/listing/listing-grid";
 import { ListingSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -20,7 +21,7 @@ export default function HomePage() {
     queryFn: () => apiClient.getServers(),
   });
 
-  const { data, isLoading } = useListings({
+  const { data, isLoading, isError, refetch } = useListings({
     serverId: serverId ?? undefined,
     q: search || undefined,
     sort,
@@ -78,7 +79,9 @@ export default function HomePage() {
           onSearchChange={setSearch}
         />
 
-        {isLoading ? (
+        {isError ? (
+          <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} autoFocus />
+        ) : isLoading ? (
           <ListingSkeleton />
         ) : !data?.data.length ? (
           search ? (
