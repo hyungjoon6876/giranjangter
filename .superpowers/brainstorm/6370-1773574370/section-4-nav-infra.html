@@ -1,0 +1,89 @@
+<h2>섹션 4: 네비게이션 인프라</h2>
+<p class="subtitle">헤더, 하단 탭바, 사이드바 등 전체 앱을 감싸는 네비게이션의 접근성을 개선합니다.</p>
+
+<div class="section">
+  <h3>4-A. Skip-to-Content 링크</h3>
+  <div class="mockup">
+    <div class="mockup-header">키보드 첫 Tab 시 나타나는 링크</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="background:#c4a35a;color:#0a0e17;padding:8px 16px;border-radius:6px;display:inline-block;font-size:14px;font-weight:bold;">
+        본문으로 건너뛰기
+      </div>
+      <p style="font-size:12px;color:#a0a0a0;margin-top:12px;">
+        → 평소에는 화면 밖에 숨겨져 있음 (sr-only + focus:not-sr-only)<br/>
+        → Tab 키를 누르면 화면 상단에 나타남<br/>
+        → 클릭/Enter 시 main 콘텐츠로 포커스 이동<br/>
+        → WCAG 2.4.1 필수 요구사항
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>4-B. 헤더 접근성</h3>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li><code>&lt;header role="banner"&gt;</code> 랜드마크 추가</li>
+    <li>데스크탑 네비 링크: <code>&lt;nav aria-label="메인 메뉴"&gt;</code></li>
+    <li>활성 페이지 링크: <code>aria-current="page"</code></li>
+    <li>알림 아이콘: <code>aria-label="알림"</code> + 뱃지 있으면 <code>aria-label="알림 3건"</code></li>
+    <li>프로필 아이콘: <code>aria-label="내 프로필"</code></li>
+    <li>SVG 아이콘: <code>aria-hidden="true"</code> (부모 링크가 라벨을 가지므로)</li>
+    <li>검색 input: <code>aria-label="매물 검색"</code></li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>4-C. 하단 탭바 접근성 (모바일)</h3>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li><code>&lt;nav aria-label="하단 메뉴"&gt;</code> 랜드마크</li>
+    <li>활성 탭: <code>aria-current="page"</code></li>
+    <li>각 탭에 <code>aria-label</code> (예: "마켓 - 현재 페이지")</li>
+    <li>SVG 아이콘: <code>aria-hidden="true"</code></li>
+    <li>focus-visible 스타일: <code>focus-visible:ring-2 focus-visible:ring-gold</code></li>
+    <li>알림 뱃지 (채팅 탭): <code>aria-label</code>에 건수 포함</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>4-D. 키보드 단축키 (PC 데스크탑)</h3>
+  <div class="mockup">
+    <div class="mockup-header">데스크탑 사용자를 위한 단축키</div>
+    <div class="mockup-body" style="padding:16px;">
+      <table style="width:100%;font-size:13px;color:#a0a0a0;border-collapse:collapse;">
+        <tr style="border-bottom:1px solid #2a3045;">
+          <td style="padding:8px;"><code style="background:#1a2035;padding:2px 6px;border-radius:4px;color:#c4a35a;">⌘K / Ctrl+K</code></td>
+          <td style="padding:8px;">검색 포커스</td>
+        </tr>
+        <tr style="border-bottom:1px solid #2a3045;">
+          <td style="padding:8px;"><code style="background:#1a2035;padding:2px 6px;border-radius:4px;color:#c4a35a;">Escape</code></td>
+          <td style="padding:8px;">모달/검색 닫기</td>
+        </tr>
+        <tr style="border-bottom:1px solid #2a3045;">
+          <td style="padding:8px;"><code style="background:#1a2035;padding:2px 6px;border-radius:4px;color:#c4a35a;">?</code></td>
+          <td style="padding:8px;">단축키 도움말 표시</td>
+        </tr>
+      </table>
+      <p style="font-size:11px;color:#6a7080;margin-top:12px;">
+        → useKeyboardShortcuts 커스텀 훅으로 구현<br/>
+        → input/textarea 포커스 중에는 비활성화<br/>
+        → 최소한의 단축키만 제공 (과도한 단축키는 오히려 혼란)
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>4-E. 네비게이션 뱃지 (읽지 않은 알림/채팅)</h3>
+  <p><strong>현재:</strong> 네비게이션에 읽지 않은 수 표시 없음</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>헤더 알림 아이콘: 빨간 dot 뱃지 (읽지 않은 알림 있을 때)</li>
+    <li>모바일 채팅 탭: 숫자 뱃지 (읽지 않은 메시지 수)</li>
+    <li>SSE <code>new_message</code> 이벤트로 실시간 업데이트</li>
+    <li>뱃지 숫자를 <code>aria-label</code>에 포함하여 스크린 리더 접근</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">섹션 4 괜찮으시면 "OK", 수정 사항 있으면 말씀해주세요.</p>
