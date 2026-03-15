@@ -17,6 +17,12 @@ import (
 	"github.com/jym/lincle/internal/oauth"
 )
 
+// hashToken creates a SHA-256 hash of a token string for secure DB storage.
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
 type loginRequest struct {
 	Provider      string `json:"provider" binding:"required"`
 	ProviderToken string `json:"providerToken" binding:"required"`
@@ -134,11 +140,9 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 		}
 
 		// Store refresh token hash in DB for server-side management
-		tokenHash := sha256.Sum256([]byte(refreshToken))
-		hashStr := hex.EncodeToString(tokenHash[:])
 		if _, err := db.Exec(
 			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-			uuid.New().String(), userID, hashStr, time.Now().Add(cfg.JWTRefreshTTL),
+			uuid.New().String(), userID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL),
 		); err != nil {
 			log.Printf("[auth] failed to store refresh token: %v", err)
 		}
@@ -182,12 +186,10 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 		}
 
 		// Verify refresh token exists in DB and hasn't expired
-		tokenHash := sha256.Sum256([]byte(req.RefreshToken))
-		hashStr := hex.EncodeToString(tokenHash[:])
 		var tokenID string
 		err = db.QueryRow(
 			"SELECT id FROM refresh_tokens WHERE token_hash = $1 AND expires_at > NOW()",
-			hashStr,
+			hashToken(req.RefreshToken),
 		).Scan(&tokenID)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -238,11 +240,9 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 		}
 
 		// Store new refresh token hash in DB
-		newTokenHash := sha256.Sum256([]byte(refreshToken))
-		newHashStr := hex.EncodeToString(newTokenHash[:])
 		if _, err := tx.Exec(
 			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-			uuid.New().String(), claims.UserID, newHashStr, time.Now().Add(cfg.JWTRefreshTTL),
+			uuid.New().String(), claims.UserID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL),
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
