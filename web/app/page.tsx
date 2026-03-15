@@ -1,24 +1,64 @@
-export default function Home() {
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import { useListings } from "@/lib/hooks/use-listings";
+import { ListingFilters } from "@/components/listing/listing-filters";
+import { ListingGrid } from "@/components/listing/listing-grid";
+import { Loading } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/empty-state";
+import Link from "next/link";
+
+export default function HomePage() {
+  const [serverId, setServerId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const { data: servers = [] } = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => apiClient.getServers(),
+  });
+
+  const { data, isLoading } = useListings({
+    serverId: serverId ?? undefined,
+    q: search || undefined,
+  });
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-3xl font-bold text-primary">기란장터</h1>
-      <p className="text-lg text-text-secondary">
-        리니지 클래식 아이템 거래 중개 플랫폼
-      </p>
-      <div className="flex gap-3">
-        <span className="rounded-lg bg-primary px-4 py-2 text-sm text-white">
-          Primary
-        </span>
-        <span className="rounded-lg bg-secondary px-4 py-2 text-sm text-white">
-          Secondary
-        </span>
-        <span className="rounded-lg bg-error px-4 py-2 text-sm text-white">
-          Error
-        </span>
-        <span className="rounded-lg bg-warning px-4 py-2 text-sm text-white">
-          Warning
-        </span>
+    <div className="p-4 lg:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold hidden lg:block">매물 목록</h1>
+        <Link
+          href="/create"
+          className="hidden lg:inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-dark transition-colors"
+        >
+          + 매물 등록
+        </Link>
       </div>
-    </main>
+
+      <ListingFilters
+        servers={servers}
+        selectedServer={serverId}
+        onServerChange={setServerId}
+        searchQuery={search}
+        onSearchChange={setSearch}
+      />
+
+      {isLoading ? (
+        <Loading />
+      ) : !data?.data.length ? (
+        <EmptyState title="매물이 없습니다" description="첫 매물을 등록해보세요!" />
+      ) : (
+        <ListingGrid listings={data.data} />
+      )}
+
+      {/* Mobile FAB */}
+      <Link
+        href="/create"
+        className="lg:hidden fixed right-4 bottom-20 bg-primary text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg hover:bg-primary-dark z-40"
+      >
+        +
+      </Link>
+    </div>
   );
 }
