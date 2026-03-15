@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,7 +17,8 @@ func handleListNotifications(db *sql.DB) gin.HandlerFunc {
 		userID := middleware.GetUserID(c)
 		rows, err := db.Query("SELECT id, type, title, body, reference_type, reference_id, deep_link, is_read, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50", userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()

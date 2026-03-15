@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -14,10 +15,10 @@ func handleCreateReport(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 		var req struct {
-			TargetType  string `json:"targetType" binding:"required"`
+			TargetType  string `json:"targetType" binding:"required,oneof=user listing message"`
 			TargetID    string `json:"targetId" binding:"required"`
-			ReportType  string `json:"reportType" binding:"required"`
-			Description string `json:"description" binding:"required"`
+			ReportType  string `json:"reportType" binding:"required,oneof=fake_listing scam_suspicion no_show harassment spam prohibited_item privacy_exposure other"`
+			Description string `json:"description" binding:"required,min=1,max=2000"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
@@ -40,7 +41,8 @@ func handleMyReports(db *sql.DB) gin.HandlerFunc {
 		userID := middleware.GetUserID(c)
 		rows, err := db.Query("SELECT id, target_type, target_id, report_type, status, created_at FROM reports WHERE reporter_user_id = $1 ORDER BY created_at DESC LIMIT 50", userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()

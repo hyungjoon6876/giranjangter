@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -97,7 +98,8 @@ func handleGetUserReviews(db *sql.DB) gin.HandlerFunc {
 			FROM reviews r JOIN user_profiles p ON r.reviewer_user_id = p.user_id
 			WHERE r.target_user_id = $1 ORDER BY r.created_at DESC LIMIT 50`, targetUserID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()

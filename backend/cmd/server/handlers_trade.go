@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -25,10 +26,22 @@ func handleCompleteTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		tx, err := db.Begin()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
+			return
+		}
+		defer tx.Rollback()
+
 		var proposer, resCp string
-		err := db.QueryRow("SELECT proposer_user_id, counterpart_user_id FROM reservations WHERE id = $1 AND listing_id = $2 AND status = 'confirmed'", req.ReservationID, listingID).Scan(&proposer, &resCp)
+		err = tx.QueryRow("SELECT proposer_user_id, counterpart_user_id FROM reservations WHERE id = $1 AND listing_id = $2 AND status = 'confirmed'", req.ReservationID, listingID).Scan(&proposer, &resCp)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "확정된 예약을 찾을 수 없습니다."}})
+			return
+		}
+
+		if userID != proposer && userID != resCp {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "거래 참여자만 완료 요청할 수 있습니다."}})
 			return
 		}
 
@@ -41,11 +54,16 @@ func handleCompleteTrade(db *sql.DB) gin.HandlerFunc {
 		now := time.Now().UTC()
 		expiresAt := now.Add(48 * time.Hour)
 
-		_, err = db.Exec(`INSERT INTO trade_completions (id, listing_id, reservation_id, requested_by_user_id, counterpart_user_id, status, completion_note, auto_confirm_at, created_at)
+		_, err = tx.Exec(`INSERT INTO trade_completions (id, listing_id, reservation_id, requested_by_user_id, counterpart_user_id, status, completion_note, auto_confirm_at, created_at)
 			VALUES ($1, $2, $3, $4, $5, 'pending_confirm', $6, $7, $8)`,
 			compID, listingID, req.ReservationID, userID, counterpart, req.CompletionNote, expiresAt, now)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "거래 완료 요청 실패"}})
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
 
@@ -127,7 +145,8 @@ func handleMyTrades(db *sql.DB) gin.HandlerFunc {
 			WHERE (cr.seller_user_id = $3 OR cr.buyer_user_id = $4)
 			ORDER BY cr.updated_at DESC LIMIT 50`, userID, userID, userID, userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()

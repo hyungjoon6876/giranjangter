@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_web/web_only.dart' as web;
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
 
@@ -16,11 +18,9 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   bool _googleInitialized = false;
+  StreamSubscription? _authSub;
 
-  // TODO: Google Cloud Console에서 발급받은 클라이언트 ID를 입력
-  // flutter run --dart-define=GOOGLE_CLIENT_ID=xxx --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx
   static const _clientId = String.fromEnvironment('GOOGLE_CLIENT_ID', defaultValue: '');
-  static const _serverClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
 
   @override
   void initState() {
@@ -28,27 +28,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _initGoogle();
   }
 
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initGoogle() async {
     if (_clientId.isEmpty) return;
     try {
-      await GoogleSignIn.instance.initialize(
-        clientId: _clientId,
-        serverClientId: _serverClientId.isNotEmpty ? _serverClientId : null,
+      final signIn = GoogleSignIn.instance;
+      await signIn.initialize(clientId: _clientId);
+
+      // Listen for authentication events (Web uses renderButton flow)
+      _authSub = signIn.authenticationEvents.listen(
+        (event) {
+          if (event is GoogleSignInAuthenticationEventSignIn) {
+            _handleSignIn(event.user);
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Google 로그인 실패: $error'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        },
       );
+
       setState(() => _googleInitialized = true);
     } catch (e) {
       debugPrint('Google Sign-In init failed: $e');
     }
   }
 
-  Future<void> _loginWithGoogle() async {
+  Future<void> _handleSignIn(GoogleSignInAccount user) async {
     setState(() => _loading = true);
     try {
-      final account = await GoogleSignIn.instance.authenticate(
-        scopeHint: ['email', 'profile'],
-      );
-
-      final idToken = account.authentication.idToken;
+      final idToken = user.authentication.idToken;
       if (idToken == null) {
         throw Exception('Google ID Token을 받지 못했습니다.');
       }
@@ -57,18 +77,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final result = await api.login('google', idToken);
       ref.read(currentUserProvider.notifier).set(result['user'] as Map<String, dynamic>);
       if (mounted) context.go('/');
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        // User cancelled — do nothing
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google 로그인 실패: ${e.description ?? e.code}')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('로그인 실패: $e')),
+          SnackBar(
+            content: Text('로그인 실패: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -132,48 +147,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
               const Spacer(flex: 2),
 
-              // Google Sign-In button
-              if (_googleInitialized || _clientId.isNotEmpty)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _loading ? null : _loginWithGoogle,
-                    icon: _loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
-                          )
-                        : const Icon(Icons.g_mobiledata, size: 24),
-                    label: const Text('Google로 시작하기'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFFDDDDDD)),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              // Google Sign-In: official rendered button (Web) or custom button (mobile)
+              if (_googleInitialized) ...[
+                if (kIsWeb)
+                  // Google official sign-in button for Web (full width, large)
+                  web.renderButton(
+                    configuration: web.GSIButtonConfiguration(
+                      type: web.GSIButtonType.standard,
+                      theme: web.GSIButtonTheme.filledBlue,
+                      size: web.GSIButtonSize.large,
+                      text: web.GSIButtonText.signinWith,
+                      shape: web.GSIButtonShape.rectangular,
+                      minimumWidth: 320,
+                    ),
+                  )
+                else if (GoogleSignIn.instance.supportsAuthenticate())
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _loading ? null : () async {
+                        try {
+                          await GoogleSignIn.instance.authenticate();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Google 로그인 실패: $e')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.g_mobiledata, size: 24),
+                      label: const Text('Google로 시작하기'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-                ),
+              ],
 
               // Dev login (debug mode only)
               if (kDebugMode) ...[
                 const SizedBox(height: 12),
                 SizedBox(
-                  width: double.infinity,
+                  width: 320,
+                  height: 44,
                   child: OutlinedButton.icon(
                     onPressed: _loading ? null : _devLogin,
-                    icon: const Icon(Icons.developer_mode, size: 20),
-                    label: const Text('개발자 로그인 (테스트)'),
+                    icon: const Icon(Icons.developer_mode, size: 18),
+                    label: const Text('개발자 로그인 (테스트)', style: TextStyle(fontSize: 14)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.goldLight,
                       side: const BorderSide(color: AppColors.gold),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),

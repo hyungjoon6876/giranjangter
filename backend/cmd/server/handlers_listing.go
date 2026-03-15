@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -70,8 +71,9 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 			now, now, now,
 		)
 		if err != nil {
+			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": fmt.Sprintf("매물 등록 실패: %v", err)},
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "매물 등록에 실패했습니다."},
 			})
 			return
 		}
@@ -168,8 +170,9 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 
 		rows, err := db.Query(query, args...)
 		if err != nil {
+			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()},
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."},
 			})
 			return
 		}
@@ -586,7 +589,8 @@ func handleMyListings(db *sql.DB) gin.HandlerFunc {
 
 		rows, err := db.Query(query, args...)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()

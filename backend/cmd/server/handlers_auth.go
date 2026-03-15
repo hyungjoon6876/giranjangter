@@ -151,7 +151,7 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 	}
 }
 
-func handleRefresh(auth *middleware.AuthMiddleware) gin.HandlerFunc {
+func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req refreshRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -165,6 +165,22 @@ func handleRefresh(auth *middleware.AuthMiddleware) gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 리프레시 토큰"},
+			})
+			return
+		}
+
+		// Check account status before issuing new tokens
+		var accountStatus string
+		err = db.QueryRow("SELECT account_status FROM users WHERE id = $1", claims.UserID).Scan(&accountStatus)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{"code": "UNAUTHORIZED", "message": "사용자를 찾을 수 없습니다."},
+			})
+			return
+		}
+		if accountStatus == "suspended" || accountStatus == "withdrawn" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": gin.H{"code": "FORBIDDEN", "message": "계정이 비활성 상태입니다."},
 			})
 			return
 		}

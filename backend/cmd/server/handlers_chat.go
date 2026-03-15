@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -45,7 +46,8 @@ func handleCreateChat(db *sql.DB) gin.HandlerFunc {
 			chatID, listingID, authorID, userID, now, now,
 		)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "채팅방 생성에 실패했습니다."}})
 			return
 		}
 
@@ -77,7 +79,8 @@ func handleListChats(db *sql.DB) gin.HandlerFunc {
 			ORDER BY COALESCE(cr.last_message_at, cr.created_at) DESC
 			LIMIT 50`, userID, userID, userID, userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()
@@ -118,7 +121,8 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 			chatID,
 		)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()
@@ -148,7 +152,7 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 		userID := middleware.GetUserID(c)
 
 		var req struct {
-			MessageType     string  `json:"messageType" binding:"required"`
+			MessageType     string  `json:"messageType" binding:"required,oneof=text image"`
 			BodyText        *string `json:"bodyText"`
 			ClientMessageID *string `json:"clientMessageId"`
 		}
@@ -220,6 +224,13 @@ func handleMarkRead(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
+		var chatCount int
+		db.QueryRow("SELECT COUNT(*) FROM chat_rooms WHERE id = $1 AND (seller_user_id = $2 OR buyer_user_id = $2)", chatID, userID).Scan(&chatCount)
+		if chatCount == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "채팅 참여자만 읽음 처리할 수 있습니다."}})
+			return
+		}
+
 		db.Exec(`INSERT INTO chat_read_cursors (chat_room_id, user_id, last_read_message_id, updated_at)
 			VALUES ($1, $2, $3, NOW())
 			ON CONFLICT(chat_room_id, user_id) DO UPDATE SET last_read_message_id = $4, updated_at = NOW()`,

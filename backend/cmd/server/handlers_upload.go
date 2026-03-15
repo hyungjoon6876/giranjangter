@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -40,6 +41,36 @@ func handleUploadImage(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		// Peek first 512 bytes for content type detection
+		src, err := file.Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "파일 열기 실패"},
+			})
+			return
+		}
+		defer src.Close()
+
+		buf := make([]byte, 512)
+		n, _ := src.Read(buf)
+		contentType := http.DetectContentType(buf[:n])
+		allowedTypes := map[string]bool{
+			"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true,
+		}
+		if !allowedTypes[contentType] {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": gin.H{"code": "VALIDATION_ERROR", "message": "이미지 파일만 업로드할 수 있습니다."},
+			})
+			return
+		}
+		// Reset file position for saving
+		if _, err := src.Seek(0, 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "파일 처리 실패"},
+			})
+			return
+		}
+
 		// Generate unique filename
 		imageID := uuid.New().String()
 		filename := imageID + ext
@@ -52,8 +83,17 @@ func handleUploadImage(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		dst := filepath.Join(uploadPath, filename)
-		if err := c.SaveUploadedFile(file, dst); err != nil {
+		dstPath := filepath.Join(uploadPath, filename)
+		dstFile, err := os.Create(dstPath)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "파일 저장 실패"},
+			})
+			return
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, src); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "파일 저장 실패"},
 			})

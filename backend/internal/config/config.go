@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -21,19 +22,33 @@ type Config struct {
 }
 
 func Load() *Config {
-	return &Config{
-		Env:            getEnv("ENV", "development"),
-		Port:           getEnv("PORT", "8080"),
-		DatabaseURL:    getEnv("DATABASE_URL", "postgres://lincle:lincle_db_2026@192.168.50.222:15433/lincle?sslmode=disable"),
-		RedisURL:       getEnv("REDIS_URL", ""),
-		JWTSecret:      getEnv("JWT_SECRET", "dev-secret-change-me"),
-		JWTAccessTTL:   parseDuration(getEnv("JWT_ACCESS_TTL", "15m")),
-		JWTRefreshTTL:  parseDuration(getEnv("JWT_REFRESH_TTL", "720h")),
-		UploadDir:      getEnv("UPLOAD_DIR", "./uploads"),
-		MaxUploadSize:  10 << 20, // 10MB
-		AllowedOrigins:  []string{"http://localhost:3000", "http://localhost:8081"},
+	cfg := &Config{
+		Env:             getEnv("ENV", "production"),
+		Port:            getEnv("PORT", "8080"),
+		DatabaseURL:     getEnv("DATABASE_URL", ""),
+		RedisURL:        getEnv("REDIS_URL", ""),
+		JWTSecret:       getEnv("JWT_SECRET", "dev-secret-change-me"),
+		JWTAccessTTL:    parseDuration(getEnv("JWT_ACCESS_TTL", "15m")),
+		JWTRefreshTTL:   parseDuration(getEnv("JWT_REFRESH_TTL", "720h")),
+		UploadDir:       getEnv("UPLOAD_DIR", "./uploads"),
+		MaxUploadSize:   10 << 20, // 10MB
+		AllowedOrigins: func() []string {
+			if origins := parseCSV(getEnv("ALLOWED_ORIGINS", "")); len(origins) > 0 {
+				return origins
+			}
+			return []string{"http://localhost:3000", "http://localhost:8081"}
+		}(),
 		GoogleClientIDs: parseCSV(getEnv("GOOGLE_CLIENT_IDS", "")),
 	}
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL environment variable is required")
+	}
+	if cfg.JWTSecret == "dev-secret-change-me" || len(cfg.JWTSecret) < 16 {
+		if !cfg.IsDev() {
+			log.Fatal("JWT_SECRET must be set to a secure value (min 16 chars) in production")
+		}
+	}
+	return cfg
 }
 
 func (c *Config) IsDev() bool {

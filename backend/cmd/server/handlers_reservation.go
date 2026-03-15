@@ -29,7 +29,7 @@ func handleCreateReservation(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var listingID, sellerID, buyerID string
-		err := db.QueryRow("SELECT listing_id, seller_user_id, buyer_user_id FROM chat_rooms WHERE id = $1", chatID).Scan(&listingID, &sellerID, &buyerID)
+		err := db.QueryRow("SELECT listing_id, seller_user_id, buyer_user_id FROM chat_rooms WHERE id = $1 AND (seller_user_id = $2 OR buyer_user_id = $2)", chatID, userID).Scan(&listingID, &sellerID, &buyerID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "채팅방을 찾을 수 없습니다."}})
 			return

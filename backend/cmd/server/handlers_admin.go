@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -16,7 +17,8 @@ func handleAdminListReports(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rows, err := db.Query("SELECT id, reporter_user_id, target_type, target_id, report_type, status, created_at FROM reports ORDER BY created_at DESC LIMIT 50")
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": err.Error()}})
+			log.Printf("error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
 		defer rows.Close()
@@ -63,7 +65,7 @@ func handleAdminReportAction(db *sql.DB) gin.HandlerFunc {
 		reportID := c.Param("reportId")
 		adminID := middleware.GetUserID(c)
 		var req struct {
-			ActionCode       string  `json:"actionCode" binding:"required"`
+			ActionCode       string  `json:"actionCode" binding:"required,oneof=warning temp_hide permanent_hide restrict suspend"`
 			TargetUserID     string  `json:"targetUserId" binding:"required"`
 			Memo             *string `json:"memo"`
 			RestrictionScope *string `json:"restrictionScope"`
@@ -147,7 +149,7 @@ func handleAdminRestrictUser(db *sql.DB) gin.HandlerFunc {
 		targetUserID := c.Param("userId")
 		adminID := middleware.GetUserID(c)
 		var req struct {
-			RestrictionScope string  `json:"restrictionScope" binding:"required"`
+			RestrictionScope string  `json:"restrictionScope" binding:"required,oneof=chat_send listing_create all"`
 			DurationDays     *int    `json:"durationDays"`
 			ReasonCode       string  `json:"reasonCode" binding:"required"`
 			Memo             *string `json:"memo"`

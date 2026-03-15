@@ -65,7 +65,7 @@ func main() {
 
 		// Auth routes
 		v1.POST("/auth/login", handleLogin(db, auth, cfg))
-		v1.POST("/auth/refresh", handleRefresh(auth))
+		v1.POST("/auth/refresh", handleRefresh(db, auth))
 
 		// Read-only routes (JWT only, no DB check — restricted users can read)
 		readOnly := v1.Group("")
