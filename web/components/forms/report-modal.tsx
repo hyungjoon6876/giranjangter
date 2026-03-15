@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
+import { useToast } from "@/lib/hooks/use-toast";
 
 const REPORT_REASONS = [
   { value: "scam", label: "사기 의심" },
@@ -20,6 +21,7 @@ interface ReportModalProps {
 }
 
 export function ReportModal({ open, onClose, targetType, targetId }: ReportModalProps) {
+  const { addToast } = useToast();
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,9 +33,9 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
     try {
       await apiClient.createReport({ targetType, targetId, reasonCode: reason, description: description || undefined });
       onClose();
-      alert("신고가 접수되었습니다");
+      addToast("success", "신고가 접수되었습니다");
     } catch (err) {
-      alert(`신고 실패: ${JSON.stringify(err)}`);
+      addToast("error", "신고 접수에 실패했습니다");
     } finally {
       setSubmitting(false);
     }
@@ -51,6 +53,7 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
           ))}
         </div>
         <textarea
+          aria-label="상세 설명"
           className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold h-20 placeholder:text-text-dim"
           placeholder="상세 설명 (선택)"
           value={description}

@@ -3,8 +3,8 @@ import type { Author } from "@/lib/types";
 export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex py-2">
-      <span className="w-28 text-text-secondary flex-shrink-0">{label}</span>
-      <span>{value}</span>
+      <dt className="w-28 text-text-secondary flex-shrink-0">{label}</dt>
+      <dd>{value}</dd>
     </div>
   );
 }

@@ -1,12 +1,23 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { ReservationModal } from "@/components/forms/reservation-modal";
+import { ToastContext, type ToastContextValue } from "@/lib/hooks/use-toast";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { createReservation: vi.fn() },
 }));
 
 afterEach(() => cleanup());
+
+const toastCtx: ToastContextValue = { toasts: [], addToast: vi.fn(), removeToast: vi.fn() };
+
+function renderModal(props: Parameters<typeof ReservationModal>[0]) {
+  return render(
+    <ToastContext.Provider value={toastCtx}>
+      <ReservationModal {...props} />
+    </ToastContext.Provider>,
+  );
+}
 
 const defaultProps = {
   open: true,
@@ -17,7 +28,7 @@ const defaultProps = {
 
 describe("ReservationModal", () => {
   it("renders form fields when open", () => {
-    render(<ReservationModal {...defaultProps} />);
+    renderModal(defaultProps);
     // Title in h2 and submit button both say "예약 제안", use getAllByText
     expect(screen.getAllByText("예약 제안").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByPlaceholderText("접선 장소")).toBeDefined();
@@ -25,12 +36,12 @@ describe("ReservationModal", () => {
   });
 
   it("does not render when closed", () => {
-    render(<ReservationModal {...defaultProps} open={false} />);
+    renderModal({ ...defaultProps, open: false });
     expect(screen.queryByText("예약 제안")).toBeNull();
   });
 
   it("submit button is disabled when required fields are empty", () => {
-    render(<ReservationModal {...defaultProps} />);
+    renderModal(defaultProps);
     // The date and time inputs are required; without them the form HTML validation prevents submit
     // but we check the button is present and enabled (submit is not disabled by default — HTML required handles it)
     const submitButton = screen.getByText("예약 제안", { selector: "button" });

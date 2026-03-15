@@ -36,4 +36,31 @@ describe("ListingCard", () => {
     render(<ListingCard listing={mockListing} />);
     expect(screen.getByText("판매")).toBeDefined();
   });
+
+  it("link has composed aria-label with item name, price, server", () => {
+    render(<ListingCard listing={mockListing} />);
+    const link = screen.getByLabelText("집행검 +7, 500,000원, 바츠");
+    expect(link).toBeDefined();
+    expect(link.tagName).toBe("A");
+  });
+
+  it("truncated title has title attribute", () => {
+    render(<ListingCard listing={mockListing} />);
+    const heading = screen.getByText("집행검 +7 팝니다");
+    expect(heading.getAttribute("title")).toBe("집행검 +7 팝니다");
+  });
+
+  it("card link has focus-visible ring classes", () => {
+    render(<ListingCard listing={mockListing} />);
+    const link = screen.getByLabelText("집행검 +7, 500,000원, 바츠");
+    expect(link.className).toContain("focus-visible:ring-2");
+    expect(link.className).toContain("focus-visible:ring-gold");
+  });
+
+  it("icon image has descriptive alt text", () => {
+    const listingWithIcon = { ...mockListing, iconUrl: "/icons/sword.png" };
+    render(<ListingCard listing={listingWithIcon} />);
+    const img = screen.getByAltText("집행검 아이콘");
+    expect(img).toBeDefined();
+  });
 });

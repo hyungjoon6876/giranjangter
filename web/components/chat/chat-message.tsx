@@ -8,7 +8,7 @@ interface ChatMessageProps {
 export function ChatMessage({ message, isMine }: ChatMessageProps) {
   if (message.messageType === "system") {
     return (
-      <div className="flex justify-center my-2">
+      <div className="flex justify-center my-2" role="status">
         <span className="bg-medium text-text-secondary text-xs px-3 py-1.5 rounded-full">
           {message.bodyText}
         </span>

@@ -31,7 +31,7 @@ describe("ChatMessage", () => {
     expect(bubble.className).toContain("bg-card");
   });
 
-  it("system message renders centered", () => {
+  it("system message renders centered with role=status", () => {
     const sysMsg: Message = {
       ...baseMessage,
       messageType: "system",
@@ -41,6 +41,7 @@ describe("ChatMessage", () => {
     const { container } = render(<ChatMessage message={sysMsg} isMine={false} />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.className).toContain("justify-center");
+    expect(wrapper.getAttribute("role")).toBe("status");
     expect(screen.getByText("예약이 확정되었습니다")).toBeDefined();
   });
 });

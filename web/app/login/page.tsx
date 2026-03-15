@@ -7,14 +7,16 @@ import { apiClient } from "@/lib/api-client";
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDevLogin = async () => {
     setLoading(true);
+    setError(null);
     try {
       await apiClient.login("google", `dev_user_${Date.now()}`);
       router.push("/");
-    } catch (e) {
-      alert(`로그인 실패: ${e}`);
+    } catch {
+      setError("로그인에 실패했습니다");
     } finally {
       setLoading(false);
     }
@@ -50,6 +52,10 @@ export default function LoginPage() {
         >
           둘러보기
         </button>
+
+        {error && (
+          <p role="alert" className="text-sm text-[#e74c3c] text-center mt-4">{error}</p>
+        )}
       </div>
     </div>
   );

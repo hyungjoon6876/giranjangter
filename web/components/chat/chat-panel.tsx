@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import type { ChatRoom, Message } from "@/lib/types";
+import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 import { ChatListItem } from "./chat-list-item";
 import { ChatMessage } from "./chat-message";
-import { ChatInput } from "./chat-input";
+import { ChatInput, type ChatInputHandle } from "./chat-input";
 
 interface ChatPanelProps {
   chats: ChatRoom[];
@@ -16,18 +17,26 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectChat, onSendMessage }: ChatPanelProps) {
+  const connectionStatus = useSSEConnectionStatus();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<ChatInputHandle>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (activeChatId) {
+      inputRef.current?.focus();
+    }
+  }, [activeChatId]);
 
   const activeChat = chats.find((c) => c.chatRoomId === activeChatId);
 
   return (
     <div className="flex h-[calc(100vh-64px)] lg:h-[calc(100vh-0px)]">
       {/* Chat list */}
-      <div className="w-72 border-r border-border bg-dark overflow-y-auto flex-shrink-0">
+      <div role="region" aria-label="대화 목록" className="w-72 border-r border-border bg-dark overflow-y-auto flex-shrink-0">
         <div className="p-3 border-b border-border font-semibold text-gold">
           채팅 <span className="text-text-dim font-normal text-sm">({chats.length})</span>
         </div>
@@ -49,13 +58,23 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               <div className="font-semibold text-sm text-text-primary">{activeChat.counterparty.nickname}</div>
               <div className="text-xs text-text-dim">{activeChat.listingTitle} · {activeChat.listingStatus}</div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            {connectionStatus === "reconnecting" && (
+              <div role="alert" className="bg-[#e67e22]/10 text-[#e67e22] text-xs text-center py-2 px-4">
+                연결이 끊어졌습니다. 재연결 중...
+              </div>
+            )}
+            {connectionStatus === "disconnected" && (
+              <div role="alert" className="bg-[#e74c3c]/10 text-[#e74c3c] text-xs text-center py-2 px-4">
+                연결이 끊어졌습니다. 페이지를 새로고침해주세요.
+              </div>
+            )}
+            <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
               {messages.map((m) => (
                 <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId} />
               ))}
               <div ref={bottomRef} />
             </div>
-            <ChatInput onSend={onSendMessage} />
+            <ChatInput ref={inputRef} onSend={onSendMessage} />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-text-secondary gap-3">

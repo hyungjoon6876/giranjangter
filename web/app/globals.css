@@ -30,4 +30,34 @@
     background: linear-gradient(135deg, #c4a35a, #d4af37);
     box-shadow: 0 4px 15px rgba(212,175,55,0.3);
   }
+
+  .skeleton {
+    background: linear-gradient(90deg, #1e2538 25%, #2a3045 50%, #1e2538 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+
+  .focus-gold {
+    outline: 2px solid #c4a35a;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: #1e2538;
+  }
+  .animate-spin {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

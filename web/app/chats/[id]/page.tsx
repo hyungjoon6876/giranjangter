@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMessages, useSendMessage } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
 import { ChatMessage } from "@/components/chat/chat-message";
-import { ChatInput } from "@/components/chat/chat-input";
+import { ChatInput, type ChatInputHandle } from "@/components/chat/chat-input";
 import { ReservationModal } from "@/components/forms/reservation-modal";
 import { ReportModal } from "@/components/forms/report-modal";
 import { Loading } from "@/components/ui/loading";
@@ -17,6 +17,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const { data, isLoading } = useMessages(id);
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<ChatInputHandle>(null);
   const [reservationOpen, setReservationOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -25,6 +26,10 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   if (isLoading) return <Loading />;
 
@@ -46,13 +51,13 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
           신고
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
         {messages.map((m) => (
           <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === me?.userId} />
         ))}
         <div ref={bottomRef} />
       </div>
-      <ChatInput onSend={(text) => sendMessage.mutate({ chatId: id, text })} />
+      <ChatInput ref={inputRef} onSend={(text) => sendMessage.mutate({ chatId: id, text })} />
 
       <ReservationModal
         open={reservationOpen}
