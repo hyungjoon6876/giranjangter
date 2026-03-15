@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useCreateListing } from "@/lib/hooks/use-listings";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 
 export default function CreateListingPage() {
   const router = useRouter();
+  const { isLoggedIn } = useAuthGuard();
   const createListing = useCreateListing();
   const { addToast } = useToast();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      router.replace("/login");
+    }
+  }, [isLoggedIn, router]);
+
+  if (!isLoggedIn) return null;
   const { data: servers = [] } = useQuery({ queryKey: ["servers"], queryFn: () => apiClient.getServers() });
   const { data: categories = [] } = useQuery({ queryKey: ["categories"], queryFn: () => apiClient.getCategories() });
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChats, useMessages, useSendMessage } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
+import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ChatListItem } from "@/components/chat/chat-list-item";
 import { ReservationModal } from "@/components/forms/reservation-modal";
@@ -13,8 +14,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 export default function ChatsPage() {
   const router = useRouter();
+  const { isLoggedIn } = useAuthGuard();
   const { data: me } = useMe();
   const { data: chatsData, isLoading } = useChats();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      router.replace("/login");
+    }
+  }, [isLoggedIn, router]);
+
+  if (!isLoggedIn) return null;
   const qc = useQueryClient();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [reservationOpen, setReservationOpen] = useState(false);
