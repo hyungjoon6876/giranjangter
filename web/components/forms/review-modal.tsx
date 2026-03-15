@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface ReviewModalProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface ReviewModalProps {
 }
 
 export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewModalProps) {
+  const { addToast } = useToast();
   const [rating, setRating] = useState<"positive" | "negative" | null>(null);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -25,7 +27,7 @@ export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewMo
       onCreated();
       onClose();
     } catch (err) {
-      alert(`리뷰 실패: ${JSON.stringify(err)}`);
+      addToast("error", "리뷰 제출에 실패했습니다");
     } finally {
       setSubmitting(false);
     }

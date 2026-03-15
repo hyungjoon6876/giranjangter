@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiClient } from "@/lib/api-client";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface ReservationModalProps {
   open: boolean;
@@ -12,6 +13,7 @@ interface ReservationModalProps {
 }
 
 export function ReservationModal({ open, onClose, chatId, onCreated }: ReservationModalProps) {
+  const { addToast } = useToast();
   const [form, setForm] = useState({ scheduledDate: "", scheduledTime: "", meetingType: "in_game", meetingPointText: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,7 +30,7 @@ export function ReservationModal({ open, onClose, chatId, onCreated }: Reservati
       onCreated();
       onClose();
     } catch (err) {
-      alert(`예약 실패: ${JSON.stringify(err)}`);
+      addToast("error", "예약 제안에 실패했습니다");
     } finally {
       setSubmitting(false);
     }

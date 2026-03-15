@@ -61,7 +61,7 @@ export default function HomePage() {
 
       <div id="listings">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold hidden lg:block text-text-primary">매물 목록</h1>
+          <h2 className="text-2xl font-bold hidden lg:block text-text-primary">매물 목록</h2>
           <Link
             href="/create"
             className="hidden lg:inline-flex items-center gap-2 btn-gold-gradient text-white px-4 py-2 rounded-lg text-sm transition-colors"
