@@ -6,10 +6,15 @@ import { assetUrl } from "@/lib/api-client";
 
 export function ListingCard({ listing }: { listing: Listing }) {
   const l = listing;
+  const borderColor = l.listingType === "sell" ? "border-l-gold" : "border-l-blue";
+
   return (
     <Link
       href={`/listings/${l.listingId}`}
-      className="block bg-white border border-border rounded-xl p-4 hover:shadow-md transition-shadow"
+      className={`group relative block bg-card border border-border rounded-xl p-4
+        hover:border-[rgba(196,163,90,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.1)]
+        hover:-translate-y-0.5 transition-all duration-300
+        border-l-4 ${borderColor}`}
     >
       <div className="flex items-center gap-2 mb-2">
         <TypeBadge type={l.listingType} />
@@ -22,23 +27,23 @@ export function ListingCard({ listing }: { listing: Listing }) {
           <img
             src={assetUrl(l.iconUrl)}
             alt=""
-            className="w-5 h-5"
+            className="w-10 h-10"
           />
         )}
         <span>{l.itemName}</span>
         {l.enhancementLevel != null && (
-          <span className="text-primary font-semibold">+{l.enhancementLevel}</span>
+          <span className="text-gold-bright font-bold">+{l.enhancementLevel}</span>
         )}
       </div>
       <div className="flex items-center mt-2">
-        <span className="text-lg font-bold">{formatPrice(l.priceAmount)}원</span>
+        <span className="text-lg font-bold text-gold">{formatPrice(l.priceAmount)}원</span>
         {l.priceType === "negotiable" && (
           <span className="text-xs text-text-secondary ml-1">(협상가능)</span>
         )}
         <div className="ml-auto flex items-center gap-3 text-xs text-text-secondary">
-          <span>👁 {l.viewCount}</span>
-          <span>♥ {l.favoriteCount}</span>
-          <span>💬 {l.chatCount}</span>
+          <span>조회 {l.viewCount}</span>
+          <span>찜 {l.favoriteCount}</span>
+          <span>채팅 {l.chatCount}</span>
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">

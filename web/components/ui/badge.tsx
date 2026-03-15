@@ -16,6 +16,6 @@ export function Badge({ label, color }: BadgeProps) {
 
 export function TypeBadge({ type }: { type: "sell" | "buy" }) {
   return type === "sell"
-    ? <Badge label="판매" color="#2563EB" />
-    : <Badge label="구매" color="#059669" />;
+    ? <Badge label="판매" color="#c4a35a" />
+    : <Badge label="구매" color="#5b9bd5" />;
 }

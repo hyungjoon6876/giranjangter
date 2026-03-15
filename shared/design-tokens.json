@@ -1,15 +1,26 @@
 {
   "colors": {
-    "primary": "#2563EB",
-    "primaryDark": "#1D4ED8",
-    "secondary": "#059669",
-    "error": "#DC2626",
-    "warning": "#F59E0B",
-    "surface": "#F8FAFC",
-    "textPrimary": "#1E293B",
-    "textSecondary": "#64748B",
-    "border": "#E2E8F0",
-    "white": "#FFFFFF"
+    "darkest": "#0a0e17",
+    "dark": "#121828",
+    "medium": "#1a2035",
+    "light": "#222940",
+    "card": "#1e2538",
+    "border": "#2a3045",
+    "gold": "#c4a35a",
+    "goldBright": "#d4af37",
+    "goldDim": "#8a7340",
+    "blue": "#4a7fb5",
+    "blueBright": "#5b9bd5",
+    "blueDim": "#2a4f75",
+    "textPrimary": "#e0e0e0",
+    "textSecondary": "#a0a0a0",
+    "textDim": "#6a7080",
+    "success": "#2ecc71",
+    "danger": "#e74c3c",
+    "white": "#ffffff",
+    "borderGold": "rgba(196,163,90,0.3)",
+    "glowGold": "rgba(212,175,55,0.15)",
+    "glowBlue": "rgba(74,127,181,0.15)"
   },
   "borderRadius": {
     "sm": "4px",
@@ -21,10 +32,10 @@
   "fontSize": {
     "xs": "11px",
     "sm": "12px",
-    "base": "14px",
-    "lg": "16px",
-    "xl": "18px",
-    "2xl": "22px",
-    "3xl": "28px"
+    "base": "15px",
+    "lg": "18px",
+    "xl": "24px",
+    "2xl": "32px",
+    "3xl": "48px"
   }
 }

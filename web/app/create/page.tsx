@@ -43,12 +43,13 @@ export default function CreateListingPage() {
     }
   };
 
-  const inputClass = "w-full border border-border rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-white";
+  const inputClass = "w-full bg-card border border-border rounded-lg px-4 py-3 text-sm text-text-primary outline-none focus:border-gold focus:ring-1 focus:ring-gold placeholder:text-text-dim";
   const labelClass = "block text-sm font-medium text-text-primary mb-1";
+  const sectionClass = "text-gold font-semibold text-sm tracking-wide uppercase mt-6 mb-3";
 
   return (
     <div className="max-w-lg mx-auto p-4 lg:p-6">
-      <h1 className="text-2xl font-bold mb-6">매물 등록</h1>
+      <h1 className="text-2xl font-bold mb-6 text-text-primary">매물 등록</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden">
@@ -58,7 +59,7 @@ export default function CreateListingPage() {
               type="button"
               onClick={() => update("listingType", t)}
               className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                form.listingType === t ? "bg-primary text-white" : "bg-white text-text-secondary"
+                form.listingType === t ? "btn-gold-gradient text-white" : "bg-card text-text-secondary"
               }`}
             >
               {t === "sell" ? "판매" : "구매"}
@@ -66,26 +67,40 @@ export default function CreateListingPage() {
           ))}
         </div>
 
-        <div>
-          <label className={labelClass}>서버 *</label>
-          <select className={inputClass} value={form.serverId} onChange={(e) => update("serverId", e.target.value)} required>
-            <option value="">선택</option>
-            {servers.map((s) => <option key={s.serverId} value={s.serverId}>{s.serverName}</option>)}
-          </select>
+        {/* Section: 기본 정보 */}
+        <h3 className={sectionClass}>기본 정보</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>서버 *</label>
+            <select className={inputClass} value={form.serverId} onChange={(e) => update("serverId", e.target.value)} required>
+              <option value="">선택</option>
+              {servers.map((s) => <option key={s.serverId} value={s.serverId}>{s.serverName}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClass}>카테고리 *</label>
+            <select className={inputClass} value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)} required>
+              <option value="">선택</option>
+              {categories.filter((c) => !c.parentId).map((c) => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
+            </select>
+          </div>
         </div>
 
-        <div>
-          <label className={labelClass}>카테고리 *</label>
-          <select className={inputClass} value={form.categoryId} onChange={(e) => update("categoryId", e.target.value)} required>
-            <option value="">선택</option>
-            {categories.filter((c) => !c.parentId).map((c) => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>아이템명 *</label>
+            <input className={inputClass} value={form.itemName} onChange={(e) => update("itemName", e.target.value)} required />
+          </div>
+          <div>
+            <label className={labelClass}>강화 수치 (선택)</label>
+            <input className={inputClass} type="number" value={form.enhancementLevel} onChange={(e) => update("enhancementLevel", e.target.value)} />
+          </div>
         </div>
 
-        <div>
-          <label className={labelClass}>아이템명 *</label>
-          <input className={inputClass} value={form.itemName} onChange={(e) => update("itemName", e.target.value)} required />
-        </div>
+        {/* Section: 상세 정보 */}
+        <h3 className={sectionClass}>상세 정보</h3>
 
         <div>
           <label className={labelClass}>제목 *</label>
@@ -97,7 +112,10 @@ export default function CreateListingPage() {
           <textarea className={`${inputClass} h-28`} value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="아이템 상세 설명" required minLength={10} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Section: 가격 */}
+        <h3 className={sectionClass}>가격</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>가격 유형</label>
             <select className={inputClass} value={form.priceType} onChange={(e) => update("priceType", e.target.value)}>
@@ -112,10 +130,8 @@ export default function CreateListingPage() {
           </div>
         </div>
 
-        <div>
-          <label className={labelClass}>강화 수치 (선택)</label>
-          <input className={inputClass} type="number" value={form.enhancementLevel} onChange={(e) => update("enhancementLevel", e.target.value)} />
-        </div>
+        {/* Section: 거래 */}
+        <h3 className={sectionClass}>거래</h3>
 
         <div>
           <label className={labelClass}>거래 방식</label>
@@ -129,7 +145,7 @@ export default function CreateListingPage() {
         <button
           type="submit"
           disabled={createListing.isPending}
-          className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+          className="w-full btn-gold-gradient text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
         >
           {createListing.isPending ? "등록 중..." : "등록하기"}
         </button>

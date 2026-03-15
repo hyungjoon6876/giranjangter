@@ -9,7 +9,7 @@ export default function MyListingsPage() {
   const { data, isLoading } = useMyListings();
 
   if (isLoading) return <Loading />;
-  if (!data?.data.length) return <EmptyState title="등록한 매물이 없습니다" />;
+  if (!data?.data.length) return <EmptyState title="등록한 매물이 없습니다" actionLabel="매물 등록하기" actionHref="/create" />;
 
   return (
     <div className="p-4 lg:p-6">

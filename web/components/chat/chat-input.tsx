@@ -19,18 +19,18 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 p-3 bg-white border-t border-border">
+    <form onSubmit={handleSubmit} className="flex gap-2 p-3 bg-dark border-t border-border">
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="메시지를 입력하세요"
-        className="flex-1 border border-border rounded-full px-4 py-2 text-sm outline-none focus:border-primary"
+        className="flex-1 bg-card border border-border rounded-full px-4 py-2 text-sm text-text-primary outline-none focus:border-gold placeholder:text-text-dim"
         disabled={disabled}
       />
       <button
         type="submit"
         disabled={disabled || !text.trim()}
-        className="bg-primary text-white px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+        className="btn-gold-gradient text-white px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
       >
         전송
       </button>

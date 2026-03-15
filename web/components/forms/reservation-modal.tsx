@@ -34,7 +34,7 @@ export function ReservationModal({ open, onClose, chatId, onCreated }: Reservati
     }
   };
 
-  const inputClass = "w-full border border-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary";
+  const inputClass = "w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold placeholder:text-text-dim";
 
   return (
     <Modal open={open} onClose={onClose} title="예약 제안">
@@ -49,7 +49,7 @@ export function ReservationModal({ open, onClose, chatId, onCreated }: Reservati
         </select>
         <input className={inputClass} placeholder="접선 장소" value={form.meetingPointText} onChange={(e) => setForm({ ...form, meetingPointText: e.target.value })} />
         <textarea className={`${inputClass} h-20`} placeholder="메모 (선택)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        <button type="submit" disabled={submitting} className="w-full bg-primary text-white py-3 rounded-lg font-semibold disabled:opacity-50">
+        <button type="submit" disabled={submitting} className="w-full btn-gold-gradient text-white py-3 rounded-lg font-semibold disabled:opacity-50">
           {submitting ? "제안 중..." : "예약 제안"}
         </button>
       </form>

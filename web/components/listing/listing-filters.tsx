@@ -20,8 +20,8 @@ export function ListingFilters({
           onClick={() => onServerChange(null)}
           className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
             selectedServer === null
-              ? "bg-primary text-white"
-              : "bg-slate-100 text-text-secondary hover:bg-slate-200"
+              ? "btn-gold-gradient text-white"
+              : "bg-medium text-text-secondary hover:bg-light"
           }`}
         >
           전체
@@ -32,8 +32,8 @@ export function ListingFilters({
             onClick={() => onServerChange(s.serverId)}
             className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
               selectedServer === s.serverId
-                ? "bg-primary text-white"
-                : "bg-slate-100 text-text-secondary hover:bg-slate-200"
+                ? "btn-gold-gradient text-white"
+                : "bg-medium text-text-secondary hover:bg-light"
             }`}
           >
             {s.serverName}
@@ -45,8 +45,8 @@ export function ListingFilters({
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="🔍 아이템 검색..."
-          className="w-full lg:w-60 bg-white border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          placeholder="아이템 검색..."
+          className="w-full lg:w-60 bg-card border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:border-gold focus:ring-1 focus:ring-gold placeholder:text-text-dim"
         />
       </div>
     </div>

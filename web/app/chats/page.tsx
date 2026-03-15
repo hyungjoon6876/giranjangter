@@ -25,7 +25,7 @@ export default function ChatsPage() {
   const messages = messagesData?.data ? [...messagesData.data].reverse() : [];
 
   if (isLoading) return <Loading />;
-  if (!chats.length) return <EmptyState title="채팅이 없습니다" description="매물에서 채팅을 시작해보세요" />;
+  if (!chats.length) return <EmptyState title="채팅이 없습니다" description="매물에서 채팅을 시작해보세요" actionLabel="매물 둘러보기" actionHref="/" />;
 
   // Desktop: split panel
   return (
@@ -36,7 +36,7 @@ export default function ChatsPage() {
           <div className="absolute top-0 right-0 z-10 p-2">
             <button
               onClick={() => setReservationOpen(true)}
-              className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+              className="px-3 py-1.5 text-xs font-medium btn-gold-gradient text-white rounded-lg transition-colors"
             >
               예약 제안
             </button>
