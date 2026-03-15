@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ChatRoom, Message } from "@/lib/types";
+import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 import { ChatListItem } from "./chat-list-item";
 import { ChatMessage } from "./chat-message";
 import { ChatInput, type ChatInputHandle } from "./chat-input";
@@ -16,6 +17,7 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectChat, onSendMessage }: ChatPanelProps) {
+  const connectionStatus = useSSEConnectionStatus();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ChatInputHandle>(null);
 
@@ -56,6 +58,11 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               <div className="font-semibold text-sm text-text-primary">{activeChat.counterparty.nickname}</div>
               <div className="text-xs text-text-dim">{activeChat.listingTitle} · {activeChat.listingStatus}</div>
             </div>
+            {connectionStatus === "reconnecting" && (
+              <div role="alert" className="bg-[#e67e22]/10 text-[#e67e22] text-xs text-center py-2 px-4">
+                연결이 끊어졌습니다. 재연결 중...
+              </div>
+            )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
               {messages.map((m) => (
                 <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId} />

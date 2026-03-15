@@ -1,13 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api-client";
+
+export type SSEConnectionStatus = "connected" | "reconnecting" | "disconnected";
+
+export const SSEContext = createContext<SSEConnectionStatus>("disconnected");
+
+export function useSSEConnectionStatus(): SSEConnectionStatus {
+  return useContext(SSEContext);
+}
+
+const MAX_RETRIES = 10;
 
 export function useSSE() {
   const qc = useQueryClient();
   const esRef = useRef<EventSource | null>(null);
-  const [reconnectCount, setReconnectCount] = useState(0);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<SSEConnectionStatus>("disconnected");
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
@@ -15,6 +28,11 @@ export function useSSE() {
 
     const es = new EventSource(`${API_BASE}/sse/connect?token=${token}`);
     esRef.current = es;
+
+    es.onopen = () => {
+      setConnectionStatus("connected");
+      retryCountRef.current = 0;
+    };
 
     es.addEventListener("new_message", (e) => {
       const data = JSON.parse(e.data);
@@ -30,9 +48,27 @@ export function useSSE() {
     es.onerror = () => {
       es.close();
       esRef.current = null;
-      setTimeout(() => setReconnectCount((c) => c + 1), 5_000);
+
+      if (retryCountRef.current >= MAX_RETRIES) {
+        setConnectionStatus("disconnected");
+        return;
+      }
+
+      setConnectionStatus("reconnecting");
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      retryCountRef.current += 1;
+      retryTimerRef.current = setTimeout(() => setReconnectTrigger((c) => c + 1), delay);
     };
 
-    return () => { es.close(); esRef.current = null; };
-  }, [qc, reconnectCount]);
+    return () => {
+      es.close();
+      esRef.current = null;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [qc, reconnectTrigger]);
+
+  return connectionStatus;
 }
