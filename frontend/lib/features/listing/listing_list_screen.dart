@@ -58,14 +58,10 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
         backgroundColor: AppColors.bg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text(
-          '기란장터',
-          style: TextStyle(
-            color: AppColors.gold,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
+        title: Image.asset(
+          'assets/images/logo.png',
+          height: 32,
+          fit: BoxFit.contain,
         ),
         actions: [
           IconButton(

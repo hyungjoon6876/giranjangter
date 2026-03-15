@@ -120,22 +120,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const Spacer(flex: 2),
 
               // Logo
-              Text(
-                '기란장터',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.gold,
-                  letterSpacing: 4,
-                  shadows: [
-                    Shadow(
-                      color: AppColors.gold.withValues(alpha: 0.4),
-                      blurRadius: 20,
-                    ),
-                  ],
-                ),
+              Image.asset(
+                'assets/images/logo.png',
+                height: 80,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               const Text(
                 '리니지 클래식 거래 플랫폼',
                 style: TextStyle(
