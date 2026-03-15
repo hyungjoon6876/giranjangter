@@ -46,6 +46,16 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Image ownership check
+		for _, imgID := range req.ImageIDs {
+			var ownerID string
+			err := db.QueryRow("SELECT user_id FROM uploaded_images WHERE id = $1", imgID).Scan(&ownerID)
+			if err != nil || ownerID != userID {
+				c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "본인이 업로드한 이미지만 사용할 수 있습니다."}})
+				return
+			}
+		}
+
 		// Price validation
 		if req.PriceType != "offer" && (req.PriceAmount == nil || *req.PriceAmount <= 0) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -110,7 +120,7 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 		query := `SELECT l.id, l.listing_type, l.title, l.item_name,
 			l.price_type, l.price_amount, l.enhancement_level,
 			l.server_id, s.name as server_name,
-			l.status, l.trade_method, l.view_count, l.favorite_count, l.chat_count,
+			l.status, l.trade_method, l.view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = l.id) as favorite_count, l.chat_count,
 			l.last_activity_at, l.created_at,
 			p.user_id as author_id, p.nickname, p.trust_badge, p.response_badge,
 			im.icon_id
@@ -302,7 +312,7 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 				l.status, l.visibility, l.trade_method,
 				l.preferred_meeting_area_text, l.available_time_text,
 				l.author_user_id, p.nickname, p.trust_badge, p.response_badge, p.completed_trade_count,
-				l.view_count, l.favorite_count, l.chat_count,
+				l.view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = l.id) as favorite_count, l.chat_count,
 				l.reserved_chat_room_id, l.last_activity_at, l.created_at, l.updated_at,
 				im.icon_id
 			FROM listings l
@@ -546,12 +556,14 @@ func handleFavoriteListing(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
-
-		_, err := db.Exec("INSERT INTO favorites (id, user_id, listing_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-			uuid.New().String(), userID, id)
-		if err == nil {
-			db.Exec("UPDATE listings SET favorite_count = favorite_count + 1 WHERE id = $1", id)
+		// Verify listing exists
+		var exists bool
+		if err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM listings WHERE id = $1 AND deleted_at IS NULL)", id).Scan(&exists); err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."}})
+			return
 		}
+		db.Exec("INSERT INTO favorites (id, user_id, listing_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+			uuid.New().String(), userID, id)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -560,11 +572,7 @@ func handleUnfavoriteListing(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
-
-		res, _ := db.Exec("DELETE FROM favorites WHERE user_id = $1 AND listing_id = $2", userID, id)
-		if n, _ := res.RowsAffected(); n > 0 {
-			db.Exec("UPDATE listings SET favorite_count = GREATEST(0, favorite_count - 1) WHERE id = $1", id)
-		}
+		db.Exec("DELETE FROM favorites WHERE user_id = $1 AND listing_id = $2", userID, id)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -575,7 +583,7 @@ func handleMyListings(db *sql.DB) gin.HandlerFunc {
 		status := c.Query("status")
 
 		query := `SELECT id, listing_type, title, item_name, price_type, price_amount,
-			status, view_count, favorite_count, chat_count, created_at
+			status, view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = listings.id) as favorite_count, chat_count, created_at
 			FROM listings WHERE author_user_id = $1 AND deleted_at IS NULL`
 		args := []interface{}{userID}
 		paramIdx := 2

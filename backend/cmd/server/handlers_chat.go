@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -107,6 +109,13 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		chatID := c.Param("chatId")
 		userID := middleware.GetUserID(c)
+		cursor := c.Query("cursor")
+		limitStr := c.DefaultQuery("limit", "50")
+
+		limit, _ := strconv.Atoi(limitStr)
+		if limit <= 0 || limit > 100 {
+			limit = 50
+		}
 
 		// Verify participant
 		var count int
@@ -116,10 +125,19 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		rows, err := db.Query(
-			"SELECT id, sender_user_id, message_type, body_text, metadata_json, sent_at FROM chat_messages WHERE chat_room_id = $1 AND deleted_at IS NULL ORDER BY sent_at DESC LIMIT 50",
-			chatID,
-		)
+		query := "SELECT id, sender_user_id, message_type, body_text, metadata_json, sent_at FROM chat_messages WHERE chat_room_id = $1 AND deleted_at IS NULL"
+		args := []interface{}{chatID}
+		paramIdx := 2
+
+		if cursor != "" {
+			query += fmt.Sprintf(" AND sent_at < $%d", paramIdx)
+			args = append(args, cursor)
+			paramIdx++
+		}
+
+		query += fmt.Sprintf(" ORDER BY sent_at DESC LIMIT %d", limit+1)
+
+		rows, err := db.Query(query, args...)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
@@ -142,7 +160,25 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 				"bodyText": body, "metadataJson": meta, "sentAt": sentAt.Format(time.RFC3339),
 			})
 		}
-		c.JSON(http.StatusOK, gin.H{"data": msgs})
+
+		hasMore := len(msgs) > limit
+		if hasMore {
+			msgs = msgs[:limit]
+		}
+
+		var nextCursor *string
+		if hasMore && len(msgs) > 0 {
+			last := msgs[len(msgs)-1]["sentAt"].(string)
+			nextCursor = &last
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data": msgs,
+			"cursor": gin.H{
+				"next":    nextCursor,
+				"hasMore": hasMore,
+			},
+		})
 	}
 }
 

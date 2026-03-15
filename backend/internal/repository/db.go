@@ -28,7 +28,7 @@ func InitDB(databaseURL string) (*sql.DB, error) {
 }
 
 func runMigrations(db *sql.DB) error {
-	paths := []string{"db/migrations/001_initial.sql", "db/migrations/002_alignment_system.sql", "db/migrations/003_item_master.sql", "db/migrations/004_item_icons.sql"}
+	paths := []string{"db/migrations/001_initial.sql", "db/migrations/002_alignment_system.sql", "db/migrations/003_item_master.sql", "db/migrations/004_item_icons.sql", "db/migrations/005_refresh_tokens.sql", "db/migrations/006_image_ownership.sql"}
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
 		if err != nil {

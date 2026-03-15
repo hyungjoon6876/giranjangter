@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -131,6 +133,16 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 			return
 		}
 
+		// Store refresh token hash in DB for server-side management
+		tokenHash := sha256.Sum256([]byte(refreshToken))
+		hashStr := hex.EncodeToString(tokenHash[:])
+		if _, err := db.Exec(
+			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
+			uuid.New().String(), userID, hashStr, time.Now().Add(cfg.JWTRefreshTTL),
+		); err != nil {
+			log.Printf("[auth] failed to store refresh token: %v", err)
+		}
+
 		status := http.StatusOK
 		if isNew {
 			status = http.StatusCreated
@@ -151,7 +163,7 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 	}
 }
 
-func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware) gin.HandlerFunc {
+func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req refreshRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -168,6 +180,24 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware) gin.HandlerFunc 
 			})
 			return
 		}
+
+		// Verify refresh token exists in DB and hasn't expired
+		tokenHash := sha256.Sum256([]byte(req.RefreshToken))
+		hashStr := hex.EncodeToString(tokenHash[:])
+		var tokenID string
+		err = db.QueryRow(
+			"SELECT id FROM refresh_tokens WHERE token_hash = $1 AND expires_at > NOW()",
+			hashStr,
+		).Scan(&tokenID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 리프레시 토큰"},
+			})
+			return
+		}
+
+		// Delete old token (rotation)
+		db.Exec("DELETE FROM refresh_tokens WHERE id = $1", tokenID)
 
 		// Check account status before issuing new tokens
 		var accountStatus string
@@ -191,6 +221,16 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware) gin.HandlerFunc 
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "토큰 생성 실패"},
 			})
 			return
+		}
+
+		// Store new refresh token hash in DB
+		newTokenHash := sha256.Sum256([]byte(refreshToken))
+		newHashStr := hex.EncodeToString(newTokenHash[:])
+		if _, err := db.Exec(
+			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
+			uuid.New().String(), claims.UserID, newHashStr, time.Now().Add(cfg.JWTRefreshTTL),
+		); err != nil {
+			log.Printf("[auth] failed to store new refresh token: %v", err)
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -296,5 +336,20 @@ func handleUpdateProfile(db *sql.DB) gin.HandlerFunc {
 		}
 
 		handleGetMe(db)(c)
+	}
+}
+
+func handleLogout(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := middleware.GetUserID(c)
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{"code": "UNAUTHORIZED", "message": "인증이 필요합니다."},
+			})
+			return
+		}
+		// Delete all refresh tokens for this user (logout from all devices)
+		db.Exec("DELETE FROM refresh_tokens WHERE user_id = $1", userID)
+		c.Status(http.StatusNoContent)
 	}
 }

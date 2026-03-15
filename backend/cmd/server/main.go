@@ -28,6 +28,13 @@ func main() {
 		}
 	}
 
+	// Cleanup expired refresh tokens on startup
+	if result, err := db.Exec("DELETE FROM refresh_tokens WHERE expires_at < NOW()"); err != nil {
+		log.Printf("refresh token cleanup warning: %v", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		log.Printf("cleaned up %d expired refresh tokens", n)
+	}
+
 	// SSE Broker
 	sseBroker := event.NewBroker()
 
@@ -65,7 +72,7 @@ func main() {
 
 		// Auth routes
 		v1.POST("/auth/login", handleLogin(db, auth, cfg))
-		v1.POST("/auth/refresh", handleRefresh(db, auth))
+		v1.POST("/auth/refresh", handleRefresh(db, auth, cfg))
 
 		// Read-only routes (JWT only, no DB check — restricted users can read)
 		readOnly := v1.Group("")
@@ -87,6 +94,9 @@ func main() {
 		write.Use(auth.RequireAuthWithDB(db))
 		write.Use(middleware.RejectIfRestricted())
 		{
+			// Auth
+			write.POST("/auth/logout", handleLogout(db))
+
 			write.PATCH("/me/profile", handleUpdateProfile(db))
 
 			// Listings
@@ -120,7 +130,7 @@ func main() {
 			write.POST("/notifications/read", handleReadNotifications(db))
 
 			// Upload
-			write.POST("/uploads/images", handleUploadImage(cfg))
+			write.POST("/uploads/images", handleUploadImage(cfg, db))
 
 			// Block
 			write.POST("/users/:userId/block", handleBlockUser(db))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,9 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jym/lincle/internal/config"
+	"github.com/jym/lincle/internal/middleware"
 )
 
-func handleUploadImage(cfg *config.Config) gin.HandlerFunc {
+func handleUploadImage(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		file, err := c.FormFile("file")
 		if err != nil {
@@ -101,6 +103,10 @@ func handleUploadImage(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		url := fmt.Sprintf("/uploads/images/%s", filename)
+
+		userID := middleware.GetUserID(c)
+		db.Exec("INSERT INTO uploaded_images (id, user_id, filename, url, content_type, size_bytes) VALUES ($1, $2, $3, $4, $5, $6)",
+			imageID, userID, filename, url, contentType, file.Size)
 
 		c.JSON(http.StatusCreated, gin.H{
 			"imageId":      imageID,

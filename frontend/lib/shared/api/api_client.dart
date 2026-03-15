@@ -143,8 +143,10 @@ class ApiClient {
     return res.data;
   }
 
-  Future<Map<String, dynamic>> getMessages(String chatId) async {
-    final res = await dio.get('/chats/$chatId/messages');
+  Future<Map<String, dynamic>> getMessages(String chatId, {String? cursor}) async {
+    final params = <String, dynamic>{};
+    if (cursor != null) params['cursor'] = cursor;
+    final res = await dio.get('/chats/$chatId/messages', queryParameters: params.isNotEmpty ? params : null);
     return res.data;
   }
 
