@@ -1,5 +1,5 @@
 {
-    # Cloudflare Tunnel handles HTTPS — Caddy only serves HTTP internally
+    # For local development without domain
     auto_https off
 }
 
@@ -17,26 +17,18 @@
         reverse_proxy lincle-api:8080
     }
 
-    # Static files (item icons, uploads)
-    handle /static/* {
-        reverse_proxy lincle-api:8080
-    }
-
+    # Uploaded files
     handle /uploads/* {
         reverse_proxy lincle-api:8080
     }
 
-    # Frontend (Flutter Web) — static files with SPA fallback
-    handle {
-        root * /srv/web
-        try_files {path} /index.html
-        file_server
+    # Static icons
+    handle /static/* {
+        reverse_proxy lincle-api:8080
+    }
 
-        # Security headers
-        header {
-            X-Content-Type-Options nosniff
-            X-Frame-Options DENY
-            Referrer-Policy strict-origin-when-cross-origin
-        }
+    # Frontend (Next.js)
+    handle {
+        reverse_proxy lincle-web:3000
     }
 }
