@@ -15,4 +15,22 @@ describe("EmptyState", () => {
     expect(screen.getByText("결과 없음")).toBeDefined();
     expect(screen.getByText("다른 검색어를 시도해보세요")).toBeDefined();
   });
+
+  it("renders title as h2", () => {
+    render(<EmptyState title="검색 결과가 없습니다" />);
+    const heading = screen.getByRole("heading", { level: 2 });
+    expect(heading.textContent).toBe("검색 결과가 없습니다");
+  });
+
+  it("icon has role=img with aria-label", () => {
+    render(<EmptyState title="검색 결과가 없습니다" />);
+    const icon = screen.getByRole("img", { name: "검색 결과가 없습니다" });
+    expect(icon).toBeDefined();
+  });
+
+  it("action link has aria-label", () => {
+    render(<EmptyState title="없음" actionLabel="매물 등록" actionHref="/listings/new" />);
+    const link = screen.getByLabelText("매물 등록");
+    expect(link.tagName).toBe("A");
+  });
 });
