@@ -196,10 +196,7 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 			return
 		}
 
-		// Delete old token (rotation)
-		db.Exec("DELETE FROM refresh_tokens WHERE id = $1", tokenID)
-
-		// Check account status before issuing new tokens
+		// Check account status FIRST (before deleting anything)
 		var accountStatus string
 		err = db.QueryRow("SELECT account_status FROM users WHERE id = $1", claims.UserID).Scan(&accountStatus)
 		if err != nil {
@@ -215,6 +212,23 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 			return
 		}
 
+		// Transaction for token rotation
+		tx, err := db.Begin()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
+			})
+			return
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec("DELETE FROM refresh_tokens WHERE id = $1", tokenID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
+			})
+			return
+		}
+
 		accessToken, refreshToken, err := auth.GenerateTokens(claims.UserID, claims.Role)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -226,11 +240,21 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 		// Store new refresh token hash in DB
 		newTokenHash := sha256.Sum256([]byte(refreshToken))
 		newHashStr := hex.EncodeToString(newTokenHash[:])
-		if _, err := db.Exec(
+		if _, err := tx.Exec(
 			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
 			uuid.New().String(), claims.UserID, newHashStr, time.Now().Add(cfg.JWTRefreshTTL),
 		); err != nil {
-			log.Printf("[auth] failed to store new refresh token: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
+			})
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
+			})
+			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{

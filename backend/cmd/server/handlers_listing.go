@@ -171,7 +171,7 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 		case "price_desc":
 			query += " ORDER BY l.price_amount DESC, l.created_at DESC"
 		case "popular":
-			query += " ORDER BY l.favorite_count DESC, l.created_at DESC"
+			query += " ORDER BY favorite_count DESC, l.created_at DESC"
 		default:
 			query += " ORDER BY l.last_activity_at DESC"
 		}
@@ -227,7 +227,7 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 				continue
 			}
 			item.LastActivityAt = lastActivity.Format(time.RFC3339)
-			item.CreatedAt = created.Format(time.RFC3339)
+			item.CreatedAt = created.Format(time.RFC3339Nano)
 			item.Author = gin.H{
 				"userId":        authorID,
 				"nickname":      nickname,

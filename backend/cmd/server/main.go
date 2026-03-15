@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jym/lincle/internal/config"
@@ -34,6 +35,22 @@ func main() {
 	} else if n, _ := result.RowsAffected(); n > 0 {
 		log.Printf("cleaned up %d expired refresh tokens", n)
 	}
+
+	// Periodic cleanup of expired refresh tokens (every 24 hours)
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			result, err := db.Exec("DELETE FROM refresh_tokens WHERE expires_at < NOW()")
+			if err != nil {
+				log.Printf("refresh token cleanup error: %v", err)
+				continue
+			}
+			if n, _ := result.RowsAffected(); n > 0 {
+				log.Printf("cleaned up %d expired refresh tokens", n)
+			}
+		}
+	}()
 
 	// SSE Broker
 	sseBroker := event.NewBroker()

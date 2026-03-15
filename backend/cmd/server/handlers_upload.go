@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -105,8 +106,15 @@ func handleUploadImage(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 		url := fmt.Sprintf("/uploads/images/%s", filename)
 
 		userID := middleware.GetUserID(c)
-		db.Exec("INSERT INTO uploaded_images (id, user_id, filename, url, content_type, size_bytes) VALUES ($1, $2, $3, $4, $5, $6)",
-			imageID, userID, filename, url, contentType, file.Size)
+		if _, err := db.Exec("INSERT INTO uploaded_images (id, user_id, filename, url, content_type, size_bytes) VALUES ($1, $2, $3, $4, $5, $6)",
+			imageID, userID, filename, url, contentType, file.Size); err != nil {
+			log.Printf("error: image DB insert failed: %v", err)
+			os.Remove(dstPath) // cleanup orphaned file
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{"code": "INTERNAL_ERROR", "message": "이미지 등록 실패"},
+			})
+			return
+		}
 
 		c.JSON(http.StatusCreated, gin.H{
 			"imageId":      imageID,

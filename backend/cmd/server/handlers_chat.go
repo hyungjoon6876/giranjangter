@@ -157,7 +157,7 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 			}
 			msgs = append(msgs, gin.H{
 				"messageId": id, "senderUserId": sender, "messageType": msgType,
-				"bodyText": body, "metadataJson": meta, "sentAt": sentAt.Format(time.RFC3339),
+				"bodyText": body, "metadataJson": meta, "sentAt": sentAt.Format(time.RFC3339Nano),
 			})
 		}
 
@@ -232,7 +232,7 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 			"senderUserId": userID,
 			"messageType":  req.MessageType,
 			"bodyText":     req.BodyText,
-			"sentAt":       now.Format(time.RFC3339),
+			"sentAt":       now.Format(time.RFC3339Nano),
 		}
 
 		// SSE broadcast to counterpart
