@@ -15,7 +15,7 @@ export function ListingFilters({
 }: ListingFiltersProps) {
   return (
     <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
-      <div role="group" aria-label="서버 필터" className="flex gap-2 overflow-x-auto pb-1">
+      <div role="group" aria-label="서버 필터" className="flex flex-wrap gap-2">
         <button
           onClick={() => onServerChange(null)}
           aria-pressed={selectedServer === null}
