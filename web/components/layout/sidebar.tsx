@@ -16,8 +16,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col w-52 bg-dark text-text-primary min-h-screen flex-shrink-0">
-      <div className="px-5 py-4 text-lg font-bold font-display text-gold-gradient border-b border-border">
-        기란장터
+      <div className="px-5 py-4 border-b border-border">
+        <img src="/logo.png" alt="기란JT" className="h-8" />
       </div>
       <nav className="flex-1 py-2">
         {NAV_ITEMS.map((item) => {
