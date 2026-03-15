@@ -227,4 +227,15 @@ class ApiClient {
     final res = await dio.get('/categories');
     return res.data['data'];
   }
+
+  // ── Item Search ──
+  Future<List<dynamic>> searchItems(String query, {String? categoryId}) async {
+    final params = <String, dynamic>{'q': query};
+    if (categoryId != null) params['categoryId'] = categoryId;
+    final res = await dio.get('/items/search', queryParameters: params);
+    return res.data['data'] ?? [];
+  }
+
+  /// Base URL without /api/v1 path, for static file access (icons etc.)
+  String get staticBaseUrl => dio.options.baseUrl.replaceAll('/api/v1', '');
 }

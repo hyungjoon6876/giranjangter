@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,8 +28,19 @@ class _ListingCreateScreenState extends ConsumerState<ListingCreateScreen> {
   final _enhancementCtrl = TextEditingController();
   bool _submitting = false;
 
+  // Item autocomplete state
+  Timer? _debounce;
+  List<dynamic> _itemSuggestions = [];
+  Map<String, dynamic>? _selectedItem;
+  final _itemFocusNode = FocusNode();
+  final _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+
   @override
   void dispose() {
+    _debounce?.cancel();
+    _removeOverlay();
+    _itemFocusNode.dispose();
     _titleCtrl.dispose();
     _itemNameCtrl.dispose();
     _descCtrl.dispose();
@@ -131,16 +144,18 @@ class _ListingCreateScreenState extends ConsumerState<ListingCreateScreen> {
                 final topLevel =
                     list.where((c) => c['parentId'] == null).toList();
                 return DropdownButtonFormField<String>(
+                  key: ValueKey(_categoryId),
                   decoration: _darkInput('카테고리 *'),
                   dropdownColor: AppColors.bgSurface,
                   style: const TextStyle(color: AppColors.textPrimary),
+                  value: _categoryId,
                   items: topLevel
                       .map((c) => DropdownMenuItem(
                             value: c['categoryId'] as String,
                             child: Text(c['categoryName']),
                           ))
                       .toList(),
-                  onChanged: (v) => _categoryId = v,
+                  onChanged: (v) => setState(() => _categoryId = v),
                   validator: (v) => v == null ? '카테고리를 선택해주세요' : null,
                 );
               },
@@ -155,13 +170,38 @@ class _ListingCreateScreenState extends ConsumerState<ListingCreateScreen> {
             ),
             const SizedBox(height: 14),
 
-            TextFormField(
-              controller: _itemNameCtrl,
-              style: const TextStyle(color: AppColors.textPrimary),
-              cursorColor: AppColors.gold,
-              decoration: _darkInput('아이템명 *'),
-              validator: (v) =>
-                  (v?.isEmpty ?? true) ? '아이템명을 입력해주세요' : null,
+            CompositedTransformTarget(
+              link: _layerLink,
+              child: TextFormField(
+                controller: _itemNameCtrl,
+                focusNode: _itemFocusNode,
+                style: const TextStyle(color: AppColors.textPrimary),
+                cursorColor: AppColors.gold,
+                decoration: _darkInput('아이템명 *', hint: '검색어를 입력하세요').copyWith(
+                  prefixIcon: _selectedItem != null && _selectedItem!['iconUrl'] != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: CachedNetworkImage(
+                            imageUrl: '${ref.read(apiClientProvider).staticBaseUrl}${_selectedItem!['iconUrl']}',
+                            width: 24,
+                            height: 24,
+                          ),
+                        )
+                      : null,
+                  suffixIcon: _selectedItem != null
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18, color: AppColors.textMuted),
+                          onPressed: () {
+                            _itemNameCtrl.clear();
+                            setState(() => _selectedItem = null);
+                          },
+                        )
+                      : const Icon(Icons.search, size: 18, color: AppColors.textMuted),
+                ),
+                validator: (v) =>
+                    (v?.isEmpty ?? true) ? '아이템명을 입력해주세요' : null,
+                onChanged: _onItemSearchChanged,
+              ),
             ),
             const SizedBox(height: 14),
 
@@ -352,6 +392,118 @@ class _ListingCreateScreenState extends ConsumerState<ListingCreateScreen> {
         ],
       ),
     );
+  }
+
+  // ── Item autocomplete methods ──
+
+  void _onItemSearchChanged(String query) {
+    _selectedItem = null;
+    _debounce?.cancel();
+    if (query.isEmpty) {
+      _removeOverlay();
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final api = ref.read(apiClientProvider);
+        final results = await api.searchItems(query);
+        if (!mounted) return;
+        _itemSuggestions = results;
+        if (results.isNotEmpty) {
+          _showOverlay();
+        } else {
+          _removeOverlay();
+        }
+      } catch (_) {
+        _removeOverlay();
+      }
+    });
+  }
+
+  void _showOverlay() {
+    _removeOverlay();
+    final api = ref.read(apiClientProvider);
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: MediaQuery.of(context).size.width - 32,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          offset: const Offset(0, 56),
+          showWhenUnlinked: false,
+          child: Material(
+            elevation: 8,
+            color: AppColors.bgElevated,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 220),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: _itemSuggestions.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                itemBuilder: (context, index) {
+                  final item = _itemSuggestions[index] as Map<String, dynamic>;
+                  final iconUrl = item['iconUrl'] as String?;
+                  return ListTile(
+                    dense: true,
+                    leading: iconUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: '${api.staticBaseUrl}$iconUrl',
+                            width: 32,
+                            height: 32,
+                            placeholder: (_, __) => const SizedBox(width: 32, height: 32),
+                            errorWidget: (_, __, ___) => const Icon(Icons.inventory_2, size: 24, color: AppColors.textMuted),
+                          )
+                        : const Icon(Icons.inventory_2, size: 24, color: AppColors.textMuted),
+                    title: Text(
+                      item['name'] as String,
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      item['categoryId'] as String? ?? '',
+                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                    ),
+                    onTap: () => _selectItem(item),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _selectItem(Map<String, dynamic> item) {
+    _itemNameCtrl.text = item['name'] as String;
+    final categories = ref.read(categoriesProvider).valueOrNull ?? [];
+    final itemCatId = item['categoryId'] as String?;
+
+    // Resolve to top-level category for the dropdown
+    String? resolvedCatId = itemCatId;
+    if (itemCatId != null) {
+      final cat = categories.cast<Map<String, dynamic>>().where((c) => c['categoryId'] == itemCatId).firstOrNull;
+      if (cat != null && cat['parentId'] != null) {
+        resolvedCatId = cat['parentId'] as String;
+      }
+    }
+
+    setState(() {
+      _selectedItem = item;
+      if (resolvedCatId != null) _categoryId = resolvedCatId;
+    });
+    _removeOverlay();
+    _itemFocusNode.unfocus();
   }
 
   Future<void> _submit() async {
