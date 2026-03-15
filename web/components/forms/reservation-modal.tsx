@@ -1,0 +1,58 @@
+"use client";
+
+import { useState } from "react";
+import { Modal } from "@/components/ui/modal";
+import { apiClient } from "@/lib/api-client";
+
+interface ReservationModalProps {
+  open: boolean;
+  onClose: () => void;
+  chatId: string;
+  onCreated: () => void;
+}
+
+export function ReservationModal({ open, onClose, chatId, onCreated }: ReservationModalProps) {
+  const [form, setForm] = useState({ scheduledDate: "", scheduledTime: "", meetingType: "in_game", meetingPointText: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await apiClient.createReservation(chatId, {
+        scheduledAt: `${form.scheduledDate}T${form.scheduledTime}:00Z`,
+        meetingType: form.meetingType,
+        meetingPointText: form.meetingPointText || undefined,
+        notes: form.notes || undefined,
+      });
+      onCreated();
+      onClose();
+    } catch (err) {
+      alert(`예약 실패: ${JSON.stringify(err)}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputClass = "w-full border border-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary";
+
+  return (
+    <Modal open={open} onClose={onClose} title="예약 제안">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <input type="date" className={inputClass} value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} required />
+          <input type="time" className={inputClass} value={form.scheduledTime} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} required />
+        </div>
+        <select className={inputClass} value={form.meetingType} onChange={(e) => setForm({ ...form, meetingType: e.target.value })}>
+          <option value="in_game">인게임</option>
+          <option value="offline_pc_bang">PC방/오프라인</option>
+        </select>
+        <input className={inputClass} placeholder="접선 장소" value={form.meetingPointText} onChange={(e) => setForm({ ...form, meetingPointText: e.target.value })} />
+        <textarea className={`${inputClass} h-20`} placeholder="메모 (선택)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <button type="submit" disabled={submitting} className="w-full bg-primary text-white py-3 rounded-lg font-semibold disabled:opacity-50">
+          {submitting ? "제안 중..." : "예약 제안"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
