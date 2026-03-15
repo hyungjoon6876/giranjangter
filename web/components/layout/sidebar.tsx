@@ -4,19 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", icon: "\u{1F3E0}", label: "\uB9E4\uBB3C" },
-  { href: "/chats", icon: "\u{1F4AC}", label: "\uCC44\uD305" },
-  { href: "/create", icon: "\u{1F4DD}", label: "\uB9E4\uBB3C \uB4F1\uB85D" },
-  { href: "/profile", icon: "\u{1F464}", label: "\uD504\uB85C\uD544" },
-  { href: "/notifications", icon: "\u{1F514}", label: "\uC54C\uB9BC" },
+  { href: "/", label: "매물" },
+  { href: "/chats", label: "채팅" },
+  { href: "/create", label: "매물 등록" },
+  { href: "/profile", label: "프로필" },
+  { href: "/notifications", label: "알림" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-52 bg-slate-800 text-white min-h-screen flex-shrink-0">
-      <div className="px-5 py-4 text-lg font-bold border-b border-slate-700">
+    <aside className="hidden lg:flex flex-col w-52 bg-dark text-text-primary min-h-screen flex-shrink-0">
+      <div className="px-5 py-4 text-lg font-bold font-display text-gold-gradient border-b border-border">
         기란장터
       </div>
       <nav className="flex-1 py-2">
@@ -30,11 +30,10 @@ export function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-5 py-3 text-sm transition-colors ${
                 isActive
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
+                  ? "bg-medium text-gold border-l-2 border-l-gold"
+                  : "text-text-secondary hover:bg-medium/50 hover:text-text-primary"
               }`}
             >
-              <span>{item.icon}</span>
               {item.label}
             </Link>
           );

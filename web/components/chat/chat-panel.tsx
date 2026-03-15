@@ -27,8 +27,8 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
   return (
     <div className="flex h-[calc(100vh-64px)] lg:h-[calc(100vh-0px)]">
       {/* Chat list */}
-      <div className="w-72 border-r border-border bg-white overflow-y-auto flex-shrink-0">
-        <div className="p-3 border-b border-border font-semibold">채팅 목록</div>
+      <div className="w-72 border-r border-border bg-dark overflow-y-auto flex-shrink-0">
+        <div className="p-3 border-b border-border font-semibold text-text-primary">채팅 목록</div>
         {chats.map((c) => (
           <ChatListItem
             key={c.chatRoomId}
@@ -40,10 +40,10 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
       </div>
 
       {/* Messages */}
-      <div className="flex-1 flex flex-col bg-surface">
+      <div className="flex-1 flex flex-col bg-darkest">
         {activeChat ? (
           <>
-            <div className="px-4 py-3 bg-white border-b border-border font-semibold text-sm">
+            <div className="px-4 py-3 bg-dark border-b border-border font-semibold text-sm text-text-primary">
               {activeChat.counterparty.nickname} · {activeChat.listingTitle}
             </div>
             <div className="flex-1 overflow-y-auto p-4">

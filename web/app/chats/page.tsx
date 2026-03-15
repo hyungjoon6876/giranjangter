@@ -36,7 +36,7 @@ export default function ChatsPage() {
           <div className="absolute top-0 right-0 z-10 p-2">
             <button
               onClick={() => setReservationOpen(true)}
-              className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+              className="px-3 py-1.5 text-xs font-medium btn-gold-gradient text-white rounded-lg transition-colors"
             >
               예약 제안
             </button>

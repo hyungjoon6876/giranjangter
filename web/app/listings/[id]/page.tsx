@@ -46,7 +46,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Title */}
-      <h1 className="text-2xl font-bold mb-3">{l.title}</h1>
+      <h1 className="text-2xl font-bold mb-3 text-text-primary">{l.title}</h1>
 
       {/* Item info */}
       <div className="flex items-center gap-2 text-lg mb-4">
@@ -57,21 +57,21 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
             className="w-8 h-8"
           />
         )}
-        <span>{l.itemName}</span>
+        <span className="text-text-primary">{l.itemName}</span>
         {l.enhancementLevel != null && (
-          <span className="text-primary font-bold">+{l.enhancementLevel}</span>
+          <span className="text-gold font-bold">+{l.enhancementLevel}</span>
         )}
       </div>
       {l.optionsText && <p className="text-text-secondary mb-4">{l.optionsText}</p>}
 
       {/* Price */}
-      <div className="text-3xl font-bold mb-1">{formatPrice(l.priceAmount)}원</div>
+      <div className="text-3xl font-bold mb-1 text-gold">{formatPrice(l.priceAmount)}원</div>
       {l.priceType === "negotiable" && <p className="text-text-secondary mb-4">협상 가능</p>}
 
       <hr className="border-border my-6" />
 
       {/* Description */}
-      <p className="leading-relaxed whitespace-pre-wrap">{l.description}</p>
+      <p className="leading-relaxed whitespace-pre-wrap text-text-primary">{l.description}</p>
 
       <hr className="border-border my-6" />
 
@@ -88,27 +88,27 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Action bar */}
       {actions.length > 0 && (
-        <div className="sticky bottom-0 lg:relative bg-white border-t border-border mt-8 py-4 flex items-center gap-3">
+        <div className="sticky bottom-0 lg:relative bg-dark border-t border-border mt-8 py-4 flex items-center gap-3">
           {actions.includes("favorite") && (
             <button
               onClick={() => toggleFav.mutate({ id: l.listingId, isFavorited: l.isFavorited ?? false })}
-              className="p-3 border border-border rounded-lg hover:bg-surface transition-colors"
+              className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-text-secondary"
             >
-              {l.isFavorited ? "❤️" : "🤍"}
+              {l.isFavorited ? "관심" : "관심"}
             </button>
           )}
           {actions.includes("start_chat") && (
             <button
               onClick={handleChat}
               disabled={createChat.isPending}
-              className="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:opacity-50"
+              className="flex-1 btn-gold-gradient text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
             >
               {createChat.isPending ? "연결 중..." : "채팅하기"}
             </button>
           )}
           <button
             onClick={() => setReportOpen(true)}
-            className="p-3 border border-border rounded-lg hover:bg-surface transition-colors text-sm text-error"
+            className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-sm text-danger"
           >
             신고
           </button>

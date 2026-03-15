@@ -30,14 +30,14 @@ describe("ListingFilters", () => {
     expect(screen.getByText("켄라우헬")).toBeDefined();
   });
 
-  it("active server has primary bg", () => {
+  it("active server has gold gradient", () => {
     render(<ListingFilters {...defaultProps} selectedServer="bartz" />);
     const bartzBtn = screen.getByText("바츠");
-    expect(bartzBtn.className).toContain("bg-primary");
+    expect(bartzBtn.className).toContain("btn-gold-gradient");
 
-    // 전체 should NOT have primary bg when a server is selected
+    // 전체 should NOT have gold gradient when a server is selected
     const allBtn = screen.getByText("전체");
-    expect(allBtn.className).not.toContain("bg-primary");
+    expect(allBtn.className).not.toContain("btn-gold-gradient");
   });
 
   it("search input renders", () => {

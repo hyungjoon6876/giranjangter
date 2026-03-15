@@ -20,15 +20,15 @@ describe("ChatMessage", () => {
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.className).toContain("justify-end");
     const bubble = wrapper.firstElementChild as HTMLElement;
-    expect(bubble.className).toContain("bg-primary");
+    expect(bubble.className).toContain("bg-blue-bright");
   });
 
-  it("their message aligns left with white bg", () => {
+  it("their message aligns left with card bg", () => {
     const { container } = render(<ChatMessage message={baseMessage} isMine={false} />);
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.className).toContain("justify-start");
     const bubble = wrapper.firstElementChild as HTMLElement;
-    expect(bubble.className).toContain("bg-white");
+    expect(bubble.className).toContain("bg-card");
   });
 
   it("system message renders centered", () => {

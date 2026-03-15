@@ -30,16 +30,16 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
-      <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-border">
+      <div className="flex items-center gap-2 px-4 py-2 bg-dark border-b border-border">
         <button
           onClick={() => setReservationOpen(true)}
-          className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+          className="px-3 py-1.5 text-xs font-medium btn-gold-gradient text-white rounded-lg transition-colors"
         >
           예약 제안
         </button>
         <button
           onClick={() => setReportOpen(true)}
-          className="px-3 py-1.5 text-xs font-medium border border-border text-error rounded-lg hover:bg-surface transition-colors"
+          className="px-3 py-1.5 text-xs font-medium border border-border text-danger rounded-lg hover:bg-medium transition-colors"
         >
           신고
         </button>
