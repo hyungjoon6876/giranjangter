@@ -40,8 +40,35 @@ describe("ListingFilters", () => {
     expect(allBtn.className).not.toContain("btn-gold-gradient");
   });
 
-  it("search input renders", () => {
+  it("search input renders with aria-label", () => {
     render(<ListingFilters {...defaultProps} />);
-    expect(screen.getByPlaceholderText(/아이템 검색/)).toBeDefined();
+    const input = screen.getByLabelText("매물 검색");
+    expect(input).toBeDefined();
+    expect(input.getAttribute("type")).toBe("search");
+  });
+
+  it("server filter group has role and aria-label", () => {
+    render(<ListingFilters {...defaultProps} />);
+    const group = screen.getByRole("group", { name: "서버 필터" });
+    expect(group).toBeDefined();
+  });
+
+  it("server buttons have aria-pressed", () => {
+    render(<ListingFilters {...defaultProps} selectedServer="bartz" />);
+    const bartzBtn = screen.getByText("바츠");
+    expect(bartzBtn.getAttribute("aria-pressed")).toBe("true");
+
+    const allBtn = screen.getByText("전체");
+    expect(allBtn.getAttribute("aria-pressed")).toBe("false");
+
+    const kenBtn = screen.getByText("켄라우헬");
+    expect(kenBtn.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("search input is wrapped in search element", () => {
+    const { container } = render(<ListingFilters {...defaultProps} />);
+    const searchEl = container.querySelector("search");
+    expect(searchEl).not.toBeNull();
+    expect(searchEl?.querySelector("input[type='search']")).not.toBeNull();
   });
 });
