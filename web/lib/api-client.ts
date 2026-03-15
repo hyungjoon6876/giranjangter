@@ -3,14 +3,18 @@ import type {
   PaginatedResponse, AuthResponse, User, Notification,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+
+export function assetUrl(path: string): string {
+  return `${API_BASE.replace(/\/api\/v\d+$/, "")}${path}`;
+}
 
 class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
   constructor() {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && typeof localStorage !== "undefined" && typeof localStorage.getItem === "function") {
       this.accessToken = localStorage.getItem("accessToken");
       this.refreshToken = localStorage.getItem("refreshToken");
     }

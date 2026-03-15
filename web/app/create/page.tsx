@@ -36,7 +36,7 @@ export default function CreateListingPage() {
       enhancementLevel: form.enhancementLevel ? Number(form.enhancementLevel) : undefined,
     };
     try {
-      await createListing.mutateAsync(data as never);
+      await createListing.mutateAsync(data);
       router.push("/");
     } catch (e) {
       alert(`등록 실패: ${JSON.stringify(e)}`);

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+import { API_BASE } from "@/lib/api-client";
 
 export function useSSE() {
   const qc = useQueryClient();
   const esRef = useRef<EventSource | null>(null);
+  const [reconnectCount, setReconnectCount] = useState(0);
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
@@ -29,15 +29,10 @@ export function useSSE() {
 
     es.onerror = () => {
       es.close();
-      // Auto-reconnect after 5 seconds
-      setTimeout(() => {
-        esRef.current = null;
-      }, 5_000);
+      esRef.current = null;
+      setTimeout(() => setReconnectCount((c) => c + 1), 5_000);
     };
 
-    return () => {
-      es.close();
-      esRef.current = null;
-    };
-  }, [qc]);
+    return () => { es.close(); esRef.current = null; };
+  }, [qc, reconnectCount]);
 }

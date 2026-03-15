@@ -1,13 +1,15 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useListing, useToggleFavorite } from "@/lib/hooks/use-listings";
 import { useCreateChat } from "@/lib/hooks/use-chats";
 import { TypeBadge, Badge } from "@/components/ui/badge";
 import { AuthorSection, InfoRow, tradeMethodLabel } from "@/components/listing/listing-info";
 import { Loading } from "@/components/ui/loading";
+import { ReportModal } from "@/components/forms/report-modal";
 import { formatPrice, statusLabel, statusColor } from "@/lib/utils";
+import { assetUrl } from "@/lib/api-client";
 
 export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -15,6 +17,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const { data: listing, isLoading } = useListing(id);
   const toggleFav = useToggleFavorite();
   const createChat = useCreateChat();
+  const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <Loading />;
   if (!listing) return <div className="p-6 text-center text-text-secondary">매물을 찾을 수 없습니다</div>;
@@ -49,7 +52,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center gap-2 text-lg mb-4">
         {l.iconUrl && (
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8080"}${l.iconUrl}`}
+            src={assetUrl(l.iconUrl)}
             alt=""
             className="w-8 h-8"
           />
@@ -103,8 +106,21 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
               {createChat.isPending ? "연결 중..." : "채팅하기"}
             </button>
           )}
+          <button
+            onClick={() => setReportOpen(true)}
+            className="p-3 border border-border rounded-lg hover:bg-surface transition-colors text-sm text-error"
+          >
+            신고
+          </button>
         </div>
       )}
+
+      <ReportModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="listing"
+        targetId={l.listingId}
+      />
     </div>
   );
 }

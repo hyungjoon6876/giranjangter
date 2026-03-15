@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Listing } from "@/lib/types";
 import { TypeBadge, Badge } from "@/components/ui/badge";
 import { formatPrice, formatTimeAgo, statusLabel, statusColor } from "@/lib/utils";
+import { assetUrl } from "@/lib/api-client";
 
 export function ListingCard({ listing }: { listing: Listing }) {
   const l = listing;
@@ -19,7 +20,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="flex items-center gap-1 mt-1 text-sm text-text-secondary">
         {l.iconUrl && (
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8080"}${l.iconUrl}`}
+            src={assetUrl(l.iconUrl)}
             alt=""
             className="w-5 h-5"
           />

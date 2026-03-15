@@ -23,7 +23,7 @@ export function useListing(id: string) {
 export function useCreateListing() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<Listing>) => apiClient.createListing(data),
+    mutationFn: (data: Record<string, unknown>) => apiClient.createListing(data as Partial<Listing>),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["listings"] }),
   });
 }
