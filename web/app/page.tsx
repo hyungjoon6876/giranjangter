@@ -83,7 +83,7 @@ export default function HomePage() {
           <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} autoFocus />
         ) : isLoading ? (
           <ListingSkeleton />
-        ) : !data?.data.length ? (
+        ) : !data?.data?.length ? (
           search ? (
             <EmptyState
               title="검색 결과가 없습니다"
@@ -108,7 +108,7 @@ export default function HomePage() {
           <>
             <div className="flex items-center justify-between px-4 lg:px-6 py-2">
               <p className="text-sm text-text-secondary" aria-live="polite">
-                <span className="font-semibold text-text-primary">{data.data.length}</span>개 매물
+                <span className="font-semibold text-text-primary">{data.data?.length ?? 0}</span>개 매물
               </p>
               <select
                 aria-label="정렬 방식"
@@ -122,7 +122,7 @@ export default function HomePage() {
                 <option value="popular">인기순</option>
               </select>
             </div>
-            <ListingGrid listings={data.data} />
+            <ListingGrid listings={data.data ?? []} />
           </>
         )}
       </div>

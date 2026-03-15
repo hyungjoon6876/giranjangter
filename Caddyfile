@@ -1,34 +1,44 @@
 {
-    # For local development without domain
     auto_https off
 }
 
 :80 {
-    # API proxy
+    # API proxy — with health check and retry
     handle /api/* {
-        reverse_proxy lincle-api:8080
+        reverse_proxy lincle-api:8080 {
+            health_uri /health
+            health_interval 5s
+            lb_try_duration 10s
+            fail_duration 10s
+        }
     }
 
     handle /sse/* {
-        reverse_proxy lincle-api:8080
+        reverse_proxy lincle-api:8080 {
+            health_uri /health
+            health_interval 5s
+            lb_try_duration 10s
+            fail_duration 10s
+        }
     }
 
     handle /health {
         reverse_proxy lincle-api:8080
     }
 
-    # Uploaded files
     handle /uploads/* {
         reverse_proxy lincle-api:8080
     }
 
-    # Static icons
     handle /static/* {
         reverse_proxy lincle-api:8080
     }
 
-    # Frontend (Next.js)
+    # Frontend (Next.js) — with retry on restart
     handle {
-        reverse_proxy lincle-web:3000
+        reverse_proxy lincle-web:3000 {
+            lb_try_duration 15s
+            fail_duration 10s
+        }
     }
 }

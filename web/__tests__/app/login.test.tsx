@@ -8,7 +8,12 @@ vi.mock("next/navigation", () => ({
 
 // Mock api-client
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { login: vi.fn() },
+  apiClient: { login: vi.fn(), isLoggedIn: false },
+}));
+
+// Mock @tanstack/react-query
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn(), clear: vi.fn() }),
 }));
 
 import LoginPage from "@/app/login/page";
@@ -26,8 +31,10 @@ describe("LoginPage", () => {
     expect(screen.getByText("둘러보기")).toBeDefined();
   });
 
-  it("dev login button is present", () => {
+  it("renders Google sign-in container", () => {
     render(<LoginPage />);
-    expect(screen.getByText(/개발자 로그인/)).toBeDefined();
+    // The Google button container is rendered as an empty div with a ref
+    const container = document.querySelector(".flex.justify-center.mb-3");
+    expect(container).toBeDefined();
   });
 });

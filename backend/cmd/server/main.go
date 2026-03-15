@@ -168,6 +168,20 @@ func main() {
 			admin.POST("/reports/:reportId/actions", handleAdminReportAction(db))
 			admin.POST("/listings/:id/hide", handleAdminHideListing(db))
 			admin.POST("/users/:userId/restrict", handleAdminRestrictUser(db))
+
+			// Dashboard & user management
+			admin.GET("/dashboard/stats", handleAdminDashboardStats(db))
+			admin.GET("/users", handleAdminListUsers(db))
+			admin.GET("/users/:userId", handleAdminGetUser(db))
+			admin.GET("/users/:userId/moderation-history", handleAdminUserModerationHistory(db))
+
+			// Audit, chat inspection, trades, listings
+			admin.GET("/audit-logs", handleAdminListAuditLogs(db))
+			admin.GET("/chats/:chatId/messages", handleAdminChatMessages(db))
+			admin.GET("/trades", handleAdminListTrades(db))
+			admin.GET("/listings", handleAdminListAllListings(db))
+			admin.POST("/listings/:id/restore", handleAdminRestoreListing(db))
+			admin.PATCH("/reports/:reportId", handleAdminUpdateReportStatus(db))
 		}
 	}
 

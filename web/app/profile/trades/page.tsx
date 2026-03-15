@@ -9,12 +9,12 @@ export default function MyTradesPage() {
   const { data, isLoading } = useMyTrades();
 
   if (isLoading) return <Loading />;
-  if (!data?.data.length) return <EmptyState title="거래 내역이 없습니다" />;
+  if (!data?.data?.length) return <EmptyState title="거래 내역이 없습니다" />;
 
   return (
     <div className="p-4 lg:p-6">
       <h1 className="text-2xl font-bold mb-4">내 거래</h1>
-      <ListingGrid listings={data.data} />
+      <ListingGrid listings={data.data ?? []} />
     </div>
   );
 }
