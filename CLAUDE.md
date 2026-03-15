@@ -1,21 +1,21 @@
-# Lincle
+# 기란장터 (Giranjangter)
 
-리니지 클래식 서버 간 아이템/장비 거래 P2P 플랫폼 (MVP)
+리니지 클래식 아이템 거래 중개 플랫폼 — 무료, 커뮤니티 기반
 
 ## 기술 스택
 
-- **Backend**: Go 1.25 + Gin (REST API, SSE)
-- **Frontend**: Flutter 3.11 + Riverpod (iOS/Android/Web)
-- **Database**: SQLite (개발) → PostgreSQL 16 (운영)
+- **Backend**: Go 1.25 + Gin (REST API, SSE) + pgx/v5
+- **Frontend**: Flutter 3.11 + Riverpod (Flutter Web 우선, 이후 모바일)
+- **Database**: PostgreSQL 16 (NAS Docker 컨테이너)
 - **Infra**: Docker + Caddy reverse proxy, NAS 배포 (2GB RAM)
-- **Auth**: JWT + Google Sign-In
+- **Auth**: JWT + Google OAuth (google_sign_in v7)
 
 ## 프로젝트 구조
 
 ```
 backend/
   cmd/server/       # HTTP 핸들러 (handlers_*.go)
-  internal/         # config, domain, guard, middleware, repository, event, oauth
+  internal/         # config, domain, guard, middleware, repository, event, oauth, alignment
   db/migrations/    # SQL 마이그레이션
 frontend/
   lib/features/     # 기능별 모듈 (auth, listing, chat, reservation, review, report, notification, admin)
