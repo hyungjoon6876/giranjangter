@@ -188,6 +188,30 @@ class ApiClient {
     return res.data;
   }
 
+  // ── Reservations ──
+  Future<Map<String, dynamic>> createReservation(String chatId, Map<String, dynamic> data) async {
+    final res = await dio.post('/chats/$chatId/reservations', data: data);
+    return res.data;
+  }
+
+  // ── Trade Completion ──
+  Future<Map<String, dynamic>> completeTrade(String listingId, Map<String, dynamic> data) async {
+    final res = await dio.post('/listings/$listingId/complete', data: data);
+    return res.data;
+  }
+
+  // ── Reviews ──
+  Future<Map<String, dynamic>> createReview(String completionId, Map<String, dynamic> data) async {
+    final res = await dio.post('/trade-completions/$completionId/reviews', data: data);
+    return res.data;
+  }
+
+  // ── Reports ──
+  Future<Map<String, dynamic>> createReport(Map<String, dynamic> data) async {
+    final res = await dio.post('/reports', data: data);
+    return res.data;
+  }
+
   // ── Servers & Categories ──
   Future<List<dynamic>> getServers() async {
     final res = await dio.get('/servers');

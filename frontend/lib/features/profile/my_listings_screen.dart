@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/listing_utils.dart' as utils;
 
 class MyListingsScreen extends ConsumerStatefulWidget {
   const MyListingsScreen({super.key});
@@ -67,7 +68,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                           final item = _listings[i];
                           return ListTile(
                             title: Text(item['title'] ?? ''),
-                            subtitle: Text('${item['itemName'] ?? ''} · ${_statusLabel(item['status'])}'),
+                            subtitle: Text('${item['itemName'] ?? ''} · ${utils.statusLabel(item['status'])}'),
                             trailing: Text(
                               item['priceAmount'] != null ? '${item['priceAmount']}원' : '가격제안',
                               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -80,13 +81,4 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     );
   }
 
-  String _statusLabel(String? status) {
-    return switch (status) {
-      'available' => '판매중',
-      'reserved' => '예약중',
-      'completed' => '거래완료',
-      'cancelled' => '취소됨',
-      _ => status ?? '',
-    };
-  }
 }

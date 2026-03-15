@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/listing_utils.dart' as utils;
 
 class ListingListScreen extends ConsumerStatefulWidget {
   const ListingListScreen({super.key});
@@ -123,9 +124,9 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
 
   Widget _buildListingCard(Map<String, dynamic> listing) {
     final priceText = listing['priceAmount'] != null
-        ? '${_formatPrice(listing['priceAmount'])}원'
+        ? '${utils.formatPrice(listing['priceAmount'] is int ? listing['priceAmount'] : int.tryParse(listing['priceAmount'].toString()))}원'
         : '가격 제안';
-    final statusColor = _statusColor(listing['status']);
+    final sc = utils.statusColor(listing['status']);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -162,12 +163,12 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
+                      color: sc.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      _statusLabel(listing['status']),
-                      style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600),
+                      utils.statusLabel(listing['status']),
+                      style: TextStyle(fontSize: 10, color: sc, fontWeight: FontWeight.w600),
                     ),
                   ),
                   const Spacer(),
@@ -225,7 +226,7 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
                   ),
                   const Spacer(),
                   Text(
-                    _formatTimeAgo(listing['createdAt']),
+                    utils.formatTimeAgo(listing['createdAt']),
                     style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                   ),
                 ],
@@ -301,44 +302,4 @@ class _ListingListScreenState extends ConsumerState<ListingListScreen> {
     );
   }
 
-  String _formatPrice(dynamic amount) {
-    if (amount == null) return '0';
-    final n = amount is int ? amount : int.tryParse(amount.toString()) ?? 0;
-    if (n >= 10000) return '${(n / 10000).toStringAsFixed(0)}만';
-    return n.toString();
-  }
-
-  String _formatTimeAgo(String? dateStr) {
-    if (dateStr == null) return '';
-    final date = DateTime.tryParse(dateStr);
-    if (date == null) return '';
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return '방금';
-    if (diff.inHours < 1) return '${diff.inMinutes}분 전';
-    if (diff.inDays < 1) return '${diff.inHours}시간 전';
-    if (diff.inDays < 30) return '${diff.inDays}일 전';
-    return '${(diff.inDays / 30).floor()}개월 전';
-  }
-
-  Color _statusColor(String? status) {
-    switch (status) {
-      case 'available': return AppTheme.secondary;
-      case 'reserved': return AppTheme.warning;
-      case 'pending_trade': return AppTheme.primary;
-      case 'completed': return AppTheme.textSecondary;
-      case 'cancelled': return AppTheme.error;
-      default: return AppTheme.textSecondary;
-    }
-  }
-
-  String _statusLabel(String? status) {
-    switch (status) {
-      case 'available': return '거래가능';
-      case 'reserved': return '예약중';
-      case 'pending_trade': return '거래대기';
-      case 'completed': return '완료';
-      case 'cancelled': return '취소';
-      default: return status ?? '';
-    }
-  }
 }

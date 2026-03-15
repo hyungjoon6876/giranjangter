@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/listing_utils.dart' as utils;
 
 class ListingDetailScreen extends ConsumerStatefulWidget {
   final String listingId;
@@ -38,7 +39,7 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
     if (_listing == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('매물을 찾을 수 없습니다')));
 
     final l = _listing!;
-    final priceText = l['priceAmount'] != null ? '${_formatPrice(l['priceAmount'])}원' : '가격 제안';
+    final priceText = l['priceAmount'] != null ? '${utils.formatPrice(l['priceAmount'] is int ? l['priceAmount'] : int.tryParse(l['priceAmount'].toString()))}원' : '가격 제안';
 
     return Scaffold(
       appBar: AppBar(
@@ -59,7 +60,7 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
                 _badge(l['listingType'] == 'sell' ? '판매' : '구매',
                     l['listingType'] == 'sell' ? AppTheme.primary : AppTheme.secondary),
                 const SizedBox(width: 6),
-                _badge(_statusLabel(l['status']), _statusColor(l['status'])),
+                _badge(utils.statusLabel(l['status']), utils.statusColor(l['status'])),
                 const Spacer(),
                 if (l['tradeMethod'] != null)
                   Text(_tradeMethodLabel(l['tradeMethod']),
@@ -213,15 +214,5 @@ class _ListingDetailScreenState extends ConsumerState<ListingDetailScreen> {
     );
   }
 
-  String _formatPrice(dynamic amount) {
-    if (amount == null) return '0';
-    final n = amount is int ? amount : int.tryParse(amount.toString()) ?? 0;
-    if (n >= 100000000) return '${(n / 100000000).toStringAsFixed(1)}억';
-    if (n >= 10000) return '${(n / 10000).toStringAsFixed(0)}만';
-    return n.toString();
-  }
-
-  String _statusLabel(String? s) => {'available': '거래가능', 'reserved': '예약중', 'pending_trade': '거래대기', 'completed': '완료', 'cancelled': '취소'}[s] ?? s ?? '';
-  Color _statusColor(String? s) => {'available': AppTheme.secondary, 'reserved': AppTheme.warning, 'pending_trade': AppTheme.primary, 'completed': AppTheme.textSecondary, 'cancelled': AppTheme.error}[s] ?? AppTheme.textSecondary;
   String _tradeMethodLabel(String? m) => {'in_game': '인게임', 'offline_pc_bang': 'PC방/오프라인', 'either': '무관'}[m] ?? m ?? '';
 }

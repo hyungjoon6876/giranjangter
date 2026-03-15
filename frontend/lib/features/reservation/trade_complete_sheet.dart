@@ -66,7 +66,7 @@ class _TradeCompleteSheetState extends ConsumerState<TradeCompleteSheet> {
     setState(() => _submitting = true);
     try {
       final api = ref.read(apiClientProvider);
-      await api.dio.post('/listings/${widget.listingId}/complete', data: {
+      await api.completeTrade(widget.listingId, {
         'reservationId': widget.reservationId,
       });
       if (mounted) {

@@ -126,7 +126,7 @@ class _ReservationFormSheetState extends ConsumerState<ReservationFormSheet> {
         _selectedTime.hour, _selectedTime.minute,
       ).toUtc().toIso8601String();
 
-      await api.dio.post('/chats/${widget.chatId}/reservations', data: {
+      await api.createReservation(widget.chatId, {
         'scheduledAt': scheduledAt,
         'meetingType': _meetingType,
         'meetingPointText': _meetingPointCtrl.text.isNotEmpty ? _meetingPointCtrl.text : null,

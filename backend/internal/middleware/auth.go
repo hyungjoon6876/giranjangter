@@ -82,30 +82,42 @@ func (a *AuthMiddleware) ParseToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
+// extractAndValidateToken extracts the Bearer token from the Authorization header,
+// parses it, and returns the claims if valid. On failure it sends an error response
+// and returns nil.
+func (a *AuthMiddleware) extractAndValidateToken(c *gin.Context) *Claims {
+	header := c.GetHeader("Authorization")
+	if header == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": gin.H{"code": "UNAUTHORIZED", "message": "인증이 필요합니다."},
+		})
+		return nil
+	}
+
+	tokenStr := strings.TrimPrefix(header, "Bearer ")
+	if tokenStr == header {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": gin.H{"code": "UNAUTHORIZED", "message": "잘못된 인증 형식입니다."},
+		})
+		return nil
+	}
+
+	claims, err := a.ParseToken(tokenStr)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 토큰입니다."},
+		})
+		return nil
+	}
+
+	return claims
+}
+
 // RequireAuth is a Gin middleware that validates JWT tokens.
 func (a *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if header == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "인증이 필요합니다."},
-			})
-			return
-		}
-
-		tokenStr := strings.TrimPrefix(header, "Bearer ")
-		if tokenStr == header {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "잘못된 인증 형식입니다."},
-			})
-			return
-		}
-
-		claims, err := a.ParseToken(tokenStr)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 토큰입니다."},
-			})
+		claims := a.extractAndValidateToken(c)
+		if claims == nil {
 			return
 		}
 
@@ -118,33 +130,14 @@ func (a *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 // RequireAuthWithDB checks JWT + account status from DB.
 func (a *AuthMiddleware) RequireAuthWithDB(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if header == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "인증이 필요합니다."},
-			})
-			return
-		}
-
-		tokenStr := strings.TrimPrefix(header, "Bearer ")
-		if tokenStr == header {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "잘못된 인증 형식입니다."},
-			})
-			return
-		}
-
-		claims, err := a.ParseToken(tokenStr)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 토큰입니다."},
-			})
+		claims := a.extractAndValidateToken(c)
+		if claims == nil {
 			return
 		}
 
 		// DB에서 계정 상태 확인
 		var accountStatus, role string
-		err = db.QueryRow("SELECT account_status, role FROM users WHERE id = $1", claims.UserID).Scan(&accountStatus, &role)
+		err := db.QueryRow("SELECT account_status, role FROM users WHERE id = $1", claims.UserID).Scan(&accountStatus, &role)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": gin.H{"code": "UNAUTHORIZED", "message": "사용자를 찾을 수 없습니다."},
@@ -183,7 +176,13 @@ func (a *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+
 		tokenStr := strings.TrimPrefix(header, "Bearer ")
+		if tokenStr == header {
+			c.Next()
+			return
+		}
+
 		claims, err := a.ParseToken(tokenStr)
 		if err == nil {
 			c.Set("userId", claims.UserID)

@@ -110,7 +110,7 @@ class _ReportFormSheetState extends ConsumerState<ReportFormSheet> {
     setState(() => _submitting = true);
     try {
       final api = ref.read(apiClientProvider);
-      await api.dio.post('/reports', data: {
+      await api.createReport({
         'targetType': widget.targetType,
         'targetId': widget.targetId,
         'reportType': _reportType,

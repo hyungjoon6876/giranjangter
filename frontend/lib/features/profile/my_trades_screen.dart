@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/listing_utils.dart' as utils;
 
 class MyTradesScreen extends ConsumerStatefulWidget {
   const MyTradesScreen({super.key});
@@ -67,47 +68,17 @@ class _MyTradesScreenState extends ConsumerState<MyTradesScreen> {
                           final cp = trade['counterparty'] as Map<String, dynamic>? ?? {};
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: _statusColor(trade['tradeStatus']).withValues(alpha: 0.1),
-                              child: Icon(_statusIcon(trade['tradeStatus']), color: _statusColor(trade['tradeStatus']), size: 20),
+                              backgroundColor: utils.statusColor(trade['tradeStatus']).withValues(alpha: 0.1),
+                              child: Icon(_statusIcon(trade['tradeStatus']), color: utils.statusColor(trade['tradeStatus']), size: 20),
                             ),
                             title: Text(trade['listingTitle'] ?? ''),
-                            subtitle: Text('${cp['nickname'] ?? '상대방'} · ${_statusLabel(trade['tradeStatus'])}'),
-                            trailing: Text(_chatStatusLabel(trade['chatStatus']), style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                            subtitle: Text('${cp['nickname'] ?? '상대방'} · ${utils.statusLabel(trade['tradeStatus'])}'),
+                            trailing: Text(utils.chatStatusLabel(trade['chatStatus']), style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                           );
                         },
                       ),
                     ),
     );
-  }
-
-  String _statusLabel(String? status) {
-    return switch (status) {
-      'available' => '판매중',
-      'reserved' => '예약중',
-      'completed' => '거래완료',
-      'cancelled' => '취소됨',
-      _ => status ?? '',
-    };
-  }
-
-  String _chatStatusLabel(String? status) {
-    return switch (status) {
-      'open' => '채팅중',
-      'reservation_proposed' => '예약제안',
-      'reservation_confirmed' => '예약확정',
-      'deal_completed' => '완료',
-      _ => status ?? '',
-    };
-  }
-
-  Color _statusColor(String? status) {
-    return switch (status) {
-      'available' => Colors.green,
-      'reserved' => Colors.orange,
-      'completed' => Colors.blue,
-      'cancelled' => Colors.grey,
-      _ => Colors.grey,
-    };
   }
 
   IconData _statusIcon(String? status) {

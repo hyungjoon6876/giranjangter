@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/utils/listing_utils.dart' as utils;
 
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
@@ -68,8 +69,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            _statusLabel(chat['chatStatus']),
-            style: TextStyle(fontSize: 11, color: _statusColor(chat['chatStatus'])),
+            utils.chatStatusLabel(chat['chatStatus']),
+            style: TextStyle(fontSize: 11, color: _chatStatusColor(chat['chatStatus'])),
           ),
         ],
       ),
@@ -77,12 +78,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  String _statusLabel(String? s) => {
-    'open': '대화중', 'reservation_proposed': '예약제안',
-    'reservation_confirmed': '예약확정', 'deal_completed': '거래완료',
-  }[s] ?? s ?? '';
-
-  Color _statusColor(String? s) => {
+  Color _chatStatusColor(String? s) => {
     'open': AppTheme.secondary, 'reservation_proposed': AppTheme.warning,
     'reservation_confirmed': AppTheme.primary, 'deal_completed': AppTheme.textSecondary,
   }[s] ?? AppTheme.textSecondary;

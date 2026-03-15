@@ -106,7 +106,7 @@ class _ReviewFormSheetState extends ConsumerState<ReviewFormSheet> {
     setState(() => _submitting = true);
     try {
       final api = ref.read(apiClientProvider);
-      await api.dio.post('/trade-completions/${widget.completionId}/reviews', data: {
+      await api.createReview(widget.completionId, {
         'rating': _rating,
         'comment': _commentCtrl.text.isNotEmpty ? _commentCtrl.text : null,
       });
