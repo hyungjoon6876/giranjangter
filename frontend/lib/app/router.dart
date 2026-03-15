@@ -7,6 +7,7 @@ import '../features/listing/listing_create_screen.dart';
 import '../features/chat/chat_list_screen.dart';
 import '../features/chat/chat_detail_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../shared/theme/app_theme.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -74,15 +75,30 @@ class ScaffoldWithNavBar extends StatelessWidget {
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
+        backgroundColor: AppColors.bgCard,
+        indicatorColor: AppColors.gold.withValues(alpha: 0.15),
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
           navigationShell.goBranch(index, initialLocation: index == navigationShell.currentIndex);
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.store), label: '거래소'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: '채팅'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: '내 정보'),
+          NavigationDestination(
+            icon: Icon(Icons.store, color: AppColors.textSecondary),
+            selectedIcon: Icon(Icons.store, color: AppColors.gold),
+            label: '거래소',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
+            selectedIcon: Icon(Icons.chat_bubble, color: AppColors.gold),
+            label: '채팅',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline, color: AppColors.textSecondary),
+            selectedIcon: Icon(Icons.person, color: AppColors.gold),
+            label: '내 정보',
+          ),
         ],
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
     );
   }

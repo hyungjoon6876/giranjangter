@@ -36,49 +36,133 @@ class _MyTradesScreenState extends ConsumerState<MyTradesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('내 거래')),
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        title: const Text('내 거래'),
+        backgroundColor: AppColors.bgSurface,
+      ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
           : _error != null
               ? Center(child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: AppTheme.textSecondary),
+                    const Icon(Icons.error_outline, size: 48, color: AppColors.textMuted),
                     const SizedBox(height: 8),
-                    Text('불러오기 실패', style: TextStyle(color: AppTheme.textSecondary)),
+                    const Text('불러오기 실패', style: TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
-                    TextButton(onPressed: _load, child: const Text('다시 시도')),
+                    TextButton(
+                      onPressed: _load,
+                      child: const Text('다시 시도', style: TextStyle(color: AppColors.gold)),
+                    ),
                   ],
                 ))
               : _trades.isEmpty
                   ? const Center(child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.swap_horiz, size: 48, color: AppTheme.textSecondary),
+                        Icon(Icons.swap_horiz, size: 48, color: AppColors.textMuted),
                         SizedBox(height: 8),
-                        Text('거래 내역이 없습니다', style: TextStyle(color: AppTheme.textSecondary)),
+                        Text('거래 내역이 없습니다', style: TextStyle(color: AppColors.textSecondary)),
                       ],
                     ))
                   : RefreshIndicator(
+                      color: AppColors.gold,
+                      backgroundColor: AppColors.bgCard,
                       onRefresh: _load,
                       child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                         itemCount: _trades.length,
                         itemBuilder: (context, i) {
                           final trade = _trades[i];
                           final cp = trade['counterparty'] as Map<String, dynamic>? ?? {};
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: utils.statusColor(trade['tradeStatus']).withValues(alpha: 0.1),
-                              child: Icon(_statusIcon(trade['tradeStatus']), color: utils.statusColor(trade['tradeStatus']), size: 20),
+                          final statusColor = _tradeStatusColor(trade['tradeStatus']);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgCard,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Status icon
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      _statusIcon(trade['tradeStatus']),
+                                      color: statusColor,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // Content
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          trade['listingTitle'] ?? '',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${cp['nickname'] ?? '상대방'} \u00B7 ${utils.statusLabel(trade['tradeStatus'])}',
+                                          style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Chat status
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bgElevated,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      utils.chatStatusLabel(trade['chatStatus']),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            title: Text(trade['listingTitle'] ?? ''),
-                            subtitle: Text('${cp['nickname'] ?? '상대방'} · ${utils.statusLabel(trade['tradeStatus'])}'),
-                            trailing: Text(utils.chatStatusLabel(trade['chatStatus']), style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                           );
                         },
                       ),
                     ),
     );
+  }
+
+  Color _tradeStatusColor(String? status) {
+    return switch (status) {
+      'available' => AppColors.success,
+      'reserved' => AppColors.warning,
+      'completed' => AppColors.textSecondary,
+      'cancelled' => AppColors.error,
+      _ => AppColors.textSecondary,
+    };
   }
 
   IconData _statusIcon(String? status) {

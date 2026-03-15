@@ -13,8 +13,8 @@ class LincleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: '린클 - 리니지 클래식 거래',
-      theme: AppTheme.light,
+      title: '기란장터',
+      theme: AppTheme.dark,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );

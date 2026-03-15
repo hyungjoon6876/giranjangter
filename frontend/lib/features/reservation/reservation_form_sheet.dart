@@ -44,7 +44,7 @@ class _ReservationFormSheetState extends ConsumerState<ReservationFormSheet> {
           // Date picker
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.calendar_today, color: AppTheme.primary),
+            leading: const Icon(Icons.calendar_today, color: AppColors.gold),
             title: Text('${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}'),
             subtitle: const Text('거래 날짜'),
             onTap: () async {
@@ -61,7 +61,7 @@ class _ReservationFormSheetState extends ConsumerState<ReservationFormSheet> {
           // Time picker
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.access_time, color: AppTheme.primary),
+            leading: const Icon(Icons.access_time, color: AppColors.gold),
             title: Text('${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}'),
             subtitle: const Text('거래 시간'),
             onTap: () async {

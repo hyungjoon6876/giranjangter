@@ -95,18 +95,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.store, size: 80, color: AppTheme.primary),
-              const SizedBox(height: 16),
-              Text('린클', style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: AppTheme.primary)),
+              const Spacer(flex: 2),
+
+              // Logo
+              Text(
+                '기란장터',
+                style: TextStyle(
+                  fontSize: 40,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.gold,
+                  letterSpacing: 4,
+                  shadows: [
+                    Shadow(
+                      color: AppColors.gold.withValues(alpha: 0.4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 8),
-              const Text('리니지 클래식 거래 플랫폼', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
-              const SizedBox(height: 48),
+              const Text(
+                '리니지 클래식 거래 플랫폼',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 15,
+                  letterSpacing: 1,
+                ),
+              ),
+
+              const Spacer(flex: 2),
 
               // Google Sign-In button
               if (_googleInitialized || _clientId.isNotEmpty)
@@ -115,7 +139,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _loading ? null : _loginWithGoogle,
                     icon: _loading
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                          )
                         : const Icon(Icons.g_mobiledata, size: 24),
                     label: const Text('Google로 시작하기'),
                     style: ElevatedButton.styleFrom(
@@ -124,6 +152,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       side: const BorderSide(color: Color(0xFFDDDDDD)),
                       elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
@@ -138,18 +169,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     icon: const Icon(Icons.developer_mode, size: 20),
                     label: const Text('개발자 로그인 (테스트)'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.textSecondary,
+                      foregroundColor: AppColors.goldLight,
+                      side: const BorderSide(color: AppColors.gold),
                       padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextButton(
                 onPressed: () => context.go('/'),
-                child: const Text('둘러보기', style: TextStyle(color: AppTheme.textSecondary)),
+                child: const Text(
+                  '둘러보기',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
               ),
+
+              const Spacer(flex: 1),
             ],
           ),
         ),

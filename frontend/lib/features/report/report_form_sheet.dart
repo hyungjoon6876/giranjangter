@@ -37,7 +37,7 @@ class _ReportFormSheetState extends ConsumerState<ReportFormSheet> {
       minChildSize: 0.5,
       builder: (context, scrollCtrl) => Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.bgElevated,
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: ListView(
@@ -52,14 +52,14 @@ class _ReportFormSheetState extends ConsumerState<ReportFormSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('신고 사유를 선택해주세요', style: TextStyle(color: AppTheme.textSecondary)),
+            const Text('신고 사유를 선택해주세요', style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 16),
 
             // Report type grid
             ...(_reportTypes.map((rt) => RadioListTile<String>(
               title: Row(
                 children: [
-                  Icon(rt['icon'] as IconData, size: 20, color: AppTheme.textSecondary),
+                  Icon(rt['icon'] as IconData, size: 20, color: AppColors.textSecondary),
                   const SizedBox(width: 8),
                   Text(rt['label'] as String),
                 ],
@@ -87,7 +87,7 @@ class _ReportFormSheetState extends ConsumerState<ReportFormSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: (_reportType == null || _descCtrl.text.length < 10 || _submitting) ? null : _submit,
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
                 child: _submitting
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Text('신고 접수'),
@@ -97,7 +97,7 @@ class _ReportFormSheetState extends ConsumerState<ReportFormSheet> {
             const Text(
               '허위 신고는 제재 대상이 될 수 있습니다.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),

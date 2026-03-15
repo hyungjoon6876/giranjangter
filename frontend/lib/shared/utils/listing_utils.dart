@@ -14,12 +14,12 @@ String statusLabel(String? status) {
 
 Color statusColor(String? status) {
   return switch (status) {
-    'available' => AppTheme.secondary,
-    'reserved' => AppTheme.warning,
-    'pending_trade' => AppTheme.primary,
-    'completed' => AppTheme.textSecondary,
-    'cancelled' => AppTheme.error,
-    _ => AppTheme.textSecondary,
+    'available' => AppColors.success,
+    'reserved' => AppColors.warning,
+    'pending_trade' => AppColors.gold,
+    'completed' => AppColors.textSecondary,
+    'cancelled' => AppColors.error,
+    _ => AppColors.textSecondary,
   };
 }
 

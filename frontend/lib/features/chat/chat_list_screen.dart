@@ -35,16 +35,39 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('채팅')),
+      backgroundColor: AppColors.bg,
+      appBar: AppBar(
+        title: const Text('채팅'),
+        backgroundColor: AppColors.bgSurface,
+      ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
           : _chats.isEmpty
-              ? const Center(child: Text('채팅이 없습니다', style: TextStyle(color: AppTheme.textSecondary)))
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.chat_bubble_outline, size: 56, color: AppColors.textMuted),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '채팅이 없습니다',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                )
               : RefreshIndicator(
+                  color: AppColors.gold,
+                  backgroundColor: AppColors.bgCard,
                   onRefresh: _load,
                   child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: _chats.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: AppColors.border,
+                      indent: 76,
+                    ),
                     itemBuilder: (context, i) => _buildChatTile(_chats[i]),
                   ),
                 ),
@@ -53,33 +76,88 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
   Widget _buildChatTile(Map<String, dynamic> chat) {
     final cp = chat['counterparty'] as Map<String, dynamic>?;
+    final statusColor = _chatStatusColor(chat['chatStatus']);
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-        child: Text(
-          (cp?['nickname'] ?? '?')[0],
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push('/chats/${chat['chatRoomId']}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.bgElevated,
+                  border: Border.all(color: AppColors.border, width: 1.5),
+                ),
+                child: Center(
+                  child: Text(
+                    (cp?['nickname'] ?? '?')[0],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.gold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cp?['nickname'] ?? '',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      chat['listingTitle'] ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  utils.chatStatusLabel(chat['chatStatus']),
+                  style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      title: Text(cp?['nickname'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(chat['listingTitle'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            utils.chatStatusLabel(chat['chatStatus']),
-            style: TextStyle(fontSize: 11, color: _chatStatusColor(chat['chatStatus'])),
-          ),
-        ],
-      ),
-      onTap: () => context.push('/chats/${chat['chatRoomId']}'),
     );
   }
 
   Color _chatStatusColor(String? s) => {
-    'open': AppTheme.secondary, 'reservation_proposed': AppTheme.warning,
-    'reservation_confirmed': AppTheme.primary, 'deal_completed': AppTheme.textSecondary,
-  }[s] ?? AppTheme.textSecondary;
+    'open': AppColors.success,
+    'reservation_proposed': AppColors.warning,
+    'reservation_confirmed': AppColors.gold,
+    'deal_completed': AppColors.textSecondary,
+  }[s] ?? AppColors.textSecondary;
 }

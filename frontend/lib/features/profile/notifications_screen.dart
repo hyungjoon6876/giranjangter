@@ -49,56 +49,119 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('알림'),
+        backgroundColor: AppColors.bgSurface,
         actions: [
           if (_notifications.any((n) => n['isRead'] != true))
             TextButton(
               onPressed: _markAllRead,
-              child: const Text('모두 읽음'),
+              child: const Text('모두 읽음', style: TextStyle(color: AppColors.gold)),
             ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
           : _error != null
               ? Center(child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: AppTheme.textSecondary),
+                    const Icon(Icons.error_outline, size: 48, color: AppColors.textMuted),
                     const SizedBox(height: 8),
-                    Text('불러오기 실패', style: TextStyle(color: AppTheme.textSecondary)),
+                    const Text('불러오기 실패', style: TextStyle(color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
-                    TextButton(onPressed: _load, child: const Text('다시 시도')),
+                    TextButton(
+                      onPressed: _load,
+                      child: const Text('다시 시도', style: TextStyle(color: AppColors.gold)),
+                    ),
                   ],
                 ))
               : _notifications.isEmpty
                   ? const Center(child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.notifications_none, size: 48, color: AppTheme.textSecondary),
+                        Icon(Icons.notifications_none, size: 48, color: AppColors.textMuted),
                         SizedBox(height: 8),
-                        Text('알림이 없습니다', style: TextStyle(color: AppTheme.textSecondary)),
+                        Text('알림이 없습니다', style: TextStyle(color: AppColors.textSecondary)),
                       ],
                     ))
                   : RefreshIndicator(
+                      color: AppColors.gold,
+                      backgroundColor: AppColors.bgCard,
                       onRefresh: _load,
                       child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                         itemCount: _notifications.length,
                         itemBuilder: (context, i) {
                           final notif = _notifications[i];
                           final isRead = notif['isRead'] == true;
-                          return ListTile(
-                            leading: Icon(
-                              _notifIcon(notif['type']),
-                              color: isRead ? AppTheme.textSecondary : AppTheme.primary,
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: isRead ? AppColors.bgCard : AppColors.bgSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isRead ? AppColors.border : AppColors.gold.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: (isRead ? AppColors.textMuted : AppColors.gold).withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      _notifIcon(notif['type']),
+                                      color: isRead ? AppColors.textMuted : AppColors.gold,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          notif['title'] ?? '',
+                                          style: TextStyle(
+                                            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                            color: AppColors.textPrimary,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          notif['body'] ?? '',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!isRead)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      margin: const EdgeInsets.only(top: 4),
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.gold,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                            title: Text(
-                              notif['title'] ?? '',
-                              style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold),
-                            ),
-                            subtitle: Text(notif['body'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                            tileColor: isRead ? null : AppTheme.primary.withValues(alpha: 0.03),
                           );
                         },
                       ),

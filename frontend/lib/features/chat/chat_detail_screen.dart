@@ -75,15 +75,19 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final myId = currentUser?['userId'];
 
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
+        backgroundColor: AppColors.bgSurface,
         title: const Text('채팅'),
         actions: [
           PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: AppColors.goldLight),
             onSelected: (v) {
               if (v == 'reservation') {
                 showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
+                  backgroundColor: AppColors.bgElevated,
                   builder: (_) => ReservationFormSheet(
                     chatId: widget.chatId,
                     onCreated: _loadMessages,
@@ -93,6 +97,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                 showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
+                  backgroundColor: AppColors.bgElevated,
                   builder: (_) => ReportFormSheet(
                     targetType: 'chat_room',
                     targetId: widget.chatId,
@@ -111,9 +116,21 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         children: [
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
                 : _messages.isEmpty
-                    ? const Center(child: Text('메시지가 없습니다'))
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 48, color: AppColors.textMuted),
+                            const SizedBox(height: 8),
+                            const Text(
+                              '메시지가 없습니다',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      )
                     : ListView.builder(
                         controller: _scrollCtrl,
                         padding: const EdgeInsets.all(12),
@@ -135,14 +152,24 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       return Center(
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: AppTheme.border,
+            color: AppColors.bgElevated,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border, width: 0.5),
           ),
-          child: Text(
-            msg['bodyText'] ?? '',
-            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  msg['bodyText'] ?? '',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -155,19 +182,26 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMine ? AppTheme.primary : Colors.white,
+          color: isMine
+              ? AppColors.gold.withValues(alpha: 0.15)
+              : AppColors.bgSurface,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
             bottomLeft: Radius.circular(isMine ? 16 : 4),
             bottomRight: Radius.circular(isMine ? 4 : 16),
           ),
-          border: isMine ? null : Border.all(color: AppTheme.border),
+          border: Border.all(
+            color: isMine
+                ? AppColors.gold.withValues(alpha: 0.3)
+                : AppColors.border,
+            width: 0.5,
+          ),
         ),
         child: Text(
           msg['bodyText'] ?? '',
-          style: TextStyle(
-            color: isMine ? Colors.white : AppTheme.textPrimary,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 15,
           ),
         ),
@@ -179,8 +213,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppTheme.border)),
+        color: AppColors.bgCard,
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         child: Row(
@@ -188,9 +222,24 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             Expanded(
               child: TextField(
                 controller: _inputCtrl,
+                style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: '메시지를 입력하세요',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
+                  hintStyle: const TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.bgSurface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(color: AppColors.gold),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 textInputAction: TextInputAction.send,
@@ -198,9 +247,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.send, color: AppTheme.primary),
-              onPressed: _sendMessage,
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.gold,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: AppColors.bg, size: 20),
+                onPressed: _sendMessage,
+              ),
             ),
           ],
         ),
