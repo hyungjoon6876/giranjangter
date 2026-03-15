@@ -1,0 +1,31 @@
+{
+    # For local development without domain
+    auto_https off
+}
+
+:80 {
+    # API proxy
+    handle /api/* {
+        reverse_proxy lincle-api:8080
+    }
+
+    handle /sse/* {
+        reverse_proxy lincle-api:8080
+    }
+
+    handle /health {
+        reverse_proxy lincle-api:8080
+    }
+
+    # Uploaded files
+    handle /uploads/* {
+        reverse_proxy lincle-api:8080
+    }
+
+    # Frontend (Flutter Web) - serve static files
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+}

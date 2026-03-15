@@ -1,0 +1,34 @@
+# Go
+backend/server
+backend/lincle-api
+backend/data/
+backend/uploads/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter
+frontend/.dart_tool/
+frontend/build/
+frontend/.packages
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# Docker
+docker-compose.override.yml
+.playwright-mcp/
+*.png

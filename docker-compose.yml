@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  lincle-api:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - lincle_data:/app/data
+      - lincle_uploads:/app/uploads
+    environment:
+      - ENV=production
+      - PORT=8080
+      - DATABASE_URL=file:/app/data/lincle.db?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - UPLOAD_DIR=/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      lincle-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  lincle_data:
+  lincle_uploads:
+  caddy_data:
+  caddy_config:
