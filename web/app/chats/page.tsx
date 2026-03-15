@@ -25,7 +25,7 @@ export default function ChatsPage() {
   const messages = messagesData?.data ? [...messagesData.data].reverse() : [];
 
   if (isLoading) return <Loading />;
-  if (!chats.length) return <EmptyState title="채팅이 없습니다" description="매물에서 채팅을 시작해보세요" />;
+  if (!chats.length) return <EmptyState title="채팅이 없습니다" description="매물에서 채팅을 시작해보세요" actionLabel="매물 둘러보기" actionHref="/" />;
 
   // Desktop: split panel
   return (

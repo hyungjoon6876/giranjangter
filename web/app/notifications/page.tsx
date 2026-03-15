@@ -21,14 +21,17 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-text-primary">알림</h1>
         {unreadIds.length > 0 && (
-          <button onClick={() => markRead.mutate(unreadIds)} className="text-sm text-gold">모두 읽음</button>
+          <button onClick={() => markRead.mutate(unreadIds)} className="text-sm text-gold font-medium">모두 읽음</button>
         )}
       </div>
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         {notifications.map((n) => (
-          <div key={n.notificationId} className={`px-5 py-4 border-b border-border last:border-0 ${!n.readAt ? "bg-[rgba(74,127,181,0.15)]" : ""}`}>
+          <div
+            key={n.notificationId}
+            className={`px-5 py-4 border-b border-border last:border-0 ${!n.readAt ? "border-l-4 border-l-gold" : ""}`}
+          >
             <p className="text-sm text-text-primary">{n.message}</p>
-            <p className="text-xs text-text-secondary mt-1">{formatTimeAgo(n.createdAt)}</p>
+            <p className="text-xs text-text-dim mt-1">{formatTimeAgo(n.createdAt)}</p>
           </div>
         ))}
       </div>

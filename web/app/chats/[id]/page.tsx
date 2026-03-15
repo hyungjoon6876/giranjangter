@@ -30,6 +30,8 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
+      {/* Gold accent top bar */}
+      <div className="h-0.5 bg-gradient-to-r from-gold/60 via-gold to-gold/60" />
       <div className="flex items-center gap-2 px-4 py-2 bg-dark border-b border-border">
         <button
           onClick={() => setReservationOpen(true)}

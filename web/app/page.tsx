@@ -79,7 +79,7 @@ export default function HomePage() {
         {isLoading ? (
           <Loading />
         ) : !data?.data.length ? (
-          <EmptyState title="매물이 없습니다" description="첫 매물을 등록해보세요!" />
+          <EmptyState title="매물이 없습니다" description="첫 매물을 등록해보세요!" actionLabel="매물 등록" actionHref="/create" />
         ) : (
           <ListingGrid listings={data.data} />
         )}
