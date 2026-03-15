@@ -1,9 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Noto+Serif+KR:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-surface text-text-primary;
+    @apply bg-darkest text-text-primary font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .glow-gold {
+    box-shadow: 0 0 20px rgba(212,175,55,0.15);
+  }
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(74,127,181,0.15);
+  }
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #8a7340, #c4a35a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .btn-gold-gradient {
+    background: linear-gradient(135deg, #8a7340, #c4a35a);
+  }
+  .btn-gold-gradient:hover {
+    background: linear-gradient(135deg, #c4a35a, #d4af37);
+    box-shadow: 0 4px 15px rgba(212,175,55,0.3);
   }
 }

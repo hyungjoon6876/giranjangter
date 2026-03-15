@@ -44,19 +44,19 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           {REPORT_REASONS.map((r) => (
-            <label key={r.value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${reason === r.value ? "border-primary bg-blue-50" : "border-border hover:bg-surface"}`}>
-              <input type="radio" name="reason" value={r.value} checked={reason === r.value} onChange={() => setReason(r.value)} className="accent-primary" />
-              {r.label}
+            <label key={r.value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${reason === r.value ? "border-gold bg-[rgba(196,163,90,0.1)]" : "border-border hover:bg-medium"}`}>
+              <input type="radio" name="reason" value={r.value} checked={reason === r.value} onChange={() => setReason(r.value)} className="accent-gold" />
+              <span className="text-text-primary">{r.label}</span>
             </label>
           ))}
         </div>
         <textarea
-          className="w-full border border-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary h-20"
+          className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold h-20 placeholder:text-text-dim"
           placeholder="상세 설명 (선택)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-        <button type="submit" disabled={submitting || !reason} className="w-full bg-error text-white py-3 rounded-lg font-semibold disabled:opacity-50">
+        <button type="submit" disabled={submitting || !reason} className="w-full bg-danger text-white py-3 rounded-lg font-semibold disabled:opacity-50">
           {submitting ? "제출 중..." : "신고하기"}
         </button>
       </form>

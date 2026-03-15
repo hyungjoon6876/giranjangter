@@ -12,11 +12,11 @@ export function ChatListItem({ chat, isActive, onClick }: ChatListItemProps) {
     <button
       onClick={onClick}
       className={`w-full text-left p-3 border-b border-border transition-colors ${
-        isActive ? "bg-blue-50 border-l-2 border-l-primary" : "hover:bg-surface"
+        isActive ? "bg-[rgba(74,127,181,0.15)] border-l-2 border-l-gold" : "hover:bg-medium"
       }`}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="font-semibold text-sm">{chat.counterparty.nickname}</span>
+        <span className="font-semibold text-sm text-text-primary">{chat.counterparty.nickname}</span>
         <span className="text-xs text-text-secondary">
           {chat.lastMessage ? formatTimeAgo(chat.lastMessage.sentAt) : ""}
         </span>
@@ -26,7 +26,7 @@ export function ChatListItem({ chat, isActive, onClick }: ChatListItemProps) {
         <div className="text-sm text-text-secondary truncate mt-1">{chat.lastMessage.bodyText}</div>
       )}
       {chat.unreadCount > 0 && (
-        <span className="inline-block mt-1 bg-primary text-white text-xs px-1.5 py-0.5 rounded-full">
+        <span className="inline-block mt-1 bg-gold text-darkest text-xs px-1.5 py-0.5 rounded-full">
           {chat.unreadCount}
         </span>
       )}

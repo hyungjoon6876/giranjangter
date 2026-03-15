@@ -27,10 +27,10 @@ export default function HomePage() {
   return (
     <div className="p-4 lg:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold hidden lg:block">매물 목록</h1>
+        <h1 className="text-2xl font-bold hidden lg:block text-text-primary">매물 목록</h1>
         <Link
           href="/create"
-          className="hidden lg:inline-flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-dark transition-colors"
+          className="hidden lg:inline-flex items-center gap-2 btn-gold-gradient text-white px-4 py-2 rounded-lg text-sm transition-colors"
         >
           + 매물 등록
         </Link>
@@ -55,7 +55,7 @@ export default function HomePage() {
       {/* Mobile FAB */}
       <Link
         href="/create"
-        className="lg:hidden fixed right-4 bottom-20 bg-primary text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg hover:bg-primary-dark z-40"
+        className="lg:hidden fixed right-4 bottom-20 btn-gold-gradient text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg z-40"
       >
         +
       </Link>

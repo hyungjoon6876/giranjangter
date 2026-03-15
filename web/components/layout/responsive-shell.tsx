@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 export function ResponsiveShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-darkest">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header />

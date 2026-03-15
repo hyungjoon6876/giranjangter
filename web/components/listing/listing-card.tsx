@@ -9,7 +9,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
   return (
     <Link
       href={`/listings/${l.listingId}`}
-      className="block bg-white border border-border rounded-xl p-4 hover:shadow-md transition-shadow"
+      className="block bg-card border border-border rounded-xl p-4 hover:glow-gold transition-shadow"
     >
       <div className="flex items-center gap-2 mb-2">
         <TypeBadge type={l.listingType} />
@@ -27,18 +27,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
         )}
         <span>{l.itemName}</span>
         {l.enhancementLevel != null && (
-          <span className="text-primary font-semibold">+{l.enhancementLevel}</span>
+          <span className="text-gold font-semibold">+{l.enhancementLevel}</span>
         )}
       </div>
       <div className="flex items-center mt-2">
-        <span className="text-lg font-bold">{formatPrice(l.priceAmount)}원</span>
+        <span className="text-lg font-bold text-gold">{formatPrice(l.priceAmount)}원</span>
         {l.priceType === "negotiable" && (
           <span className="text-xs text-text-secondary ml-1">(협상가능)</span>
         )}
         <div className="ml-auto flex items-center gap-3 text-xs text-text-secondary">
-          <span>👁 {l.viewCount}</span>
-          <span>♥ {l.favoriteCount}</span>
-          <span>💬 {l.chatCount}</span>
+          <span>{l.viewCount}</span>
+          <span>{l.favoriteCount}</span>
+          <span>{l.chatCount}</span>
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">

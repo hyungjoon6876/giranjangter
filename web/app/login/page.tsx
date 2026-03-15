@@ -23,14 +23,13 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
-        <div className="text-6xl mb-4">🏪</div>
-        <h1 className="text-3xl font-bold text-primary mb-2">기란장터</h1>
+        <h1 className="text-3xl font-bold font-display text-gold-gradient mb-2">기란장터</h1>
         <p className="text-text-secondary mb-10">리니지 클래식 거래 플랫폼</p>
 
         {/* Google OAuth — TODO: integrate NextAuth.js */}
         <button
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 bg-white border border-border rounded-lg py-3 px-4 text-sm hover:bg-surface transition-colors disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-3 bg-card border border-border rounded-lg py-3 px-4 text-sm text-text-primary hover:bg-medium transition-colors disabled:opacity-50"
         >
           <span className="text-lg">G</span>
           Google로 시작하기
@@ -40,14 +39,14 @@ export default function LoginPage() {
         <button
           onClick={handleDevLogin}
           disabled={loading}
-          className="w-full mt-3 flex items-center justify-center gap-3 border border-border rounded-lg py-3 px-4 text-sm text-text-secondary hover:bg-surface transition-colors disabled:opacity-50"
+          className="w-full mt-3 flex items-center justify-center gap-3 border border-border rounded-lg py-3 px-4 text-sm text-text-secondary hover:bg-medium transition-colors disabled:opacity-50"
         >
-          🛠️ 개발자 로그인 (테스트)
+          개발자 로그인 (테스트)
         </button>
 
         <button
           onClick={() => router.push("/")}
-          className="mt-4 text-sm text-text-secondary hover:text-primary"
+          className="mt-4 text-sm text-text-secondary hover:text-gold"
         >
           둘러보기
         </button>

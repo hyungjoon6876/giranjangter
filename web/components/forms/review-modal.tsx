@@ -42,21 +42,21 @@ export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewMo
               onClick={() => setRating(r)}
               className={`flex-1 py-3 rounded-lg text-sm font-medium border transition-colors ${
                 rating === r
-                  ? r === "positive" ? "bg-green-50 border-secondary text-secondary" : "bg-red-50 border-error text-error"
-                  : "border-border text-text-secondary hover:bg-surface"
+                  ? r === "positive" ? "bg-success/10 border-success text-success" : "bg-danger/10 border-danger text-danger"
+                  : "border-border text-text-secondary hover:bg-medium"
               }`}
             >
-              {r === "positive" ? "\u{1F44D} 좋았어요" : "\u{1F44E} 아쉬웠어요"}
+              {r === "positive" ? "좋았어요" : "아쉬웠어요"}
             </button>
           ))}
         </div>
         <textarea
-          className="w-full border border-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary h-24"
+          className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary outline-none focus:border-gold h-24 placeholder:text-text-dim"
           placeholder="한줄 코멘트 (선택)"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
-        <button type="submit" disabled={submitting || !rating} className="w-full bg-primary text-white py-3 rounded-lg font-semibold disabled:opacity-50">
+        <button type="submit" disabled={submitting || !rating} className="w-full btn-gold-gradient text-white py-3 rounded-lg font-semibold disabled:opacity-50">
           {submitting ? "제출 중..." : "리뷰 제출"}
         </button>
       </form>
