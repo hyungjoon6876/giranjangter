@@ -1,30 +1,51 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=lincle
+      - POSTGRES_USER=lincle
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lincle-dev-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lincle"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   lincle-api:
     build: ./backend
     ports:
       - "8080:8080"
     volumes:
-      - lincle_data:/app/data
       - lincle_uploads:/app/uploads
     environment:
       - ENV=production
       - PORT=8080
-      - DATABASE_URL=file:/app/data/lincle.db?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on
+      - DATABASE_URL=postgres://lincle:${POSTGRES_PASSWORD:-lincle-dev-password}@postgres:5432/lincle?sslmode=disable
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - GOOGLE_CLIENT_IDS=${GOOGLE_CLIENT_IDS:-}
       - UPLOAD_DIR=/app/uploads
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   lincle-web:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     environment:
       - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
       - NEXT_PUBLIC_API_URL=/api/v1
     restart: unless-stopped
     healthcheck:
@@ -39,8 +60,7 @@ services:
   caddy:
     image: caddy:2-alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "18090:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -53,7 +73,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  lincle_data:
+  postgres_data:
   lincle_uploads:
   caddy_data:
   caddy_config:
