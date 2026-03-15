@@ -1,0 +1,100 @@
+<h2>섹션 3: 상세 페이지 + 상호작용</h2>
+<p class="subtitle">매물 상세, 채팅, 모달 등 사용자가 깊이 들어가는 단계의 접근성과 UX를 개선합니다.</p>
+
+<div class="section">
+  <h3>3-A. 모달 접근성 (가장 심각한 이슈)</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">현재: 접근성 위반</div>
+      <div class="mockup-body" style="padding:16px;">
+        <p style="font-size:13px;color:#e74c3c;line-height:1.8;">
+          ✗ role="dialog" 없음<br/>
+          ✗ aria-modal="true" 없음<br/>
+          ✗ aria-labelledby 없음<br/>
+          ✗ 포커스 트랩 없음 (Tab이 모달 밖으로 탈출)<br/>
+          ✗ Escape 키로 닫기 불가<br/>
+          ✗ 닫기 버튼 "×"에 aria-label 없음<br/>
+          ✗ 닫힌 후 포커스가 원래 위치로 안 돌아감
+        </p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">개선: WCAG 준수 모달</div>
+      <div class="mockup-body" style="padding:16px;">
+        <p style="font-size:13px;color:#2ecc71;line-height:1.8;">
+          ✓ role="dialog" + aria-modal="true"<br/>
+          ✓ aria-labelledby → 모달 타이틀 연결<br/>
+          ✓ 포커스 트랩 (Tab/Shift+Tab 순환)<br/>
+          ✓ Escape 키 닫기<br/>
+          ✓ aria-label="닫기" 버튼<br/>
+          ✓ 닫힌 후 트리거 요소로 포커스 복귀<br/>
+          ✓ 배경에 aria-hidden="true" inert 적용
+        </p>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#a0a0a0;margin-top:8px;">
+    → 예약 모달, 리뷰 모달, 신고 모달 모두 동일한 Modal 컴포넌트를 사용하므로 한 번 수정으로 전체 적용
+  </p>
+</div>
+
+<div class="section">
+  <h3>3-B. 매물 상세 페이지 접근성</h3>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>아이템 정보를 <code>&lt;dl&gt;</code> (정의 목록) 구조로 변경 — <code>&lt;dt&gt;</code>서버, <code>&lt;dd&gt;</code>바츠</li>
+    <li>하단 액션 바에 <code>role="toolbar"</code> + <code>aria-label="매물 액션"</code></li>
+    <li>찜 버튼 상태 구분: <code>aria-pressed="true/false"</code> + <code>aria-label="찜하기" / "찜 취소"</code></li>
+    <li>채팅 시작 버튼의 <code>alert()</code> → Toast로 교체</li>
+    <li>로딩 실패 시 에러 UI + "다시 시도" 버튼 추가</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>3-C. 채팅 실시간 UX + 접근성</h3>
+  <div class="mockup">
+    <div class="mockup-header">채팅 영역 접근성 개선</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="background:#1e2538;border-radius:8px;padding:12px;margin-bottom:8px;">
+        <p style="font-size:11px;color:#c4a35a;margin-bottom:4px;">메시지 영역</p>
+        <p style="font-size:12px;color:#2ecc71;">
+          ✓ role="log" — 메시지 목록이 시간순 로그임을 명시<br/>
+          ✓ aria-live="polite" — 새 메시지 도착 시 스크린 리더 안내<br/>
+          ✓ 시스템 메시지에 role="status"<br/>
+          ✓ 각 메시지에 시간 정보 (sr-only로 숨김 가능)
+        </p>
+      </div>
+      <div style="background:#1e2538;border-radius:8px;padding:12px;margin-bottom:8px;">
+        <p style="font-size:11px;color:#c4a35a;margin-bottom:4px;">입력 영역</p>
+        <p style="font-size:12px;color:#2ecc71;">
+          ✓ aria-label="메시지 입력"<br/>
+          ✓ 전송 버튼 aria-label="메시지 전송"<br/>
+          ✓ PC: Shift+Enter = 줄바꿈, Enter = 전송<br/>
+          ✓ 전송 실패 시 Toast + 재전송 버튼
+        </p>
+      </div>
+      <div style="background:#1e2538;border-radius:8px;padding:12px;">
+        <p style="font-size:11px;color:#c4a35a;margin-bottom:4px;">채팅 목록</p>
+        <p style="font-size:12px;color:#2ecc71;">
+          ✓ 활성 채팅에 aria-current="true"<br/>
+          ✓ 안 읽은 메시지 뱃지 aria-label="N개 안 읽은 메시지"<br/>
+          ✓ 채팅방 선택 시 메시지 입력으로 auto-focus
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3-D. SSE 연결 상태 표시</h3>
+  <p><strong>현재:</strong> SSE 연결이 끊어져도 사용자에게 아무 피드백 없음. 무한 재시도.</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>useSSE 훅에 <code>isConnected</code> / <code>isReconnecting</code> 상태 노출</li>
+    <li>연결 끊김 시 채팅 상단에 "연결이 끊어졌습니다. 재연결 중..." 배너</li>
+    <li>재연결 최대 횟수 제한 (10회) + 지수 백오프 (1s → 2s → 4s...)</li>
+    <li>배너에 <code>role="alert"</code>로 스크린 리더 즉시 안내</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">섹션 3 괜찮으시면 "OK", 수정 사항 있으면 말씀해주세요.</p>

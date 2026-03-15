@@ -33,7 +33,7 @@ export default function HomePage() {
       {!apiClient.isLoggedIn && (
         <section className="relative overflow-hidden rounded-xl mb-8 p-8 lg:p-12 bg-gradient-to-br from-dark via-card to-medium border border-border">
           <div className="relative z-10">
-            <h1 className="font-display text-3xl lg:text-[48px] text-gold mb-3">기란장터</h1>
+            <img src="/logo.png" alt="기란JT" className="h-16 lg:h-20 mb-3" />
             <p className="text-text-secondary text-lg mb-6">리니지 클래식 아이템 거래, 안전하고 무료</p>
             <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <a href="#listings" className="btn-gold-gradient text-white px-6 py-3 rounded-lg font-medium text-center">매물 둘러보기</a>

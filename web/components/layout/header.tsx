@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
@@ -19,8 +20,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 h-16 bg-dark/95 backdrop-blur border-b border-border flex items-center px-4 lg:px-6">
       {/* Logo */}
-      <Link href="/" className="font-display text-xl text-gold mr-8 flex-shrink-0">
-        기란장터
+      <Link href="/" className="mr-8 flex-shrink-0">
+        <Image src="/logo.png" alt="기란JT" width={120} height={32} priority />
       </Link>
 
       {/* Desktop nav links */}

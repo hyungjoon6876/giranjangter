@@ -1,0 +1,88 @@
+<h2>섹션 1: 첫 진입 경험</h2>
+<p class="subtitle">사용자가 기란장터에 처음 도착했을 때 "뚝 떨어지는 느낌"을 해결합니다.</p>
+
+<div class="section">
+  <h3>1-A. 스켈레톤 로딩 (스피너 → 레이아웃 예약)</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">현재: 스피너만</div>
+      <div class="mockup-body" style="text-align:center; padding:60px 0; color:#6a7080;">
+        <div style="width:32px;height:32px;border:3px solid #c4a35a;border-top-color:transparent;border-radius:50%;margin:0 auto;"></div>
+        <p style="margin-top:12px;font-size:13px;">빈 화면 + 스피너</p>
+        <p style="font-size:11px;color:#6a7080;">레이아웃이 예약되지 않아<br/>콘텐츠 등장 시 화면이 점프</p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">개선: 스켈레톤 카드</div>
+      <div class="mockup-body" style="padding:16px;">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <div style="width:60px;height:28px;background:#1a2035;border-radius:14px;"></div>
+          <div style="width:48px;height:28px;background:#1a2035;border-radius:14px;"></div>
+          <div style="width:56px;height:28px;background:#1a2035;border-radius:14px;"></div>
+        </div>
+        <div style="background:#1e2538;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="display:flex;gap:10px;">
+            <div style="width:36px;height:36px;background:#2a3045;border-radius:6px;"></div>
+            <div style="flex:1;">
+              <div style="width:60%;height:14px;background:#2a3045;border-radius:4px;margin-bottom:6px;"></div>
+              <div style="width:40%;height:10px;background:#2a3045;border-radius:4px;margin-bottom:8px;"></div>
+              <div style="width:30%;height:16px;background:#2a3045;border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#1e2538;border-radius:8px;padding:12px;">
+          <div style="display:flex;gap:10px;">
+            <div style="width:36px;height:36px;background:#2a3045;border-radius:6px;"></div>
+            <div style="flex:1;">
+              <div style="width:70%;height:14px;background:#2a3045;border-radius:4px;margin-bottom:6px;"></div>
+              <div style="width:45%;height:10px;background:#2a3045;border-radius:4px;margin-bottom:8px;"></div>
+              <div style="width:25%;height:16px;background:#2a3045;border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>
+        <p style="font-size:11px;color:#c4a35a;margin-top:8px;text-align:center;">
+          role="status" aria-label="매물 목록을 불러오는 중"
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>1-B. 자연스러운 로그인 진입점</h3>
+  <p>현재: 헤더에 프로필 아이콘만 있고, 비로그인 사용자에게 로그인 유도가 약함</p>
+  <p><strong>개선 안:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>헤더 우측에 <strong>"로그인 / 시작하기"</strong> 텍스트 버튼 표시 (비로그인 시)</li>
+    <li>히어로 섹션의 CTA "시작하기" 버튼을 더 눈에 띄게 개선</li>
+    <li>매물 카드에서 "찜하기" 클릭 시 → 로그인 모달로 자연스럽게 유도</li>
+    <li>로그인 페이지의 <code>alert()</code> → 인라인 에러 메시지로 교체</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>1-C. Loading 컴포넌트 접근성</h3>
+  <p><strong>현재 문제:</strong> <code>&lt;Loading /&gt;</code>에 role="status"도, aria-label도 없어서 스크린 리더에 아무 정보 없음</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li><code>role="status"</code> + <code>aria-label="로딩 중"</code> 추가</li>
+    <li><code>aria-busy="true"</code>를 부모 컨테이너에 적용</li>
+    <li><code>prefers-reduced-motion</code> 미디어 쿼리 대응 (애니메이션 비활성화)</li>
+    <li><code>.sr-only</code> 유틸리티 클래스 globals.css에 추가</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>1-D. 에러 상태 → alert() 제거, 토스트 도입</h3>
+  <p><strong>현재 문제:</strong> 로그인 실패, 채팅 시작 실패 등에서 <code>alert()</code> 사용 → 브라우저 차단 + 접근성 문제</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>Toast 컴포넌트 신규 생성 (<code>components/ui/toast.tsx</code>)</li>
+    <li><code>role="alert"</code> + <code>aria-live="assertive"</code>로 스크린 리더 즉시 안내</li>
+    <li>자동 사라짐 (5초) + 수동 닫기 버튼</li>
+    <li>성공(green)/에러(red)/정보(gold) 3가지 변형</li>
+    <li>모든 <code>alert()</code> 호출을 toast로 교체</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">이 섹션이 괜찮으시면 "OK"라고 답해주세요. 수정 사항이 있으면 말씀해주세요.</p>

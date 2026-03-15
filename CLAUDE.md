@@ -1,6 +1,14 @@
-# 기란장터 (Giranjangter)
+# 기란JT (GiranJT)
 
 리니지 클래식 아이템 거래 중개 플랫폼 — 무료, 커뮤니티 기반
+
+## 브랜딩
+
+- **앱 이름**: 기란JT (이전: 기란장터)
+- **도메인**: giranjt.com (Cloudflare Tunnel → NAS)
+- **에셋 팩**: `frontend/assets/images/giranjt_web_asset_pack.zip` (원본)
+- **공식 컬러**: Background `#08080C`, Cream `#EBD5C4`, Taupe `#A38676`, Red `#C42024`
+- **테마 변수명**: `AppColors.gold`=크림, `AppColors.blue`=레드 (변수명은 레거시, 값이 실제 색상)
 
 ## 기술 스택
 
@@ -24,7 +32,9 @@ web/                # Next.js 웹 프론트엔드 (메인)
   lib/              # API 클라이언트, hooks, providers, types
   e2e/              # Playwright E2E 테스트
 frontend/           # Flutter 모바일 앱
-  lib/features/     # 기능별 모듈
+  assets/images/    # 로고, 히어로 배너
+  assets/icons/     # 커스텀 아이콘 (market, price, shield, chat, search)
+  lib/features/     # 기능별 모듈 (auth, listing, chat, reservation, review, report, notification, admin)
   lib/shared/       # api/, providers/, theme/, widgets/, models/
 admin/              # Next.js 운영 대시보드
 shared/             # 공유 리소스 (design-tokens.json)
@@ -120,6 +130,13 @@ cd frontend && flutter test
 | [docs/EVENT_CATALOG.md](docs/EVENT_CATALOG.md) | 도메인 이벤트 카탈로그 |
 | [docs/conventions.md](docs/conventions.md) | 코딩 컨벤션 |
 | [docs/testing.md](docs/testing.md) | 테스팅 전략 |
+
+## 주의사항
+
+- `.gitignore`에 `*.png` 글로벌 무시 — 새 PNG 에셋 추가 시 `!path/*.png` 예외 필수
+- Google OAuth origin 설정: Google Cloud Console에서 도메인 등록 필요 (`giranjt.com`)
+- 아이콘 URL 패턴: `/static/icons/{icon_id}.png` (CDN 원본: `assets.playnccdn.com`)
+- `item_master` 시드 데이터: `backend/db/seed/items.sql`, `backend/db/seed/item_icons.sql`
 
 ## 판단이 어려울 때
 

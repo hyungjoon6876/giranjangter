@@ -1,0 +1,99 @@
+<h2>섹션 5: 에러 처리 + 엣지 케이스</h2>
+<p class="subtitle">네트워크 오류, 빈 상태, 폼 검증 등 예외 상황에서의 사용자 경험을 개선합니다.</p>
+
+<div class="section">
+  <h3>5-A. Toast 알림 시스템 (alert() 전면 교체)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Toast 컴포넌트 3가지 변형</div>
+    <div class="mockup-body" style="padding:16px;">
+      <div style="background:#1e2538;border-left:4px solid #2ecc71;border-radius:8px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <p style="font-size:13px;color:#e0e0e0;font-weight:600;">매물이 등록되었습니다</p>
+          <p style="font-size:11px;color:#a0a0a0;">매물 목록에서 확인하세요</p>
+        </div>
+        <span style="color:#6a7080;cursor:pointer;font-size:16px;">✕</span>
+      </div>
+      <div style="background:#1e2538;border-left:4px solid #e74c3c;border-radius:8px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <p style="font-size:13px;color:#e0e0e0;font-weight:600;">채팅을 시작할 수 없습니다</p>
+          <p style="font-size:11px;color:#a0a0a0;">네트워크 연결을 확인해주세요</p>
+        </div>
+        <span style="color:#6a7080;cursor:pointer;font-size:16px;">✕</span>
+      </div>
+      <div style="background:#1e2538;border-left:4px solid #c4a35a;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <p style="font-size:13px;color:#e0e0e0;font-weight:600;">로그인이 필요합니다</p>
+          <p style="font-size:11px;color:#a0a0a0;">찜하기는 로그인 후 이용할 수 있습니다</p>
+        </div>
+        <span style="color:#6a7080;cursor:pointer;font-size:16px;">✕</span>
+      </div>
+      <p style="font-size:11px;color:#2ecc71;margin-top:12px;">
+        ✓ role="alert" + aria-live="assertive"<br/>
+        ✓ 5초 후 자동 사라짐 + 수동 닫기 (aria-label="닫기")<br/>
+        ✓ 화면 우상단 고정 (z-50), 모바일은 상단 전체 너비<br/>
+        ✓ useToast() 훅 + ToastProvider 전역 관리
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>5-B. 페이지별 에러 상태 UI</h3>
+  <p><strong>현재:</strong> 대부분의 페이지가 API 에러를 조용히 삼킴 (catch 후 setState만). 사용자가 뭐가 잘못됐는지 모름.</p>
+  <p><strong>개선 — ErrorState 컴포넌트 신규:</strong></p>
+  <div class="mockup">
+    <div class="mockup-header">에러 상태 UI</div>
+    <div class="mockup-body" style="padding:24px;text-align:center;">
+      <div style="font-size:36px;margin-bottom:12px;">⚠️</div>
+      <p style="font-size:15px;color:#e0e0e0;font-weight:600;">매물을 불러올 수 없습니다</p>
+      <p style="font-size:13px;color:#a0a0a0;margin:8px 0 16px;">네트워크 연결을 확인하고 다시 시도해주세요</p>
+      <button style="background:linear-gradient(135deg,#8a7340,#c4a35a);color:#0a0e17;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;">
+        다시 시도
+      </button>
+      <p style="font-size:11px;color:#2ecc71;margin-top:16px;">
+        ✓ role="alert" — 스크린 리더 즉시 안내<br/>
+        ✓ 재시도 버튼 auto-focus<br/>
+        ✓ 적용 대상: 매물 목록, 상세, 채팅, 알림, 프로필
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>5-C. 폼 검증 접근성</h3>
+  <p><strong>현재:</strong> 매물 등록 폼에서 에러 메시지가 스크린 리더에 전달되지 않음</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>각 input에 <code>aria-describedby</code>로 에러 메시지 연결</li>
+    <li>에러 메시지에 <code>role="alert"</code> → 즉시 안내</li>
+    <li>에러 발생 시 첫 번째 에러 필드로 포커스 이동</li>
+    <li>필수 필드에 <code>aria-required="true"</code></li>
+    <li>에러 상태 input에 <code>aria-invalid="true"</code></li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>5-D. prefers-reduced-motion 대응</h3>
+  <p><strong>현재:</strong> 스피너 애니메이션, 호버 트랜지션이 모션 감소 설정을 무시함</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>globals.css에 <code>@media (prefers-reduced-motion: reduce)</code> 추가</li>
+    <li>애니메이션 → 즉시 전환 또는 비활성화</li>
+    <li>스피너 → 정적 "로딩 중..." 텍스트로 대체</li>
+    <li>카드 hover 효과 (translate, glow) → 배경색 변경만</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>5-E. globals.css 접근성 유틸리티</h3>
+  <p><strong>현재:</strong> sr-only, focus-visible 등 접근성 유틸리티 클래스 없음</p>
+  <p><strong>추가할 유틸리티:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li><code>.sr-only</code> — 시각적으로 숨기되 스크린 리더에는 노출</li>
+    <li><code>.not-sr-only</code> — sr-only 해제 (skip link 포커스 시)</li>
+    <li><code>.skeleton</code> — 스켈레톤 로딩 펄스 애니메이션</li>
+    <li><code>.focus-gold</code> — 통일된 focus-visible 스타일</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">이것으로 5개 섹션 전체가 끝났습니다. 괜찮으시면 "OK"라고 답해주시면 설계 문서를 작성합니다.</p>

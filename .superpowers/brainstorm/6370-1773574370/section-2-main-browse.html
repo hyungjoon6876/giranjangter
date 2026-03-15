@@ -1,0 +1,108 @@
+<h2>섹션 2: 메인 탐색 경험</h2>
+<p class="subtitle">매물을 찾고, 필터링하고, 탐색하는 과정의 접근성과 UX를 개선합니다.</p>
+
+<div class="section">
+  <h3>2-A. 검색 접근성 강화</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">현재</div>
+      <div class="mockup-body" style="padding:12px;">
+        <div style="background:#1a2035;border-radius:8px;padding:10px 14px;color:#6a7080;font-size:13px;">
+          아이템 검색...
+        </div>
+        <p style="font-size:11px;color:#e74c3c;margin-top:8px;">
+          ✗ label 없음 (placeholder만 의존)<br/>
+          ✗ aria-label 없음<br/>
+          ✗ 검색 결과 카운트 안내 없음<br/>
+          ✗ PC에서 Ctrl+K 단축키 없음
+        </p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">개선</div>
+      <div class="mockup-body" style="padding:12px;">
+        <div style="background:#1a2035;border-radius:8px;padding:10px 14px;color:#6a7080;font-size:13px;border:1px solid #2a3045;display:flex;align-items:center;gap:8px;">
+          <span style="color:#c4a35a;">🔍</span>
+          아이템 검색...
+          <span style="margin-left:auto;font-size:10px;color:#6a7080;background:#0a0e17;padding:2px 6px;border-radius:4px;">⌘K</span>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#a0a0a0;">
+          23개 매물
+        </div>
+        <p style="font-size:11px;color:#2ecc71;margin-top:8px;">
+          ✓ aria-label="매물 검색"<br/>
+          ✓ role="searchbox"<br/>
+          ✓ 결과 카운트 aria-live="polite"<br/>
+          ✓ Ctrl+K / ⌘K 포커스 단축키
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2-B. 필터 칩 키보드 접근성</h3>
+  <p><strong>현재 문제:</strong> 서버 필터 버튼에 <code>aria-current</code> 없음. 선택 상태가 시각적으로만 표현됨.</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>버튼 그룹에 <code>role="group"</code> + <code>aria-label="서버 필터"</code></li>
+    <li>선택된 필터에 <code>aria-current="true"</code></li>
+    <li><code>focus-visible:ring-2 focus-visible:ring-gold</code> 포커스 링 추가</li>
+    <li>필터 변경 시 결과 카운트를 <code>aria-live="polite"</code> 영역으로 안내</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>2-C. 결과 카운트 + 정렬 컨트롤</h3>
+  <div class="mockup">
+    <div class="mockup-header">필터 아래 정보 바 추가</div>
+    <div class="mockup-body" style="padding:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a3045;">
+        <span style="font-size:13px;color:#a0a0a0;">
+          <strong style="color:#e0e0e0;">23</strong>개 매물
+        </span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select style="background:#1a2035;color:#a0a0a0;border:1px solid #2a3045;border-radius:6px;padding:4px 8px;font-size:12px;">
+            <option>최신순</option>
+            <option>가격 낮은순</option>
+            <option>가격 높은순</option>
+            <option>인기순</option>
+          </select>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#2ecc71;margin-top:8px;">
+        ✓ 결과 수 → aria-live="polite"로 필터/검색 변경 시 스크린 리더에 안내<br/>
+        ✓ 네이티브 &lt;select&gt; → 키보드/스크린 리더 완벽 지원<br/>
+        ✓ label 연결: aria-label="정렬 방식"
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2-D. 매물 카드 접근성</h3>
+  <p><strong>현재 문제:</strong> 카드 링크에 aria-label 없음, 타이틀 truncate 시 전체 텍스트 접근 불가, focus-visible 스타일 없음</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>카드 Link에 <code>aria-label="{아이템명} - {가격} - {서버명}"</code> 조합 라벨</li>
+    <li>truncated 텍스트에 <code>title</code> 속성으로 전체 텍스트 접근</li>
+    <li><code>focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2</code></li>
+    <li>카드 호버/포커스 시 동일한 시각적 피드백 (outline glow)</li>
+    <li>아이콘 이미지에 의미 있는 <code>alt="{아이템명} 아이콘"</code></li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>2-E. 컨텍스트 빈 상태</h3>
+  <p><strong>현재:</strong> 항상 동일한 "매물이 없습니다" 메시지</p>
+  <p><strong>개선:</strong></p>
+  <ul style="color:#a0a0a0;font-size:14px;line-height:1.8;">
+    <li>검색 결과 없음: <em>"'{검색어}'에 대한 매물이 없습니다"</em></li>
+    <li>필터 결과 없음: <em>"선택한 서버에 매물이 없습니다. 다른 서버를 선택해보세요."</em></li>
+    <li>진짜 빈 상태: <em>"아직 매물이 없습니다. 첫 매물을 등록해보세요!"</em></li>
+    <li>EmptyState 컴포넌트의 타이틀을 <code>&lt;h2&gt;</code>로 변경 (시맨틱 계층)</li>
+    <li>아이콘 emoji에 <code>role="img"</code> + <code>aria-label</code></li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:20px;">이 섹션 괜찮으시면 "OK", 수정 사항 있으면 말씀해주세요.</p>

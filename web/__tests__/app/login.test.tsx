@@ -21,9 +21,9 @@ import LoginPage from "@/app/login/page";
 afterEach(() => cleanup());
 
 describe("LoginPage", () => {
-  it("renders 기란장터 title", () => {
+  it("renders 기란JT logo", () => {
     render(<LoginPage />);
-    expect(screen.getByText("기란장터")).toBeDefined();
+    expect(screen.getByAltText("기란JT")).toBeDefined();
   });
 
   it("renders 둘러보기 link", () => {
