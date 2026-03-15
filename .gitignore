@@ -38,4 +38,7 @@ docker-compose.override.yml
 !frontend/assets/images/*.png
 !frontend/assets/icons/*.png
 !frontend/web/og-image.png
+!web/public/*.png
+!web/public/icons/*.png
+!web/public/images/*.png
 .claude/worktrees/

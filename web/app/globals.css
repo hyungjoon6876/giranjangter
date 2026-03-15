@@ -13,32 +13,32 @@
 
 @layer utilities {
   .glow-gold {
-    box-shadow: 0 0 20px rgba(212,175,55,0.15);
+    box-shadow: 0 0 20px rgba(235,213,196,0.15);
   }
   .glow-blue {
-    box-shadow: 0 0 20px rgba(74,127,181,0.15);
+    box-shadow: 0 0 20px rgba(196,32,36,0.15);
   }
   .text-gold-gradient {
-    background: linear-gradient(135deg, #8a7340, #c4a35a);
+    background: linear-gradient(135deg, #A38676, #EBD5C4);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   .btn-gold-gradient {
-    background: linear-gradient(135deg, #8a7340, #c4a35a);
+    background: linear-gradient(135deg, #A38676, #EBD5C4);
   }
   .btn-gold-gradient:hover {
-    background: linear-gradient(135deg, #c4a35a, #d4af37);
-    box-shadow: 0 4px 15px rgba(212,175,55,0.3);
+    background: linear-gradient(135deg, #EBD5C4, #F2DDCD);
+    box-shadow: 0 4px 15px rgba(235,213,196,0.3);
   }
 
   .skeleton {
-    background: linear-gradient(90deg, #1e2538 25%, #2a3045 50%, #1e2538 75%);
+    background: linear-gradient(90deg, #17131A 25%, #1E1820 50%, #17131A 75%);
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
   .focus-gold {
-    outline: 2px solid #c4a35a;
+    outline: 2px solid #EBD5C4;
     outline-offset: 2px;
   }
 }
@@ -51,7 +51,7 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
-    background: #1e2538;
+    background: #17131A;
   }
   .animate-spin {
     animation: none;

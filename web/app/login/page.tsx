@@ -25,7 +25,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-3xl font-bold font-display text-gold-gradient mb-2">기란장터</h1>
+        <img src="/logo.png" alt="기란JT" className="h-16 mx-auto mb-2" />
         <p className="text-text-secondary mb-10">리니지 클래식 거래 플랫폼</p>
 
         {/* Google OAuth — TODO: integrate NextAuth.js */}

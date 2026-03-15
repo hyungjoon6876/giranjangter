@@ -4,8 +4,13 @@ import { ResponsiveShell } from "@/components/layout/responsive-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "기란장터 — 리니지 클래식 거래",
+  title: "기란JT — 리니지 클래식 거래",
   description: "리니지 클래식 아이템 거래 중개 플랫폼",
+  openGraph: {
+    title: "기란JT — 리니지 클래식 거래 플랫폼",
+    description: "무료 커뮤니티 기반 리니지 클래식 아이템 거래 중개",
+    images: ["/images/og-image.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
