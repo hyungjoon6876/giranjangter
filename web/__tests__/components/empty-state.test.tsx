@@ -22,10 +22,11 @@ describe("EmptyState", () => {
     expect(heading.textContent).toBe("검색 결과가 없습니다");
   });
 
-  it("icon has role=img with aria-label", () => {
-    render(<EmptyState title="검색 결과가 없습니다" />);
-    const icon = screen.getByRole("img", { name: "검색 결과가 없습니다" });
-    expect(icon).toBeDefined();
+  it("icon is aria-hidden (decorative when heading exists)", () => {
+    const { container } = render(<EmptyState title="검색 결과가 없습니다" />);
+    const icon = container.querySelector("[aria-hidden='true']");
+    expect(icon).not.toBeNull();
+    expect(icon!.textContent).toContain("\u{1F50D}");
   });
 
   it("action link has aria-label", () => {

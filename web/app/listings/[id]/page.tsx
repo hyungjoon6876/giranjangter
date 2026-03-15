@@ -23,7 +23,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <Loading />;
-  if (isError) return <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} />;
+  if (isError) return <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} autoFocus />;
   if (!listing) return <div className="p-6 text-center text-text-secondary">매물을 찾을 수 없습니다</div>;
 
   const l = listing;

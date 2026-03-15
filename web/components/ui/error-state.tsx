@@ -6,14 +6,15 @@ interface ErrorStateProps {
   message: string;
   description?: string;
   onRetry?: () => void;
+  autoFocus?: boolean;
 }
 
-export function ErrorState({ message, description, onRetry }: ErrorStateProps) {
+export function ErrorState({ message, description, onRetry, autoFocus }: ErrorStateProps) {
   const retryRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    retryRef.current?.focus();
-  }, []);
+    if (autoFocus) retryRef.current?.focus();
+  }, [autoFocus]);
 
   return (
     <div role="alert" className="flex flex-col items-center justify-center py-20 text-text-secondary">

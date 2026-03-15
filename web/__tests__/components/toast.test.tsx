@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { ToastContainer } from "@/components/ui/toast";
 import { ToastContext, type ToastContextValue } from "@/lib/hooks/use-toast";
 
@@ -28,14 +28,15 @@ describe("ToastContainer", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders toast with role=alert", () => {
+  it("renders toast inside a status container with aria-live", () => {
     renderWithToast(
       makeCtx({
         toasts: [{ id: "1", type: "success", message: "저장되었습니다" }],
       }),
     );
-    const alert = screen.getByRole("alert");
-    expect(alert).toBeDefined();
+    const container = screen.getByRole("status");
+    expect(container).toBeDefined();
+    expect(container.getAttribute("aria-live")).toBe("polite");
     expect(screen.getByText("저장되었습니다")).toBeDefined();
   });
 
@@ -47,5 +48,18 @@ describe("ToastContainer", () => {
     );
     const btn = screen.getByLabelText("닫기");
     expect(btn).toBeDefined();
+  });
+
+  it("clicking close calls removeToast with the correct id", () => {
+    const removeMock = vi.fn();
+    renderWithToast(
+      makeCtx({
+        toasts: [{ id: "t42", type: "info", message: "알림" }],
+        removeToast: removeMock,
+      }),
+    );
+    const btn = screen.getByLabelText("닫기");
+    fireEvent.click(btn);
+    expect(removeMock).toHaveBeenCalledWith("t42");
   });
 });

@@ -14,7 +14,6 @@ function ToastCard({ toast }: { toast: Toast }) {
 
   return (
     <div
-      role="alert"
       className="flex items-start gap-3 bg-card border border-border rounded-lg p-4 shadow-lg"
       style={{ borderLeftWidth: 4, borderLeftColor: borderColors[toast.type] }}
     >
@@ -36,7 +35,7 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 max-sm:left-4 max-sm:right-4">
+    <div role="status" aria-live="polite" className="fixed top-4 right-4 z-[60] flex flex-col gap-2 max-sm:left-4 max-sm:right-4">
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} />
       ))}

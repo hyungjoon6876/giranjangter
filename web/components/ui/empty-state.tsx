@@ -11,7 +11,7 @@ interface EmptyStateProps {
 export function EmptyState({ icon = "\u{1F50D}", title, description, actionLabel, actionHref }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
-      <div role="img" aria-label={title} className="text-5xl mb-4">{icon}</div>
+      <div aria-hidden="true" className="text-5xl mb-4">{icon}</div>
       <h2 className="text-lg">{title}</h2>
       {description && <p className="text-sm mt-2 text-text-dim">{description}</p>}
       {actionLabel && actionHref && (

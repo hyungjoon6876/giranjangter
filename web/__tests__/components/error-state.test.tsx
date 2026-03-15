@@ -34,10 +34,17 @@ describe("ErrorState", () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it("auto-focuses retry button", () => {
+  it("auto-focuses retry button when autoFocus is true", () => {
+    const onRetry = vi.fn();
+    render(<ErrorState message="오류" onRetry={onRetry} autoFocus />);
+    const btn = screen.getByText("다시 시도");
+    expect(document.activeElement).toBe(btn);
+  });
+
+  it("does not auto-focus retry button by default", () => {
     const onRetry = vi.fn();
     render(<ErrorState message="오류" onRetry={onRetry} />);
     const btn = screen.getByText("다시 시도");
-    expect(document.activeElement).toBe(btn);
+    expect(document.activeElement).not.toBe(btn);
   });
 });
