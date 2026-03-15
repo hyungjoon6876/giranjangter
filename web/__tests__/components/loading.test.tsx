@@ -16,8 +16,11 @@ describe("Loading", () => {
     expect(status.getAttribute("aria-label")).toBe("로딩 중");
   });
 
-  it("has sr-only text for screen readers", () => {
+  it("aria-label is sufficient without redundant sr-only text", () => {
     render(<Loading />);
-    expect(screen.getByText("로딩 중")).toBeDefined();
+    const status = screen.getByRole("status");
+    expect(status.getAttribute("aria-label")).toBe("로딩 중");
+    // sr-only span removed — aria-label already provides the accessible name
+    expect(status.querySelector(".sr-only")).toBeNull();
   });
 });

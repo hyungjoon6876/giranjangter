@@ -33,7 +33,6 @@ export function ListingSkeleton({ count = 6 }: ListingSkeletonProps) {
         ))}
       </div>
 
-      <span className="sr-only">매물 목록을 불러오는 중</span>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 interface EmptyStateProps {
   icon?: string;
   title: string;
@@ -13,9 +15,9 @@ export function EmptyState({ icon = "\u{1F50D}", title, description, actionLabel
       <h2 className="text-lg">{title}</h2>
       {description && <p className="text-sm mt-2 text-text-dim">{description}</p>}
       {actionLabel && actionHref && (
-        <a href={actionHref} aria-label={actionLabel} className="mt-4 btn-gold-gradient text-white px-4 py-2 rounded-lg text-sm font-medium">
+        <Link href={actionHref} aria-label={actionLabel} className="mt-4 btn-gold-gradient text-white px-4 py-2 rounded-lg text-sm font-medium">
           {actionLabel}
-        </a>
+        </Link>
       )}
     </div>
   );

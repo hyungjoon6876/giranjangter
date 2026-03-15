@@ -51,7 +51,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
           신고
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
+      <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
         {messages.map((m) => (
           <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === me?.userId} />
         ))}
