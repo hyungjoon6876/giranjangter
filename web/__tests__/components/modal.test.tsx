@@ -4,6 +4,7 @@ import {
   screen,
   cleanup,
   fireEvent,
+  act,
 } from "@testing-library/react";
 import { Modal } from "@/components/ui/modal";
 
@@ -109,5 +110,88 @@ describe("Modal", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Tab cycles from last focusable to first focusable", async () => {
+    render(
+      <Modal open={true} onClose={vi.fn()} title="포커스 트랩 테스트">
+        <button>첫 번째</button>
+        <button>두 번째</button>
+        <button>세 번째</button>
+      </Modal>,
+    );
+
+    // Wait for requestAnimationFrame focus
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const dialog = screen.getByRole("dialog");
+    const buttons = dialog.querySelectorAll("button");
+    // The modal has a close button + 3 content buttons = at least 4 focusable elements
+    // Close button is first, then 첫 번째, 두 번째, 세 번째
+    const lastButton = buttons[buttons.length - 1];
+    (lastButton as HTMLElement).focus();
+    expect(document.activeElement).toBe(lastButton);
+
+    // Tab from last -> should wrap to first focusable
+    const wrapper = dialog.closest("[class*='fixed']")!;
+    fireEvent.keyDown(wrapper, { key: "Tab" });
+    // First focusable is the close button
+    const firstFocusable = buttons[0];
+    expect(document.activeElement).toBe(firstFocusable);
+  });
+
+  it("Shift+Tab cycles from first focusable to last focusable", async () => {
+    render(
+      <Modal open={true} onClose={vi.fn()} title="역방향 포커스 트랩 테스트">
+        <button>첫 번째</button>
+        <button>두 번째</button>
+        <button>세 번째</button>
+      </Modal>,
+    );
+
+    // Wait for requestAnimationFrame focus
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const dialog = screen.getByRole("dialog");
+    const buttons = dialog.querySelectorAll("button");
+    // Focus on the first focusable element (close button)
+    const firstButton = buttons[0];
+    (firstButton as HTMLElement).focus();
+    expect(document.activeElement).toBe(firstButton);
+
+    // Shift+Tab from first -> should wrap to last focusable
+    const wrapper = dialog.closest("[class*='fixed']")!;
+    fireEvent.keyDown(wrapper, { key: "Tab", shiftKey: true });
+    const lastButton = buttons[buttons.length - 1];
+    expect(document.activeElement).toBe(lastButton);
+  });
+
+  it("locks body scroll when open", () => {
+    render(
+      <Modal open={true} onClose={vi.fn()} title="스크롤 잠금 테스트">
+        <p>내용</p>
+      </Modal>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("restores body scroll when closed", () => {
+    const { rerender } = render(
+      <Modal open={true} onClose={vi.fn()} title="스크롤 잠금 테스트">
+        <p>내용</p>
+      </Modal>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(
+      <Modal open={false} onClose={vi.fn()} title="스크롤 잠금 테스트">
+        <p>내용</p>
+      </Modal>,
+    );
+    expect(document.body.style.overflow).toBe("");
   });
 });
