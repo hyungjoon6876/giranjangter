@@ -1,0 +1,30 @@
+{
+  "colors": {
+    "primary": "#2563EB",
+    "primaryDark": "#1D4ED8",
+    "secondary": "#059669",
+    "error": "#DC2626",
+    "warning": "#F59E0B",
+    "surface": "#F8FAFC",
+    "textPrimary": "#1E293B",
+    "textSecondary": "#64748B",
+    "border": "#E2E8F0",
+    "white": "#FFFFFF"
+  },
+  "borderRadius": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "10px",
+    "xl": "12px",
+    "full": "9999px"
+  },
+  "fontSize": {
+    "xs": "11px",
+    "sm": "12px",
+    "base": "14px",
+    "lg": "16px",
+    "xl": "18px",
+    "2xl": "22px",
+    "3xl": "28px"
+  }
+}
