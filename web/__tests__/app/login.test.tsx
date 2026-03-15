@@ -31,11 +31,6 @@ describe("LoginPage", () => {
     expect(screen.getByText("둘러보기")).toBeDefined();
   });
 
-  it("dev login button is present", () => {
-    render(<LoginPage />);
-    expect(screen.getByText(/개발자 로그인/)).toBeDefined();
-  });
-
   it("renders Google sign-in container", () => {
     render(<LoginPage />);
     // The Google button container is rendered as an empty div with a ref
