@@ -11,9 +11,11 @@ export function ListingCard({ listing }: { listing: Listing }) {
   return (
     <Link
       href={`/listings/${l.listingId}`}
+      aria-label={`${l.itemName}${l.enhancementLevel != null ? ` +${l.enhancementLevel}` : ""}, ${formatPrice(l.priceAmount)}원, ${l.serverName}`}
       className={`group relative block bg-card border border-border rounded-xl p-4
         hover:border-[rgba(196,163,90,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.1)]
         hover:-translate-y-0.5 transition-all duration-300
+        focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-darkest
         border-l-4 ${borderColor}`}
     >
       <div className="flex items-center gap-2 mb-2">
@@ -21,12 +23,12 @@ export function ListingCard({ listing }: { listing: Listing }) {
         <Badge label={statusLabel(l.status)} color={statusColor(l.status)} />
         <span className="ml-auto text-sm text-text-secondary">{l.serverName}</span>
       </div>
-      <h3 className="font-semibold text-text-primary truncate">{l.title}</h3>
+      <h3 className="font-semibold text-text-primary truncate" title={l.title}>{l.title}</h3>
       <div className="flex items-center gap-1 mt-1 text-sm text-text-secondary">
         {l.iconUrl && (
           <img
             src={assetUrl(l.iconUrl)}
-            alt=""
+            alt={`${l.itemName} 아이콘`}
             className="w-10 h-10"
           />
         )}
