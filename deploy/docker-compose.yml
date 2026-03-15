@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  lincle-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lincle-api
+    ports:
+      - "18091:8080"
+    volumes:
+      - /volume1/docker/lincle-uploads:/app/uploads
+      - /volume1/docker/lincle-logs:/app/logs
+    environment:
+      - ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgres://lincle:lincle_db_2026@host.docker.internal:15433/lincle?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_IDS=${GOOGLE_CLIENT_IDS}
+      - ALLOWED_ORIGINS=https://giranjt.com,https://www.giranjt.com
+      - UPLOAD_DIR=/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  lincle-caddy:
+    image: caddy:2-alpine
+    container_name: lincle-caddy
+    ports:
+      - "18090:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /volume1/docker/lincle-web:/srv/web:ro
+      - caddy_data:/data
+    depends_on:
+      lincle-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
