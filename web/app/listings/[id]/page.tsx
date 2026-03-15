@@ -78,12 +78,12 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
       <hr className="border-border my-6" />
 
       {/* Trade info card */}
-      <div className="bg-card rounded-xl p-4 border border-border mb-6">
+      <dl className="bg-card rounded-xl p-4 border border-border mb-6">
         <InfoRow label="거래 방식" value={tradeMethodLabel(l.tradeMethod)} />
         {l.preferredMeetingAreaText && <InfoRow label="접선 장소" value={l.preferredMeetingAreaText} />}
         {l.availableTimeText && <InfoRow label="거래 가능 시간" value={l.availableTimeText} />}
         <InfoRow label="수량" value={`${l.quantity}개`} />
-      </div>
+      </dl>
 
       {/* Author card */}
       {l.author && (
