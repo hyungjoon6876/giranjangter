@@ -134,7 +134,10 @@ class ApiClient {
 
   // ── Chat ──
   Future<Map<String, dynamic>> createChat(String listingId) async {
-    final res = await dio.post('/listings/$listingId/chats');
+    final res = await dio.post(
+      '/listings/$listingId/chats',
+      options: Options(validateStatus: (status) => status == 201 || status == 409),
+    );
     return res.data;
   }
 
