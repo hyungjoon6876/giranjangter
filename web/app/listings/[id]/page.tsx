@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useListing, useToggleFavorite } from "@/lib/hooks/use-listings";
 import { useCreateChat } from "@/lib/hooks/use-chats";
 import { useToast } from "@/lib/hooks/use-toast";
+import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { TypeBadge, Badge } from "@/components/ui/badge";
 import { AuthorSection, InfoRow, tradeMethodLabel } from "@/components/listing/listing-info";
 import { Loading } from "@/components/ui/loading";
@@ -20,6 +21,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const toggleFav = useToggleFavorite();
   const createChat = useCreateChat();
   const { addToast } = useToast();
+  const { requireAuth } = useAuthGuard();
   const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <Loading />;
@@ -30,6 +32,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const actions = l.availableActions ?? [];
 
   const handleChat = async () => {
+    if (!requireAuth("채팅")) return;
     try {
       const chat = await createChat.mutateAsync(l.listingId);
       router.push(`/chats/${chat.chatRoomId}`);
@@ -101,7 +104,7 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         <div role="toolbar" aria-label="매물 액션" className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3">
           {actions.includes("favorite") && (
             <button
-              onClick={() => toggleFav.mutate({ id: l.listingId, isFavorited: l.isFavorited ?? false })}
+              onClick={() => { if (!requireAuth("찜하기")) return; toggleFav.mutate({ id: l.listingId, isFavorited: l.isFavorited ?? false }); }}
               aria-pressed={l.isFavorited ?? false}
               aria-label={l.isFavorited ? "찜 취소" : "찜하기"}
               className="p-3 bg-card border border-border rounded-lg hover:bg-medium transition-colors text-text-secondary"

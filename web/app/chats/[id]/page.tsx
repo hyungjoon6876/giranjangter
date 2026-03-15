@@ -1,9 +1,11 @@
 "use client";
 
 import { use, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMessages, useSendMessage } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
+import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { ChatInput, type ChatInputHandle } from "@/components/chat/chat-input";
 import { ReservationModal } from "@/components/forms/reservation-modal";
@@ -12,8 +14,18 @@ import { Loading } from "@/components/ui/loading";
 
 export default function ChatDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
+  const { isLoggedIn } = useAuthGuard();
   const qc = useQueryClient();
   const { data: me } = useMe();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      router.replace("/login");
+    }
+  }, [isLoggedIn, router]);
+
+  if (!isLoggedIn) return null;
   const { data, isLoading } = useMessages(id);
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);

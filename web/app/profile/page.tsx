@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/lib/hooks/use-profile";
 import { apiClient } from "@/lib/api-client";
 import { Loading } from "@/components/ui/loading";
 
 export default function ProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: me, isLoading } = useMe();
 
   if (isLoading) return <Loading />;
@@ -22,6 +24,7 @@ export default function ProfilePage() {
 
   const handleLogout = () => {
     apiClient.clearTokens();
+    queryClient.clear();
     router.push("/");
     router.refresh();
   };
