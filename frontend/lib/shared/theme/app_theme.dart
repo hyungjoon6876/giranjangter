@@ -3,25 +3,25 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Backgrounds (deep navy)
-  static const bg = Color(0xFF0A0E17);
-  static const bgCard = Color(0xFF121828);
-  static const bgSurface = Color(0xFF1A2035);
-  static const bgElevated = Color(0xFF222940);
+  // Backgrounds (pure black)
+  static const bg = Color(0xFF050505);
+  static const bgCard = Color(0xFF111111);
+  static const bgSurface = Color(0xFF1A1A1A);
+  static const bgElevated = Color(0xFF242424);
 
-  // Gold accents (Lineage gold)
-  static const gold = Color(0xFFD4AF37);
-  static const goldLight = Color(0xFFC4A35A);
-  static const goldDark = Color(0xFFB8960F);
+  // Metallic silver accents (primary)
+  static const gold = Color(0xFFC0AFA0);
+  static const goldLight = Color(0xFFD4C8BC);
+  static const goldDark = Color(0xFF8B7D6B);
 
-  // Blue accents
-  static const blue = Color(0xFF4A7FB5);
-  static const blueLight = Color(0xFF5B9BD5);
+  // Crimson red accents (secondary)
+  static const blue = Color(0xFFCC1A1A);
+  static const blueLight = Color(0xFFE03030);
 
   // Text
-  static const textPrimary = Color(0xFFE8E8E8);
-  static const textSecondary = Color(0xFF8B95A8);
-  static const textMuted = Color(0xFF5A6478);
+  static const textPrimary = Color(0xFFF0EDED);
+  static const textSecondary = Color(0xFF8B8B8B);
+  static const textMuted = Color(0xFF5A5A5A);
 
   // Status
   static const success = Color(0xFF2ECC71);
@@ -31,13 +31,13 @@ class AppColors {
   // Alignment grades
   static const royalKnight = Color(0xFF4A7FB5);
   static const lawful = Color(0xFF2ECC71);
-  static const neutral = Color(0xFF8B95A8);
+  static const neutral = Color(0xFF8B8B8B);
   static const caution = Color(0xFFF39C12);
   static const chaotic = Color(0xFFE74C3C);
 
   // Card borders
-  static const border = Color(0xFF2A3352);
-  static const borderGold = Color(0x33D4AF37);
+  static const border = Color(0xFF2A2A2A);
+  static const borderGold = Color(0x33C0AFA0);
 }
 
 class AppTheme {

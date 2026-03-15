@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LoginScreen', () {
-    test('renders app title "기란장터"', () {
-      // LoginScreen shows '기란장터' as the main title
+    test('renders logo image', () {
+      // LoginScreen shows the 기란JT logo image
     }, skip: 'Requires --platform chrome due to google_sign_in_web dart:ui_web dependency');
 
     test('renders subtitle "리니지 클래식 거래 플랫폼"', () {},
