@@ -9,6 +9,8 @@ COPY --from=deps /app/web/node_modules ./web/node_modules
 COPY web/ ./web/
 COPY shared/ ./shared/
 WORKDIR /app/web
+ARG NEXT_PUBLIC_API_URL=/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 FROM node:20-alpine AS runner
