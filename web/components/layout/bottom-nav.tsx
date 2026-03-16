@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChats } from "@/lib/hooks/use-chats";
-import { apiClient } from "@/lib/api-client";
+import { useIsLoggedIn } from "@/lib/hooks/use-auth";
 import type { ReactNode } from "react";
 
 interface Tab {
@@ -30,9 +30,10 @@ const TABS: Tab[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const isLoggedIn = useIsLoggedIn();
   const { data: chatsData } = useChats();
 
-  const chatUnreadCount = apiClient.isLoggedIn
+  const chatUnreadCount = isLoggedIn
     ? (chatsData?.data ?? []).reduce((sum, c) => sum + c.unreadCount, 0)
     : 0;
 

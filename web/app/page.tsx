@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useIsLoggedIn } from "@/lib/hooks/use-auth";
 import { useListings } from "@/lib/hooks/use-listings";
 import { ListingFilters } from "@/components/listing/listing-filters";
 import { ListingGrid } from "@/components/listing/listing-grid";
@@ -12,6 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import Link from "next/link";
 
 export default function HomePage() {
+  const isLoggedIn = useIsLoggedIn();
   const [serverId, setServerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
@@ -30,7 +32,7 @@ export default function HomePage() {
   return (
     <div className="p-4 lg:p-6">
       {/* Hero section for non-logged-in users */}
-      {!apiClient.isLoggedIn && (
+      {!isLoggedIn && (
         <section className="relative overflow-hidden rounded-xl mb-8 p-8 lg:p-12 bg-gradient-to-br from-dark via-card to-medium border border-border">
           <div className="relative z-10">
             <img src="/logo.png" alt="기란JT" className="h-16 lg:h-20 mb-3" />

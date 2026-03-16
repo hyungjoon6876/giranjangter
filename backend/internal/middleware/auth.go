@@ -82,22 +82,27 @@ func (a *AuthMiddleware) ParseToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
-// extractAndValidateToken extracts the Bearer token from the Authorization header,
+// extractAndValidateToken extracts the Bearer token from the Authorization header
+// (or from a "token" query parameter for SSE/EventSource connections),
 // parses it, and returns the claims if valid. On failure it sends an error response
 // and returns nil.
 func (a *AuthMiddleware) extractAndValidateToken(c *gin.Context) *Claims {
 	header := c.GetHeader("Authorization")
-	if header == "" {
+	var tokenStr string
+
+	if header != "" {
+		tokenStr = strings.TrimPrefix(header, "Bearer ")
+		if tokenStr == header {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{"code": "UNAUTHORIZED", "message": "잘못된 인증 형식입니다."},
+			})
+			return nil
+		}
+	} else if qToken := c.Query("token"); qToken != "" {
+		tokenStr = qToken
+	} else {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 			"error": gin.H{"code": "UNAUTHORIZED", "message": "인증이 필요합니다."},
-		})
-		return nil
-	}
-
-	tokenStr := strings.TrimPrefix(header, "Bearer ")
-	if tokenStr == header {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-			"error": gin.H{"code": "UNAUTHORIZED", "message": "잘못된 인증 형식입니다."},
 		})
 		return nil
 	}
