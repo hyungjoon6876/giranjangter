@@ -2,8 +2,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { apiClient } from "@/lib/api-client";
 import { useNotifications } from "@/lib/hooks/use-profile";
+import { useIsLoggedIn } from "@/lib/hooks/use-auth";
 
 const NAV_LINKS = [
   { href: "/", label: "마켓" },
@@ -13,6 +13,7 @@ const NAV_LINKS = [
 
 export function Header() {
   const pathname = usePathname();
+  const isLoggedIn = useIsLoggedIn();
   const { data: notificationsData } = useNotifications();
   const unreadCount = notificationsData?.data?.filter((n) => !n.readAt).length ?? 0;
   const hasUnread = unreadCount > 0;
@@ -72,7 +73,7 @@ export function Header() {
           )}
         </Link>
         {/* Profile or Login */}
-        {apiClient.isLoggedIn ? (
+        {isLoggedIn ? (
           <Link href="/profile" aria-label="내 프로필" className="text-text-secondary hover:text-gold transition-colors p-2">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
