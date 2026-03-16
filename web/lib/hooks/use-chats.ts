@@ -5,6 +5,7 @@ export function useChats() {
   return useQuery({
     queryKey: ["chats"],
     queryFn: () => apiClient.getChats(),
+    enabled: apiClient.isLoggedIn,
   });
 }
 
