@@ -221,13 +221,13 @@ class ApiClient {
 
   // Master data
   async getServers(): Promise<Server[]> {
-    const res = await this.fetch<{ data: Server[] }>("/servers");
-    return res.data;
+    const res = await this.fetch<{ data: Server[] | null }>("/servers");
+    return res.data ?? [];
   }
 
   async getCategories(): Promise<Category[]> {
-    const res = await this.fetch<{ data: Category[] }>("/categories");
-    return res.data;
+    const res = await this.fetch<{ data: Category[] | null }>("/categories");
+    return res.data ?? [];
   }
 }
 
