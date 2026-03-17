@@ -15,6 +15,7 @@ import Link from "next/link";
 export default function HomePage() {
   const isLoggedIn = useIsLoggedIn();
   const [serverId, setServerId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
 
@@ -23,48 +24,58 @@ export default function HomePage() {
     queryFn: () => apiClient.getServers(),
   });
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => apiClient.getCategories(),
+  });
+
   const { data, isLoading, isError, refetch } = useListings({
     serverId: serverId ?? undefined,
+    categoryId: categoryId ?? undefined,
     q: search || undefined,
     sort,
   });
 
   return (
     <div className="p-4 lg:p-6">
-      {/* Hero section for non-logged-in users */}
+      {/* Compact hero for non-logged-in users */}
       {!isLoggedIn && (
-        <section className="relative overflow-hidden rounded-xl mb-8 p-8 lg:p-12 bg-gradient-to-br from-dark via-card to-medium border border-border">
-          <div className="relative z-10">
-            <img src="/logo.png" alt="기란JT" className="h-16 lg:h-20 mb-3" />
-            <p className="text-text-secondary text-lg mb-6">리니지 클래식 아이템 거래, 안전하고 무료</p>
-            <div className="flex flex-col sm:flex-row gap-3 mb-8">
-              <a href="#listings" className="btn-gold-gradient text-white px-6 py-3 rounded-lg font-medium text-center">매물 둘러보기</a>
-              <Link href="/login" className="border border-gold text-gold px-6 py-3 rounded-lg font-medium text-center hover:bg-gold/10">시작하기</Link>
+        <section className="relative overflow-hidden rounded-xl mb-6 p-6 lg:p-8 bg-gradient-to-br from-dark via-card to-medium border border-border">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <img
+                src="/logo.png"
+                alt="기란JT"
+                className="h-12 lg:h-14 mb-2"
+              />
+              <p className="text-text-secondary">
+                리니지 클래식 아이템 거래, 안전하고 무료
+              </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-medium/50 rounded-lg p-4 border border-border">
-                <div className="text-gold font-bold text-lg mb-1">무료 거래</div>
-                <div className="text-text-dim text-sm">수수료 없이 안전한 아이템 거래</div>
-              </div>
-              <div className="bg-medium/50 rounded-lg p-4 border border-border">
-                <div className="text-gold font-bold text-lg mb-1">신뢰 시스템</div>
-                <div className="text-text-dim text-sm">거래 평가와 신뢰도 뱃지</div>
-              </div>
-              <div className="bg-medium/50 rounded-lg p-4 border border-border">
-                <div className="text-gold font-bold text-lg mb-1">실시간 채팅</div>
-                <div className="text-text-dim text-sm">판매자와 바로 대화하세요</div>
-              </div>
+            <div className="flex gap-3">
+              <a
+                href="#listings"
+                className="btn-gold-gradient text-white px-5 py-2.5 rounded-lg font-medium text-sm text-center"
+              >
+                매물 둘러보기
+              </a>
+              <Link
+                href="/login"
+                className="border border-gold text-gold px-5 py-2.5 rounded-lg font-medium text-sm text-center hover:bg-gold/10"
+              >
+                시작하기
+              </Link>
             </div>
           </div>
-          {/* Decorative glow */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gold/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue/5 rounded-full blur-3xl" />
+          <div className="absolute top-0 right-0 w-48 h-48 bg-gold/5 rounded-full blur-3xl" />
         </section>
       )}
 
       <div id="listings">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold hidden lg:block text-text-primary">매물 목록</h2>
+          <h2 className="text-2xl font-bold hidden lg:block text-text-primary">
+            매물 목록
+          </h2>
           <Link
             href="/create"
             className="hidden lg:inline-flex items-center gap-2 btn-gold-gradient text-white px-4 py-2 rounded-lg text-sm transition-colors"
@@ -77,12 +88,20 @@ export default function HomePage() {
           servers={servers}
           selectedServer={serverId}
           onServerChange={setServerId}
+          categories={categories}
+          selectedCategory={categoryId}
+          onCategoryChange={setCategoryId}
           searchQuery={search}
           onSearchChange={setSearch}
         />
 
         {isError ? (
-          <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} autoFocus />
+          <ErrorState
+            message="매물을 불러올 수 없습니다"
+            description="네트워크 연결을 확인해주세요"
+            onRetry={() => refetch()}
+            autoFocus
+          />
         ) : isLoading ? (
           <ListingSkeleton />
         ) : !data?.data?.length ? (
@@ -110,7 +129,10 @@ export default function HomePage() {
           <>
             <div className="flex items-center justify-between px-4 lg:px-6 py-2">
               <p className="text-sm text-text-secondary" aria-live="polite">
-                <span className="font-semibold text-text-primary">{data.data?.length ?? 0}</span>개 매물
+                <span className="font-semibold text-text-primary">
+                  {data.data?.length ?? 0}
+                </span>
+                개 매물
               </p>
               <select
                 aria-label="정렬 방식"

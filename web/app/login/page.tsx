@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
-const GOOGLE_CLIENT_ID = "1040191360407-2masceiv4vl985m2gfr777qavrd23763.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID =
+  "1040191360407-2masceiv4vl985m2gfr777qavrd23763.apps.googleusercontent.com";
 
 declare global {
   interface Window {
@@ -13,15 +14,24 @@ declare global {
       accounts: {
         id: {
           initialize: (config: Record<string, unknown>) => void;
-          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
+          renderButton: (
+            element: HTMLElement,
+            config: Record<string, unknown>,
+          ) => void;
         };
       };
     };
   }
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawRedirect = searchParams.get("redirect") || "/";
+  const redirect =
+    rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/";
   const queryClient = useQueryClient();
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +76,7 @@ export default function LoginPage() {
     try {
       await apiClient.login("google", response.credential);
       queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
+      router.push(redirect);
     } catch (err: unknown) {
       const apiErr = err as { error?: { message?: string } };
       setError(apiErr?.error?.message ?? "로그인에 실패했습니다");
@@ -92,13 +102,23 @@ export default function LoginPage() {
           onClick={() => router.push("/")}
           className="mt-6 text-sm text-text-secondary hover:text-gold"
         >
-          둘러보기
+          로그인 없이 둘러보기
         </button>
 
         {error && (
-          <p role="alert" className="text-sm text-[#e74c3c] text-center mt-4">{error}</p>
+          <p role="alert" className="text-sm text-[#e74c3c] text-center mt-4">
+            {error}
+          </p>
         )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

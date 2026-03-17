@@ -2,6 +2,7 @@
 
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
+import { Footer } from "./footer";
 import type { ReactNode } from "react";
 
 export function ResponsiveShell({ children }: { children: ReactNode }) {
@@ -14,7 +15,10 @@ export function ResponsiveShell({ children }: { children: ReactNode }) {
         본문으로 건너뛰기
       </a>
       <Header />
-      <main id="main-content" className="pb-16 lg:pb-0">{children}</main>
+      <main id="main-content" className="pb-16 lg:pb-0">
+        {children}
+      </main>
+      <Footer />
       <BottomNav />
     </div>
   );

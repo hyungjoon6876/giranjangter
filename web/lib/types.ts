@@ -115,3 +115,25 @@ export interface Notification {
   readAt?: string;
   createdAt: string;
 }
+
+export interface ItemSearchResult {
+  id: string;
+  name: string;
+  categoryId: string;
+  iconUrl?: string;
+}
+
+export interface Review {
+  reviewId: string;
+  rating: "positive" | "negative";
+  comment?: string;
+  reviewerNickname: string;
+  createdAt: string;
+}
+
+export interface UploadedImage {
+  imageId: string;
+  url: string;
+  thumbnailUrl: string;
+  sizeBytes?: number;
+}

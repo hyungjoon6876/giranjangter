@@ -15,9 +15,24 @@ export default function ProfilePage() {
   if (isLoading) return <Loading />;
   if (!me) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-text-secondary mb-4">로그인이 필요합니다</p>
-        <Link href="/login" className="text-gold font-medium">로그인하기</Link>
+      <div className="max-w-lg mx-auto p-4 lg:p-6">
+        <div className="bg-card rounded-xl border border-border p-8 text-center">
+          <div className="w-20 h-20 rounded-full bg-medium flex items-center justify-center text-3xl mx-auto mb-4 border-2 border-border">
+            👤
+          </div>
+          <h2 className="text-xl font-bold text-text-primary mb-2">
+            로그인이 필요합니다
+          </h2>
+          <p className="text-text-secondary text-sm mb-6">
+            로그인하면 매물 등록, 채팅, 거래 관리를 할 수 있습니다
+          </p>
+          <Link
+            href="/login?redirect=%2Fprofile"
+            className="inline-block btn-gold-gradient text-white px-6 py-3 rounded-lg font-medium"
+          >
+            로그인하기
+          </Link>
+        </div>
       </div>
     );
   }
@@ -32,6 +47,7 @@ export default function ProfilePage() {
   const menuItems = [
     { href: "/profile/listings", label: "내 매물" },
     { href: "/profile/trades", label: "내 거래" },
+    { href: `/profile/${me.userId}/reviews`, label: "받은 리뷰" },
     { href: "/notifications", label: "알림" },
   ];
 
@@ -46,24 +62,48 @@ export default function ProfilePage() {
             <div className="w-16 h-16 rounded-full bg-medium flex items-center justify-center text-2xl font-bold text-gold border-2 border-gold/30">
               {me.nickname[0]}
             </div>
-            <div>
-              <h2 className="text-xl font-display font-bold text-gold">{me.nickname}</h2>
-              {me.introduction && <p className="text-sm text-text-secondary mt-1">{me.introduction}</p>}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-gold">
+                  {me.nickname}
+                </h2>
+                <Link
+                  href="/profile/edit"
+                  className="text-xs text-text-secondary hover:text-gold transition-colors"
+                >
+                  수정
+                </Link>
+              </div>
+              {me.introduction && (
+                <p className="text-sm text-text-secondary mt-1">
+                  {me.introduction}
+                </p>
+              )}
             </div>
           </div>
         </div>
         {/* RPG stat cards */}
         <div className="grid grid-cols-3 gap-4 p-5">
           <div className="bg-medium rounded-lg p-3 text-center border border-border">
-            <div className="text-gold font-display text-2xl">{me.completedTradeCount}</div>
+            <div className="text-gold font-display text-2xl">
+              {me.completedTradeCount}
+            </div>
             <div className="text-text-dim text-xs mt-1">거래</div>
           </div>
           <div className="bg-medium rounded-lg p-3 text-center border border-border">
-            <div className="text-gold font-display text-2xl">{me.positiveReviewCount}</div>
+            <div className="text-gold font-display text-2xl">
+              {me.positiveReviewCount}
+            </div>
             <div className="text-text-dim text-xs mt-1">좋은 리뷰</div>
           </div>
-          <div className={`bg-medium rounded-lg p-3 text-center border ${isTrusted ? "border-gold/50" : "border-border"}`}>
-            <div className={`font-display text-2xl ${isTrusted ? "text-gold" : "text-text-secondary"}`}>{me.trustBadge ?? "-"}</div>
+          <div
+            className={`bg-medium rounded-lg p-3 text-center border ${isTrusted ? "border-gold/50" : "border-border"}`}
+          >
+            <div
+              className={`font-display text-2xl ${isTrusted ? "text-gold" : "text-text-secondary"}`}
+            >
+              {me.trustBadge ?? "-"}
+            </div>
             <div className="text-text-dim text-xs mt-1">신뢰등급</div>
           </div>
         </div>
