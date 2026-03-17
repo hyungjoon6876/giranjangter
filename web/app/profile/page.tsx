@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const menuItems = [
     { href: "/profile/listings", label: "내 매물" },
     { href: "/profile/trades", label: "내 거래" },
+    { href: `/profile/${me.userId}/reviews`, label: "받은 리뷰" },
     { href: "/notifications", label: "알림" },
   ];
 
@@ -61,10 +62,18 @@ export default function ProfilePage() {
             <div className="w-16 h-16 rounded-full bg-medium flex items-center justify-center text-2xl font-bold text-gold border-2 border-gold/30">
               {me.nickname[0]}
             </div>
-            <div>
-              <h2 className="text-xl font-display font-bold text-gold">
-                {me.nickname}
-              </h2>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-gold">
+                  {me.nickname}
+                </h2>
+                <Link
+                  href="/profile/edit"
+                  className="text-xs text-text-secondary hover:text-gold transition-colors"
+                >
+                  수정
+                </Link>
+              </div>
               {me.introduction && (
                 <p className="text-sm text-text-secondary mt-1">
                   {me.introduction}

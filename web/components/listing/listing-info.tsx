@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Author } from "@/lib/types";
 
 export function InfoRow({ label, value }: { label: string; value: string }) {
@@ -11,18 +12,22 @@ export function InfoRow({ label, value }: { label: string; value: string }) {
 
 export function AuthorSection({ author }: { author: Author }) {
   return (
-    <div className="flex items-center gap-3">
+    <Link
+      href={`/profile/${author.userId}/reviews`}
+      className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+    >
       <div className="w-10 h-10 rounded-full bg-border flex items-center justify-center font-bold text-text-secondary">
         {author.nickname?.[0] ?? "?"}
       </div>
-      <div>
+      <div className="flex-1">
         <div className="font-semibold">{author.nickname}</div>
         <div className="text-sm text-text-secondary">
           거래 {author.completedTradeCount ?? 0}회
           {author.trustBadge && ` · ${author.trustBadge}`}
         </div>
       </div>
-    </div>
+      <span className="text-xs text-text-dim">리뷰 보기 ›</span>
+    </Link>
   );
 }
 
