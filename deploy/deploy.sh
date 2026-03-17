@@ -9,7 +9,7 @@ set -e
 
 NAS_HOST="jym-nas"
 DEPLOY_DIR="/volume1/docker/lincle-deploy"
-NAS_COMPOSE="/usr/local/bin/docker-compose"
+NAS_COMPOSE="sudo PATH=/usr/local/bin:\$PATH /usr/local/bin/docker-compose"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "=== 기란장터 무중단 배포 시작 ==="
