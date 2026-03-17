@@ -17,20 +17,15 @@ export default function CreateListingPage() {
   const createListing = useCreateListing();
   const { addToast } = useToast();
 
-  useEffect(() => {
-    if (!isLoggedIn) {
-      requireAuth("매물 등록");
-    }
-  }, [isLoggedIn]);
-
-  if (!isLoggedIn) return null;
   const { data: servers = [] } = useQuery({
     queryKey: ["servers"],
     queryFn: () => apiClient.getServers(),
+    enabled: isLoggedIn,
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => apiClient.getCategories(),
+    enabled: isLoggedIn,
   });
 
   const [images, setImages] = useState<UploadedImage[]>([]);
@@ -46,6 +41,14 @@ export default function CreateListingPage() {
     enhancementLevel: "",
     tradeMethod: "either",
   });
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      requireAuth("매물 등록");
+    }
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) return null;
 
   const update = (field: string, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));

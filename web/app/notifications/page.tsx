@@ -5,6 +5,7 @@ import {
   useMarkNotificationsRead,
 } from "@/lib/hooks/use-profile";
 import { useIsLoggedIn } from "@/lib/hooks/use-auth";
+import { useToast } from "@/lib/hooks/use-toast";
 import { Loading } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatTimeAgo } from "@/lib/utils";
@@ -13,6 +14,7 @@ export default function NotificationsPage() {
   const isLoggedIn = useIsLoggedIn();
   const { data, isLoading } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const { addToast } = useToast();
 
   if (!isLoggedIn) {
     return (
@@ -49,7 +51,12 @@ export default function NotificationsPage() {
         <h1 className="text-2xl font-bold text-text-primary">알림</h1>
         {unreadIds.length > 0 && (
           <button
-            onClick={() => markRead.mutate(unreadIds)}
+            onClick={() =>
+              markRead.mutate(unreadIds, {
+                onError: () =>
+                  addToast("error", "알림 처리에 실패했습니다"),
+              })
+            }
             className="text-sm text-gold font-medium"
           >
             모두 읽음

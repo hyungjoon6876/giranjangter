@@ -48,18 +48,26 @@ export function ImageUpload({
       if (!validFiles.length) return;
 
       setUploading(true);
-      try {
-        const results: UploadedImage[] = [];
-        for (const file of validFiles) {
+      const results: UploadedImage[] = [];
+      let failCount = 0;
+      for (const file of validFiles) {
+        try {
           const result = await apiClient.uploadImage(file);
           results.push(result);
+        } catch {
+          failCount++;
         }
-        onChange([...images, ...results]);
-      } catch {
-        addToast("error", "이미지 업로드에 실패했습니다");
-      } finally {
-        setUploading(false);
       }
+      if (results.length > 0) {
+        onChange([...images, ...results]);
+      }
+      if (failCount > 0) {
+        addToast(
+          "error",
+          `${failCount}장의 이미지 업로드에 실패했습니다`,
+        );
+      }
+      setUploading(false);
     },
     [images, maxImages, onChange, addToast],
   );

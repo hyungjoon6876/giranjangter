@@ -96,9 +96,10 @@ class ApiClient {
         this.saveTokens(data.accessToken, data.refreshToken);
         return true;
       }
-    } catch {
-      // refresh failed silently
+    } catch (err) {
+      console.error("[auth] Token refresh error:", err);
     }
+    this.clearTokens();
     return false;
   }
 
@@ -175,30 +176,18 @@ class ApiClient {
 
   // Chat
   async createChat(listingId: string): Promise<{ chatRoomId: string }> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (this.accessToken)
-      headers["Authorization"] = `Bearer ${this.accessToken}`;
-
-    const res = await fetch(`${API_BASE}/listings/${listingId}/chats`, {
-      method: "POST",
-      headers,
-    });
-
-    // 409 = chat room already exists; backend returns the existing chatRoomId
-    if (res.status === 201 || res.status === 409) {
-      return res.json();
-    }
-
-    if (!res.ok) {
-      const err = await res
-        .json()
-        .catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
+    try {
+      return await this.fetch(`/listings/${listingId}/chats`, {
+        method: "POST",
+      });
+    } catch (err: unknown) {
+      // 409 = chat room already exists; backend returns the existing chatRoomId
+      const apiErr = err as { error?: { code?: string }; chatRoomId?: string };
+      if (apiErr?.chatRoomId) {
+        return { chatRoomId: apiErr.chatRoomId };
+      }
       throw err;
     }
-
-    return res.json();
   }
 
   async getChats(): Promise<PaginatedResponse<ChatRoom>> {

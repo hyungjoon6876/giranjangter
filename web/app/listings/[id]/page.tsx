@@ -83,8 +83,12 @@ export default function ListingDetailPage({
         // User cancelled share — ignore
       }
     } else {
-      await navigator.clipboard.writeText(window.location.href);
-      addToast("success", "링크가 복사되었습니다");
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        addToast("success", "링크가 복사되었습니다");
+      } catch {
+        addToast("error", "링크 복사에 실패했습니다");
+      }
     }
   };
 
@@ -116,7 +120,7 @@ export default function ListingDetailPage({
       {l.images && l.images.length > 0 && (
         <div className="mb-6">
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {l.images
+            {[...l.images]
               .sort((a, b) => a.order - b.order)
               .map((img, i) => (
                 <img
@@ -207,10 +211,16 @@ export default function ListingDetailPage({
             <button
               onClick={() => {
                 if (!requireAuth("찜하기")) return;
-                toggleFav.mutate({
-                  id: l.listingId,
-                  isFavorited: l.isFavorited ?? false,
-                });
+                toggleFav.mutate(
+                  {
+                    id: l.listingId,
+                    isFavorited: l.isFavorited ?? false,
+                  },
+                  {
+                    onError: () =>
+                      addToast("error", "관심 등록에 실패했습니다"),
+                  },
+                );
               }}
               aria-pressed={l.isFavorited ?? false}
               aria-label={l.isFavorited ? "찜 취소" : "찜하기"}

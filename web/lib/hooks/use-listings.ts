@@ -40,7 +40,7 @@ export function useUpdateListing() {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ["listing", id] });
       qc.invalidateQueries({ queryKey: ["listings"] });
-      qc.invalidateQueries({ queryKey: ["my-listings"] });
+      qc.invalidateQueries({ queryKey: ["myListings"] });
     },
   });
 }
@@ -53,7 +53,7 @@ export function useChangeListingStatus() {
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ["listing", id] });
       qc.invalidateQueries({ queryKey: ["listings"] });
-      qc.invalidateQueries({ queryKey: ["my-listings"] });
+      qc.invalidateQueries({ queryKey: ["myListings"] });
     },
   });
 }

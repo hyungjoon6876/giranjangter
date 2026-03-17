@@ -126,7 +126,7 @@ export interface ItemSearchResult {
 export interface Review {
   reviewId: string;
   rating: "positive" | "negative";
-  comment: string;
+  comment?: string;
   reviewerNickname: string;
   createdAt: string;
 }
