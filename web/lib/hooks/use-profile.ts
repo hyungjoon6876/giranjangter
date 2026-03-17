@@ -41,3 +41,16 @@ export function useMarkNotificationsRead() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 }
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      nickname?: string;
+      introduction?: string;
+      primaryServerId?: string;
+      avatarUrl?: string;
+    }) => apiClient.updateProfile(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+}

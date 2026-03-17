@@ -8,6 +8,9 @@ import type {
   AuthResponse,
   User,
   Notification,
+  ItemSearchResult,
+  Review,
+  UploadedImage,
 } from "./types";
 
 export const API_BASE =
@@ -219,6 +222,18 @@ class ApiClient {
     return this.fetch(`/me/listings${qs}`);
   }
 
+  async updateProfile(data: {
+    nickname?: string;
+    introduction?: string;
+    primaryServerId?: string;
+    avatarUrl?: string;
+  }): Promise<User> {
+    return this.fetch("/me/profile", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
   async getMyTrades(): Promise<PaginatedResponse<Listing>> {
     return this.fetch("/me/trades");
   }
@@ -283,6 +298,65 @@ class ApiClient {
 
   async getCategories(): Promise<Category[]> {
     const res = await this.fetch<{ data: Category[] | null }>("/categories");
+    return res.data ?? [];
+  }
+
+  // Upload
+  async uploadImage(file: File): Promise<UploadedImage> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
+    let res = await fetch(`${API_BASE}/uploads/images`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (res.status === 401 && this.refreshToken) {
+      const refreshed = await this.doRefresh();
+      if (refreshed) {
+        headers["Authorization"] = `Bearer ${this.accessToken}`;
+        res = await fetch(`${API_BASE}/uploads/images`, {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+      }
+    }
+
+    if (!res.ok) {
+      const err = await res
+        .json()
+        .catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
+      throw err;
+    }
+    return res.json();
+  }
+
+  // Item search
+  async searchItems(params: {
+    q?: string;
+    categoryId?: string;
+  }): Promise<ItemSearchResult[]> {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.categoryId) qs.set("categoryId", params.categoryId);
+    const res = await this.fetch<{ data: ItemSearchResult[] | null }>(
+      `/items/search?${qs}`,
+    );
+    return res.data ?? [];
+  }
+
+  // User reviews
+  async getUserReviews(userId: string): Promise<Review[]> {
+    const res = await this.fetch<{ data: Review[] | null }>(
+      `/users/${userId}/reviews`,
+    );
     return res.data ?? [];
   }
 }
