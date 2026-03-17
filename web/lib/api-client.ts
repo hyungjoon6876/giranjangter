@@ -1,9 +1,17 @@
 import type {
-  Listing, ChatRoom, Message, Server, Category,
-  PaginatedResponse, AuthResponse, User, Notification,
+  Listing,
+  ChatRoom,
+  Message,
+  Server,
+  Category,
+  PaginatedResponse,
+  AuthResponse,
+  User,
+  Notification,
 } from "./types";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
 
 export function assetUrl(path: string): string {
   return `${API_BASE.replace(/\/api\/v\d+$/, "")}${path}`;
@@ -14,7 +22,11 @@ class ApiClient {
   private refreshToken: string | null = null;
 
   constructor() {
-    if (typeof window !== "undefined" && typeof localStorage !== "undefined" && typeof localStorage.getItem === "function") {
+    if (
+      typeof window !== "undefined" &&
+      typeof localStorage !== "undefined" &&
+      typeof localStorage.getItem === "function"
+    ) {
       this.accessToken = localStorage.getItem("accessToken");
       this.refreshToken = localStorage.getItem("refreshToken");
     }
@@ -59,7 +71,9 @@ class ApiClient {
     }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
+      const err = await res
+        .json()
+        .catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
       throw err;
     }
 
@@ -101,8 +115,13 @@ class ApiClient {
 
   // Listings
   async getListings(params?: {
-    serverId?: string; categoryId?: string; q?: string;
-    listingType?: string; sort?: string; cursor?: string; limit?: number;
+    serverId?: string;
+    categoryId?: string;
+    q?: string;
+    listingType?: string;
+    sort?: string;
+    cursor?: string;
+    limit?: number;
   }): Promise<PaginatedResponse<Listing>> {
     const qs = new URLSearchParams();
     if (params?.serverId) qs.set("serverId", params.serverId);
@@ -120,7 +139,27 @@ class ApiClient {
   }
 
   async createListing(data: Partial<Listing>): Promise<Listing> {
-    return this.fetch("/listings", { method: "POST", body: JSON.stringify(data) });
+    return this.fetch("/listings", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateListing(
+    id: string,
+    data: Partial<Listing>,
+  ): Promise<Listing> {
+    return this.fetch(`/listings/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async changeListingStatus(id: string, status: string): Promise<void> {
+    await this.fetch(`/listings/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    });
   }
 
   async favoriteListing(id: string): Promise<void> {
@@ -133,8 +172,11 @@ class ApiClient {
 
   // Chat
   async createChat(listingId: string): Promise<{ chatRoomId: string }> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (this.accessToken) headers["Authorization"] = `Bearer ${this.accessToken}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this.accessToken)
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
 
     const res = await fetch(`${API_BASE}/listings/${listingId}/chats`, {
       method: "POST",
@@ -147,7 +189,9 @@ class ApiClient {
     }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
+      const err = await res
+        .json()
+        .catch(() => ({ error: { code: "UNKNOWN", message: res.statusText } }));
       throw err;
     }
 
@@ -191,7 +235,10 @@ class ApiClient {
   }
 
   // Reservation
-  async createReservation(chatId: string, data: Record<string, unknown>): Promise<unknown> {
+  async createReservation(
+    chatId: string,
+    data: Record<string, unknown>,
+  ): Promise<unknown> {
     return this.fetch(`/chats/${chatId}/reservations`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -199,7 +246,10 @@ class ApiClient {
   }
 
   // Trade
-  async completeTrade(listingId: string, data: Record<string, unknown>): Promise<unknown> {
+  async completeTrade(
+    listingId: string,
+    data: Record<string, unknown>,
+  ): Promise<unknown> {
     return this.fetch(`/listings/${listingId}/complete`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -207,7 +257,10 @@ class ApiClient {
   }
 
   // Review
-  async createReview(completionId: string, data: Record<string, unknown>): Promise<unknown> {
+  async createReview(
+    completionId: string,
+    data: Record<string, unknown>,
+  ): Promise<unknown> {
     return this.fetch(`/trade-completions/${completionId}/reviews`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -216,7 +269,10 @@ class ApiClient {
 
   // Report
   async createReport(data: Record<string, unknown>): Promise<unknown> {
-    return this.fetch("/reports", { method: "POST", body: JSON.stringify(data) });
+    return this.fetch("/reports", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // Master data

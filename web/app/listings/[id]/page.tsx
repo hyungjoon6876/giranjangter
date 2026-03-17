@@ -7,14 +7,27 @@ import { useCreateChat } from "@/lib/hooks/use-chats";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { TypeBadge, Badge } from "@/components/ui/badge";
-import { AuthorSection, InfoRow, tradeMethodLabel } from "@/components/listing/listing-info";
+import {
+  AuthorSection,
+  InfoRow,
+  tradeMethodLabel,
+} from "@/components/listing/listing-info";
 import { Loading } from "@/components/ui/loading";
 import { ErrorState } from "@/components/ui/error-state";
 import { ReportModal } from "@/components/forms/report-modal";
-import { formatPrice, statusLabel, statusColor } from "@/lib/utils";
+import {
+  formatPrice,
+  statusLabel,
+  statusColor,
+  formatTimeAgo,
+} from "@/lib/utils";
 import { assetUrl } from "@/lib/api-client";
 
-export default function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ListingDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const router = useRouter();
   const { data: listing, isLoading, isError, refetch } = useListing(id);
@@ -25,8 +38,21 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
   const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <Loading />;
-  if (isError) return <ErrorState message="매물을 불러올 수 없습니다" description="네트워크 연결을 확인해주세요" onRetry={() => refetch()} autoFocus />;
-  if (!listing) return <div className="p-6 text-center text-text-secondary">매물을 찾을 수 없습니다</div>;
+  if (isError)
+    return (
+      <ErrorState
+        message="매물을 불러올 수 없습니다"
+        description="네트워크 연결을 확인해주세요"
+        onRetry={() => refetch()}
+        autoFocus
+      />
+    );
+  if (!listing)
+    return (
+      <div className="p-6 text-center text-text-secondary">
+        매물을 찾을 수 없습니다
+      </div>
+    );
 
   const l = listing;
   const actions = l.availableActions ?? [];
@@ -48,47 +74,67 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
         <TypeBadge type={l.listingType} />
         <Badge label={statusLabel(l.status)} color={statusColor(l.status)} />
         {l.tradeMethod && (
-          <span className="ml-auto text-sm text-text-secondary">{tradeMethodLabel(l.tradeMethod)}</span>
+          <span className="ml-auto text-sm text-text-secondary">
+            {tradeMethodLabel(l.tradeMethod)}
+          </span>
         )}
       </div>
 
       {/* Title */}
-      <h1 className="text-2xl font-bold mb-3 text-text-primary">{l.title}</h1>
+      <h1 className="text-2xl font-bold mb-2 text-text-primary">{l.title}</h1>
+
+      {/* Counters */}
+      <div className="flex items-center gap-4 text-sm text-text-dim mb-4">
+        <span>조회 {l.viewCount}</span>
+        <span>관심 {l.favoriteCount}</span>
+        <span>채팅 {l.chatCount}</span>
+        <span>{formatTimeAgo(l.createdAt)}</span>
+      </div>
 
       {/* Item info */}
       <div className="flex items-center gap-3 mb-4">
         {l.iconUrl && (
-          <img
-            src={assetUrl(l.iconUrl)}
-            alt=""
-            className="w-16 h-16"
-          />
+          <img src={assetUrl(l.iconUrl)} alt="" className="w-16 h-16" />
         )}
         <div>
           <span className="text-text-primary text-lg">{l.itemName}</span>
           {l.enhancementLevel != null && (
-            <span className="text-gold font-bold ml-2">+{l.enhancementLevel}</span>
+            <span className="text-gold font-bold ml-2">
+              +{l.enhancementLevel}
+            </span>
           )}
         </div>
       </div>
-      {l.optionsText && <p className="text-text-secondary mb-4">{l.optionsText}</p>}
+      {l.optionsText && (
+        <p className="text-text-secondary mb-4">{l.optionsText}</p>
+      )}
 
       {/* Price */}
-      <div className="text-gold font-display text-3xl mb-1">{formatPrice(l.priceAmount)}원</div>
-      {l.priceType === "negotiable" && <p className="text-text-secondary mb-4">협상 가능</p>}
+      <div className="text-gold font-display text-3xl mb-1">
+        {formatPrice(l.priceAmount)}원
+      </div>
+      {l.priceType === "negotiable" && (
+        <p className="text-text-secondary mb-4">협상 가능</p>
+      )}
 
       <hr className="border-border my-6" />
 
       {/* Description */}
-      <p className="leading-relaxed whitespace-pre-wrap text-text-primary">{l.description}</p>
+      <p className="leading-relaxed whitespace-pre-wrap text-text-primary">
+        {l.description}
+      </p>
 
       <hr className="border-border my-6" />
 
       {/* Trade info card */}
       <dl className="bg-card rounded-xl p-4 border border-border mb-6">
         <InfoRow label="거래 방식" value={tradeMethodLabel(l.tradeMethod)} />
-        {l.preferredMeetingAreaText && <InfoRow label="접선 장소" value={l.preferredMeetingAreaText} />}
-        {l.availableTimeText && <InfoRow label="거래 가능 시간" value={l.availableTimeText} />}
+        {l.preferredMeetingAreaText && (
+          <InfoRow label="접선 장소" value={l.preferredMeetingAreaText} />
+        )}
+        {l.availableTimeText && (
+          <InfoRow label="거래 가능 시간" value={l.availableTimeText} />
+        )}
         <InfoRow label="수량" value={`${l.quantity}개`} />
       </dl>
 
@@ -101,15 +147,29 @@ export default function ListingDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Action bar - sticky on all breakpoints */}
       {actions.length > 0 && (
-        <div role="toolbar" aria-label="매물 액션" className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3">
+        <div
+          role="toolbar"
+          aria-label="매물 액션"
+          className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3"
+        >
           {actions.includes("favorite") && (
             <button
-              onClick={() => { if (!requireAuth("찜하기")) return; toggleFav.mutate({ id: l.listingId, isFavorited: l.isFavorited ?? false }); }}
+              onClick={() => {
+                if (!requireAuth("찜하기")) return;
+                toggleFav.mutate({
+                  id: l.listingId,
+                  isFavorited: l.isFavorited ?? false,
+                });
+              }}
               aria-pressed={l.isFavorited ?? false}
               aria-label={l.isFavorited ? "찜 취소" : "찜하기"}
-              className="p-3 bg-card border border-border rounded-lg hover:bg-medium transition-colors text-text-secondary"
+              className={`p-3 border rounded-lg transition-colors ${
+                l.isFavorited
+                  ? "bg-gold/10 border-gold text-gold"
+                  : "bg-card border-border text-text-secondary hover:bg-medium"
+              }`}
             >
-              {l.isFavorited ? "관심" : "관심"}
+              {l.isFavorited ? "♥ 관심" : "♡ 관심"}
             </button>
           )}
           {actions.includes("start_chat") && (

@@ -1,27 +1,59 @@
 "use client";
 
-import { useNotifications, useMarkNotificationsRead } from "@/lib/hooks/use-profile";
+import {
+  useNotifications,
+  useMarkNotificationsRead,
+} from "@/lib/hooks/use-profile";
+import { useIsLoggedIn } from "@/lib/hooks/use-auth";
 import { Loading } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatTimeAgo } from "@/lib/utils";
 
 export default function NotificationsPage() {
+  const isLoggedIn = useIsLoggedIn();
   const { data, isLoading } = useNotifications();
   const markRead = useMarkNotificationsRead();
+
+  if (!isLoggedIn) {
+    return (
+      <EmptyState
+        icon="🔔"
+        title="로그인이 필요합니다"
+        description="로그인하면 거래 알림을 받을 수 있습니다"
+        actionLabel="로그인하기"
+        actionHref="/login?redirect=%2Fnotifications"
+      />
+    );
+  }
 
   const notifications = data?.data ?? [];
 
   if (isLoading) return <Loading />;
-  if (!notifications.length) return <EmptyState title="알림이 없습니다" />;
+  if (!notifications.length) {
+    return (
+      <EmptyState
+        icon="🔔"
+        title="알림이 없습니다"
+        description="새로운 거래 활동이 있으면 여기에 표시됩니다"
+      />
+    );
+  }
 
-  const unreadIds = notifications.filter((n) => !n.readAt).map((n) => n.notificationId);
+  const unreadIds = notifications
+    .filter((n) => !n.readAt)
+    .map((n) => n.notificationId);
 
   return (
     <div className="max-w-lg mx-auto p-4 lg:p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-text-primary">알림</h1>
         {unreadIds.length > 0 && (
-          <button onClick={() => markRead.mutate(unreadIds)} className="text-sm text-gold font-medium">모두 읽음</button>
+          <button
+            onClick={() => markRead.mutate(unreadIds)}
+            className="text-sm text-gold font-medium"
+          >
+            모두 읽음
+          </button>
         )}
       </div>
       <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -31,7 +63,9 @@ export default function NotificationsPage() {
             className={`px-5 py-4 border-b border-border last:border-0 ${!n.readAt ? "border-l-4 border-l-gold" : ""}`}
           >
             <p className="text-sm text-text-primary">{n.message}</p>
-            <p className="text-xs text-text-dim mt-1">{formatTimeAgo(n.createdAt)}</p>
+            <p className="text-xs text-text-dim mt-1">
+              {formatTimeAgo(n.createdAt)}
+            </p>
           </div>
         ))}
       </div>

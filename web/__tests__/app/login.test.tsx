@@ -4,6 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Mock api-client
@@ -28,7 +29,7 @@ describe("LoginPage", () => {
 
   it("renders 둘러보기 link", () => {
     render(<LoginPage />);
-    expect(screen.getByText("둘러보기")).toBeDefined();
+    expect(screen.getByText("로그인 없이 둘러보기")).toBeDefined();
   });
 
   it("renders Google sign-in container", () => {
