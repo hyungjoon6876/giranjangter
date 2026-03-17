@@ -7,6 +7,9 @@ import { apiClient } from "@/lib/api-client";
 import { useCreateListing } from "@/lib/hooks/use-listings";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
+import { ImageUpload } from "@/components/forms/image-upload";
+import { ItemAutocomplete } from "@/components/forms/item-autocomplete";
+import type { UploadedImage } from "@/lib/types";
 
 export default function CreateListingPage() {
   const router = useRouter();
@@ -30,6 +33,7 @@ export default function CreateListingPage() {
     queryFn: () => apiClient.getCategories(),
   });
 
+  const [images, setImages] = useState<UploadedImage[]>([]);
   const [form, setForm] = useState({
     listingType: "sell",
     serverId: "",
@@ -58,6 +62,10 @@ export default function CreateListingPage() {
       enhancementLevel: form.enhancementLevel
         ? Number(form.enhancementLevel)
         : undefined,
+      images: images.map((img, i) => ({
+        imageId: img.imageId,
+        order: i,
+      })),
     };
     try {
       await createListing.mutateAsync(data);
@@ -149,13 +157,12 @@ export default function CreateListingPage() {
             <label htmlFor="itemName" className={labelClass}>
               아이템명 *
             </label>
-            <input
-              id="itemName"
-              className={inputClass}
+            <ItemAutocomplete
               value={form.itemName}
-              onChange={(e) => update("itemName", e.target.value)}
+              categoryId={form.categoryId || undefined}
+              onChange={(v) => update("itemName", v)}
               required
-              aria-required="true"
+              className={inputClass}
             />
           </div>
           <div>
@@ -241,6 +248,10 @@ export default function CreateListingPage() {
             />
           </div>
         </div>
+
+        {/* Section: 이미지 */}
+        <h3 className={sectionClass}>이미지</h3>
+        <ImageUpload images={images} onChange={setImages} maxImages={5} />
 
         {/* Section: 거래 */}
         <h3 className={sectionClass}>거래</h3>

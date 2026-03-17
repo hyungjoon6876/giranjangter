@@ -12,6 +12,7 @@ import {
   InfoRow,
   tradeMethodLabel,
 } from "@/components/listing/listing-info";
+import Link from "next/link";
 import { Loading } from "@/components/ui/loading";
 import { ErrorState } from "@/components/ui/error-state";
 import { ReportModal } from "@/components/forms/report-modal";
@@ -91,6 +92,28 @@ export default function ListingDetailPage({
         <span>{formatTimeAgo(l.createdAt)}</span>
       </div>
 
+      {/* Image gallery */}
+      {l.images && l.images.length > 0 && (
+        <div className="mb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {l.images
+              .sort((a, b) => a.order - b.order)
+              .map((img, i) => (
+                <img
+                  key={img.imageId}
+                  src={img.url}
+                  alt={`${l.itemName} 이미지 ${i + 1}`}
+                  className={`w-full rounded-lg border border-border object-cover ${
+                    i === 0
+                      ? "col-span-2 row-span-2 aspect-square"
+                      : "aspect-square"
+                  }`}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Item info */}
       <div className="flex items-center gap-3 mb-4">
         {l.iconUrl && (
@@ -152,6 +175,14 @@ export default function ListingDetailPage({
           aria-label="매물 액션"
           className="sticky bottom-0 bg-dark border-t border-border mt-8 py-4 flex items-center gap-3"
         >
+          {l.isOwner && l.status === "available" && (
+            <Link
+              href={`/listings/${l.listingId}/edit`}
+              className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-sm text-text-secondary"
+            >
+              수정
+            </Link>
+          )}
           {actions.includes("favorite") && (
             <button
               onClick={() => {
