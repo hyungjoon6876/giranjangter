@@ -16,6 +16,7 @@ import Link from "next/link";
 import { Loading } from "@/components/ui/loading";
 import { ErrorState } from "@/components/ui/error-state";
 import { ReportModal } from "@/components/forms/report-modal";
+import { BlockConfirmModal } from "@/components/forms/block-confirm-modal";
 import {
   formatPrice,
   statusLabel,
@@ -37,6 +38,7 @@ export default function ListingDetailPage({
   const { addToast } = useToast();
   const { requireAuth } = useAuthGuard();
   const [reportOpen, setReportOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
 
   if (isLoading) return <Loading />;
   if (isError)
@@ -65,6 +67,24 @@ export default function ListingDetailPage({
       router.push(`/chats/${chat.chatRoomId}`);
     } catch {
       addToast("error", "채팅을 시작할 수 없습니다");
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: l.title,
+      text: `${l.itemName} - ${formatPrice(l.priceAmount)}원`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // User cancelled share — ignore
+      }
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      addToast("success", "링크가 복사되었습니다");
     }
   };
 
@@ -213,11 +233,29 @@ export default function ListingDetailPage({
             </button>
           )}
           <button
+            onClick={handleShare}
+            className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-sm text-text-secondary"
+            aria-label="공유"
+          >
+            공유
+          </button>
+          <button
             onClick={() => setReportOpen(true)}
             className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-sm text-danger"
           >
             신고
           </button>
+          {!l.isOwner && (
+            <button
+              onClick={() => {
+                if (!requireAuth("차단")) return;
+                setBlockOpen(true);
+              }}
+              className="p-3 border border-border rounded-lg hover:bg-medium transition-colors text-sm text-text-dim"
+            >
+              차단
+            </button>
+          )}
         </div>
       )}
 
@@ -227,6 +265,14 @@ export default function ListingDetailPage({
         targetType="listing"
         targetId={l.listingId}
       />
+      {l.author && (
+        <BlockConfirmModal
+          open={blockOpen}
+          onClose={() => setBlockOpen(false)}
+          userId={l.author.userId}
+          nickname={l.author.nickname}
+        />
+      )}
     </div>
   );
 }

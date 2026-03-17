@@ -290,6 +290,15 @@ class ApiClient {
     });
   }
 
+  // Block
+  async blockUser(userId: string): Promise<void> {
+    return this.fetch(`/users/${userId}/block`, { method: "POST" });
+  }
+
+  async unblockUser(userId: string): Promise<void> {
+    return this.fetch(`/users/${userId}/block`, { method: "DELETE" });
+  }
+
   // Master data
   async getServers(): Promise<Server[]> {
     const res = await this.fetch<{ data: Server[] | null }>("/servers");
