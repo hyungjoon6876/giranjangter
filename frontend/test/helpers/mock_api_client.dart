@@ -154,7 +154,7 @@ class MockApiClient implements IApiClient {
   @override
   Future<List<dynamic>> getServers() async {
     return [
-      {'id': 'test_server', 'name': '테스트서버'},
+      {'serverId': 'test_server', 'serverName': '테스트서버'},
     ];
   }
 
