@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:google_sign_in_web/web_only.dart' as web;
+import '../../shared/api/auth_service.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/theme/app_theme.dart';
 
@@ -37,14 +36,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _initGoogle() async {
     if (_clientId.isEmpty) return;
     try {
-      final signIn = GoogleSignIn.instance;
-      await signIn.initialize(clientId: _clientId);
+      final authService = ref.read(authServiceProvider);
+      await authService.initialize(clientId: _clientId);
 
       // Listen for authentication events (Web uses renderButton flow)
-      _authSub = signIn.authenticationEvents.listen(
+      _authSub = authService.authEvents.listen(
         (event) {
-          if (event is GoogleSignInAuthenticationEventSignIn) {
-            _handleSignIn(event.user);
+          switch (event) {
+            case AuthEventSignIn(:final result):
+              _handleSignIn(result);
+            case AuthEventSignOut():
+              break;
+            case AuthEventError(:final error):
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Google 로그인 실패: $error'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
           }
         },
         onError: (error) {
@@ -65,17 +76,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _handleSignIn(GoogleSignInAccount user) async {
+  Future<void> _handleSignIn(AuthResult result) async {
     setState(() => _loading = true);
     try {
-      final idToken = user.authentication.idToken;
-      if (idToken == null) {
-        throw Exception('Google ID Token을 받지 못했습니다.');
-      }
-
       final api = ref.read(apiClientProvider);
-      final result = await api.login('google', idToken);
-      ref.read(currentUserProvider.notifier).set(result['user'] as Map<String, dynamic>);
+      final loginResult = await api.login('google', result.idToken);
+      ref.read(currentUserProvider.notifier).set(loginResult['user'] as Map<String, dynamic>);
       if (mounted) context.go('/');
     } catch (e) {
       if (mounted) {
@@ -94,6 +100,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authService = ref.read(authServiceProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -126,23 +134,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (_googleInitialized) ...[
                 if (kIsWeb)
                   // Google official sign-in button for Web (full width, large)
-                  web.renderButton(
-                    configuration: web.GSIButtonConfiguration(
-                      type: web.GSIButtonType.standard,
-                      theme: web.GSIButtonTheme.filledBlue,
-                      size: web.GSIButtonSize.large,
-                      text: web.GSIButtonText.signinWith,
-                      shape: web.GSIButtonShape.rectangular,
-                      minimumWidth: 320,
-                    ),
-                  )
-                else if (GoogleSignIn.instance.supportsAuthenticate())
+                  authService.renderSignInButton(minimumWidth: 320)
+                else if (authService.supportsAuthenticate)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _loading ? null : () async {
                         try {
-                          await GoogleSignIn.instance.authenticate();
+                          await authService.authenticate();
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(

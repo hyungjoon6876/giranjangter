@@ -1,8 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_client_interface.dart';
+import '../api/auth_service.dart';
+import '../api/google_auth_service.dart';
 
 final apiClientProvider = Provider<IApiClient>((ref) => ApiClient());
+
+final authServiceProvider = Provider<AuthService>((ref) => GoogleAuthService());
 
 final serversProvider = FutureProvider<List<dynamic>>((ref) async {
   final api = ref.watch(apiClientProvider);
