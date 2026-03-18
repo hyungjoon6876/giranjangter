@@ -1,127 +1,362 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/jym/lincle/internal/repository"
+	"github.com/jym/lincle/internal/repository/mock"
 )
 
-// Listing handler tests require a database connection.
-// The handlers use *sql.DB directly (not interfaces), so they cannot be
-// unit-tested with mocks without refactoring.
-//
-// These stubs document the critical test scenarios for integration testing.
-// The state transition guard logic is independently tested in
-// internal/guard/listing_guard_test.go.
+// ── ChangeListingStatus ──
 
 func TestChangeListingStatus_InvalidTransition_Returns422(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing in specific status")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing with status "available", owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. POST /api/v1/listings/:id/status with {"action": "complete"}
-	//    (available -> completed is not allowed; must go through reserved -> pending_trade first)
-	// 4. Expect 422 with {"error": {"code": "INVALID_TRANSITION", ...}}
-	// 5. Verify listing status unchanged in DB
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/status", authMiddleware("user-1", "user"), handleChangeListingStatus(mockRepo))
+
+	// available -> completed is not allowed (must go through reserved -> pending_trade)
+	body := `{"action":"complete"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusUnprocessableEntity, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "INVALID_TRANSITION" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "INVALID_TRANSITION")
+	}
 }
 
 func TestChangeListingStatus_ValidTransition_Returns200(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing with status "available", owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. POST /api/v1/listings/:id/status with {"action": "reserve"}
-	//    (available -> reserved is allowed)
-	// 4. Expect 200 with {"listingId": ..., "status": "reserved", "updatedAt": ...}
-	// 5. Verify listing.status = "reserved" in DB
-	// 6. Verify status_history row created
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/status", authMiddleware("user-1", "user"), handleChangeListingStatus(mockRepo))
+
+	// available -> reserved is allowed
+	body := `{"action":"reserve"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		ListingID string `json:"listingId"`
+		Status    string `json:"status"`
+		UpdatedAt string `json:"updatedAt"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.ListingID != "listing-1" {
+		t.Errorf("listingId = %q, want %q", resp.ListingID, "listing-1")
+	}
+	if resp.Status != "reserved" {
+		t.Errorf("status = %q, want %q", resp.Status, "reserved")
+	}
+	if resp.UpdatedAt == "" {
+		t.Error("expected non-empty updatedAt")
+	}
 }
 
 func TestChangeListingStatus_NonOwner_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing owned by different user")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1", // owned by user-1
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing owned by "user-1"
-	// 2. Authenticate as "user-2" (not the owner)
-	// 3. POST /api/v1/listings/:id/status with {"action": "reserve"}
-	// 4. Expect 403 with {"error": {"code": "FORBIDDEN", "message": "본인 매물만 상태를 변경할 수 있습니다."}}
+	r := setupRouter()
+	// Authenticate as user-2 (not the owner)
+	r.POST("/api/v1/listings/:id/status", authMiddleware("user-2", "user"), handleChangeListingStatus(mockRepo))
+
+	body := `{"action":"reserve"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
 
-func TestUpdateListing_CompletedStatus_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with completed listing")
+// ── UpdateListing ──
 
-	// Test plan:
-	// 1. Seed a listing with status "completed", owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. PATCH /api/v1/listings/:id with {"title": "new title"}
-	// 4. Expect 403 with {"error": {"code": "FORBIDDEN", "message": "종결된 매물은 수정할 수 없습니다."}}
-	// 5. Verify listing.title unchanged in DB
+func TestUpdateListing_CompletedStatus_Returns403(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "completed",
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.PATCH("/api/v1/listings/:id", authMiddleware("user-1", "user"), handleUpdateListing(mockRepo))
+
+	body := `{"title":"new title"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/listings/listing-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
 
 func TestUpdateListing_CancelledStatus_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with cancelled listing")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "cancelled",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing with status "cancelled", owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. PATCH /api/v1/listings/:id with {"title": "new title"}
-	// 4. Expect 403 with {"error": {"code": "FORBIDDEN", "message": "종결된 매물은 수정할 수 없습니다."}}
+	r := setupRouter()
+	r.PATCH("/api/v1/listings/:id", authMiddleware("user-1", "user"), handleUpdateListing(mockRepo))
+
+	body := `{"title":"new title"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/listings/listing-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
 
 func TestUpdateListing_NonOwner_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing owned by different user")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1", // owned by user-1
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing owned by "user-1"
-	// 2. Authenticate as "user-2"
-	// 3. PATCH /api/v1/listings/:id with {"title": "new title"}
-	// 4. Expect 403 with {"error": {"code": "FORBIDDEN", "message": "본인 매물만 수정할 수 있습니다."}}
+	r := setupRouter()
+	// Authenticate as user-2 (not the owner)
+	r.PATCH("/api/v1/listings/:id", authMiddleware("user-2", "user"), handleUpdateListing(mockRepo))
+
+	body := `{"title":"new title"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/listings/listing-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
 
 func TestUpdateListing_NoFields_Returns400(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing with status "available", owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. PATCH /api/v1/listings/:id with {} (empty body)
-	// 4. Expect 400 with {"error": {"code": "VALIDATION_ERROR", "message": "수정할 필드가 없습니다."}}
+	r := setupRouter()
+	r.PATCH("/api/v1/listings/:id", authMiddleware("user-1", "user"), handleUpdateListing(mockRepo))
+
+	body := `{}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/listings/listing-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "VALIDATION_ERROR")
+	}
 }
 
 func TestChangeListingStatus_InvalidAction_Returns400(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with listing")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return &repository.ListingOwnerStatus{
+				AuthorUserID: "user-1",
+				Status:       "available",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing owned by "user-1"
-	// 2. Authenticate as "user-1"
-	// 3. POST /api/v1/listings/:id/status with {"action": "explode"}
-	// 4. Expect 400 with {"error": {"code": "VALIDATION_ERROR", "message": "잘못된 액션입니다."}}
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/status", authMiddleware("user-1", "user"), handleChangeListingStatus(mockRepo))
+
+	body := `{"action":"explode"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "VALIDATION_ERROR")
+	}
 }
 
 func TestChangeListingStatus_DeletedListing_Returns404(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with soft-deleted listing")
+	mockRepo := &mock.MockListingRepo{
+		GetListingOwnerAndStatusFn: func(ctx context.Context, listingID string) (*repository.ListingOwnerStatus, error) {
+			return nil, nil // listing not found
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing with deleted_at set
-	// 2. Authenticate as the listing owner
-	// 3. POST /api/v1/listings/:id/status with {"action": "reserve"}
-	// 4. Expect 404 with {"error": {"code": "NOT_FOUND", ...}}
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/status", authMiddleware("user-1", "user"), handleChangeListingStatus(mockRepo))
+
+	body := `{"action":"reserve"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/status", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNotFound, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "NOT_FOUND" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "NOT_FOUND")
+	}
 }
 
-func TestCreateListing_MissingFields_Returns400(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB")
+// ── CreateListing ──
 
-	// Test plan:
-	// 1. Authenticate as "user-1"
-	// 2. POST /api/v1/listings with incomplete body (missing required fields)
-	// 3. Expect 400 with {"error": {"code": "VALIDATION_ERROR", ...}}
+func TestCreateListing_MissingFields_Returns400(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{}
+
+	r := setupRouter()
+	r.POST("/api/v1/listings", authMiddleware("user-1", "user"), handleCreateListing(mockRepo))
+
+	// Missing required fields (title, itemName, etc.)
+	body := `{"listingType":"sell"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "VALIDATION_ERROR")
+	}
 }
 
 func TestCreateListing_PriceRequired_ForNonOffer(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB")
+	mockRepo := &mock.MockListingRepo{}
 
-	// Test plan:
-	// 1. Authenticate as "user-1"
-	// 2. POST /api/v1/listings with priceType "fixed" but no priceAmount
-	// 3. Expect 400 with {"error": {"code": "VALIDATION_ERROR", "message": "가격을 입력해주세요."}}
+	r := setupRouter()
+	r.POST("/api/v1/listings", authMiddleware("user-1", "user"), handleCreateListing(mockRepo))
+
+	// priceType=fixed but no priceAmount
+	body := `{
+		"listingType":"sell",
+		"serverId":"server-1",
+		"categoryId":"cat-1",
+		"itemName":"진명황의 집행검",
+		"title":"팝니다",
+		"description":"좋은 아이템입니다 상태 좋아요 빠르게 거래 원합니다",
+		"priceType":"fixed",
+		"quantity":1,
+		"tradeMethod":"in_game"
+	}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "VALIDATION_ERROR")
+	}
+	if !strings.Contains(resp.Error.Message, "가격") {
+		t.Errorf("error.message = %q, want to contain '가격'", resp.Error.Message)
+	}
 }

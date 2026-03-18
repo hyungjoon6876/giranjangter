@@ -52,6 +52,14 @@ func main() {
 		}
 	}()
 
+	// Create repositories
+	authRepo := repository.NewPostgresAuthRepo(db)
+	listingRepo := repository.NewPostgresListingRepo(db)
+	chatRepo := repository.NewPostgresChatRepo(db)
+	reservationRepo := repository.NewPostgresReservationRepo(db)
+	masterRepo := repository.NewPostgresMasterRepo(db)
+	uploadRepo := repository.NewPostgresUploadRepo(db)
+
 	// SSE Broker
 	sseBroker := event.NewBroker()
 
@@ -84,26 +92,26 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		// Public routes
-		v1.GET("/servers", listServers(db))
-		v1.GET("/categories", listCategories(db))
-		v1.GET("/items/search", searchItems(db))
+		v1.GET("/servers", listServers(masterRepo))
+		v1.GET("/categories", listCategories(masterRepo))
+		v1.GET("/items/search", searchItems(masterRepo))
 
 		// Auth routes
-		v1.POST("/auth/login", handleLogin(db, auth, cfg))
-		v1.POST("/auth/refresh", handleRefresh(db, auth, cfg))
+		v1.POST("/auth/login", handleLogin(authRepo, auth, cfg))
+		v1.POST("/auth/refresh", handleRefresh(authRepo, auth, cfg))
 
 		// Read-only routes (JWT only, no DB check — restricted users can read)
 		readOnly := v1.Group("")
 		readOnly.Use(auth.RequireAuth())
 		{
-			readOnly.GET("/me", handleGetMe(db))
-			readOnly.GET("/me/listings", handleMyListings(db))
-			readOnly.GET("/chats", handleListChats(db))
-			readOnly.GET("/chats/:chatId/messages", handleListMessages(db))
-			readOnly.GET("/me/trades", handleMyTrades(db))
-			readOnly.GET("/notifications", handleListNotifications(db))
-			readOnly.GET("/users/:userId/reviews", handleGetUserReviews(db))
-			readOnly.GET("/me/reports", handleMyReports(db))
+			readOnly.GET("/me", handleGetMe(authRepo))
+			readOnly.GET("/me/listings", handleMyListings(listingRepo))
+			readOnly.GET("/chats", handleListChats(chatRepo))
+			readOnly.GET("/chats/:chatId/messages", handleListMessages(chatRepo))
+			readOnly.GET("/me/trades", handleMyTrades(reservationRepo))
+			readOnly.GET("/notifications", handleListNotifications(reservationRepo))
+			readOnly.GET("/users/:userId/reviews", handleGetUserReviews(reservationRepo))
+			readOnly.GET("/me/reports", handleMyReports(reservationRepo))
 			readOnly.GET("/sse/connect", handleSSEConnect(sseBroker))
 		}
 
@@ -113,53 +121,53 @@ func main() {
 		write.Use(middleware.RejectIfRestricted())
 		{
 			// Auth
-			write.POST("/auth/logout", handleLogout(db))
+			write.POST("/auth/logout", handleLogout(authRepo))
 
-			write.PATCH("/me/profile", handleUpdateProfile(db))
+			write.PATCH("/me/profile", handleUpdateProfile(authRepo))
 
 			// Listings
-			write.POST("/listings", handleCreateListing(db))
-			write.PATCH("/listings/:id", handleUpdateListing(db))
-			write.POST("/listings/:id/status", handleChangeListingStatus(db))
-			write.POST("/listings/:id/favorite", handleFavoriteListing(db))
-			write.DELETE("/listings/:id/favorite", handleUnfavoriteListing(db))
+			write.POST("/listings", handleCreateListing(listingRepo))
+			write.PATCH("/listings/:id", handleUpdateListing(listingRepo))
+			write.POST("/listings/:id/status", handleChangeListingStatus(listingRepo))
+			write.POST("/listings/:id/favorite", handleFavoriteListing(listingRepo))
+			write.DELETE("/listings/:id/favorite", handleUnfavoriteListing(listingRepo))
 
 			// Chat
-			write.POST("/listings/:id/chats", handleCreateChat(db))
-			write.POST("/chats/:chatId/messages", handleSendMessage(db, sseBroker))
-			write.POST("/chats/:chatId/read", handleMarkRead(db))
+			write.POST("/listings/:id/chats", handleCreateChat(chatRepo))
+			write.POST("/chats/:chatId/messages", handleSendMessage(chatRepo, sseBroker))
+			write.POST("/chats/:chatId/read", handleMarkRead(chatRepo))
 
 			// Reservations
-			write.POST("/chats/:chatId/reservations", handleCreateReservation(db))
-			write.POST("/reservations/:resId/confirm", handleConfirmReservation(db))
-			write.POST("/reservations/:resId/cancel", handleCancelReservation(db))
+			write.POST("/chats/:chatId/reservations", handleCreateReservation(reservationRepo))
+			write.POST("/reservations/:resId/confirm", handleConfirmReservation(reservationRepo))
+			write.POST("/reservations/:resId/cancel", handleCancelReservation(reservationRepo))
 
 			// Trade completion
-			write.POST("/listings/:id/complete", handleCompleteTrade(db))
-			write.POST("/trade-completions/:compId/confirm", handleConfirmCompletion(db))
+			write.POST("/listings/:id/complete", handleCompleteTrade(reservationRepo))
+			write.POST("/trade-completions/:compId/confirm", handleConfirmCompletion(reservationRepo))
 
 			// Reviews
-			write.POST("/trade-completions/:compId/reviews", handleCreateReview(db))
+			write.POST("/trade-completions/:compId/reviews", handleCreateReview(reservationRepo))
 
 			// Reports
-			write.POST("/reports", handleCreateReport(db))
+			write.POST("/reports", handleCreateReport(reservationRepo))
 
 			// Notifications
-			write.POST("/notifications/read", handleReadNotifications(db))
+			write.POST("/notifications/read", handleReadNotifications(reservationRepo))
 
 			// Upload
-			write.POST("/uploads/images", handleUploadImage(cfg, db))
+			write.POST("/uploads/images", handleUploadImage(cfg, uploadRepo))
 
 			// Block
-			write.POST("/users/:userId/block", handleBlockUser(db))
-			write.DELETE("/users/:userId/block", handleUnblockUser(db))
+			write.POST("/users/:userId/block", handleBlockUser(chatRepo))
+			write.DELETE("/users/:userId/block", handleUnblockUser(chatRepo))
 		}
 
 		// Public listing routes (optional auth for favorited status)
-		v1.GET("/listings", auth.OptionalAuth(), handleListListings(db))
-		v1.GET("/listings/:id", auth.OptionalAuth(), handleGetListing(db))
+		v1.GET("/listings", auth.OptionalAuth(), handleListListings(listingRepo))
+		v1.GET("/listings/:id", auth.OptionalAuth(), handleGetListing(listingRepo))
 
-		// Admin routes
+		// Admin routes (keep *sql.DB — not covered by repositories)
 		admin := v1.Group("/admin")
 		admin.Use(auth.RequireAuth(), middleware.RequireRole("moderator", "admin"))
 		{

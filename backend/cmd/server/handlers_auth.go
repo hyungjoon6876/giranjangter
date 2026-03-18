@@ -2,12 +2,9 @@ package main
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
-	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +12,7 @@ import (
 	"github.com/jym/lincle/internal/config"
 	"github.com/jym/lincle/internal/middleware"
 	"github.com/jym/lincle/internal/oauth"
+	"github.com/jym/lincle/internal/repository"
 )
 
 // hashToken creates a SHA-256 hash of a token string for secure DB storage.
@@ -32,7 +30,7 @@ type refreshRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
-func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config) gin.HandlerFunc {
+func handleLogin(repo repository.AuthRepo, auth *middleware.AuthMiddleware, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req loginRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -73,63 +71,37 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 			}
 		}
 
+		ctx := c.Request.Context()
 		var userID, role, nickname string
 		var isNew bool
 
-		err := db.QueryRow(
-			"SELECT u.id, u.role, COALESCE(p.nickname, '') FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.login_provider = $1 AND u.login_provider_user_key = $2",
-			req.Provider, providerKey,
-		).Scan(&userID, &role, &nickname)
-
-		if err == sql.ErrNoRows {
-			userID = uuid.New().String()
-			role = "user"
-			nickname = "유저_" + userID[:8]
-			isNew = true
-
-			tx, err := db.Begin()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
-				})
-				return
-			}
-			defer tx.Rollback()
-
-			if _, err = tx.Exec(
-				"INSERT INTO users (id, login_provider, login_provider_user_key, account_status, role) VALUES ($1, $2, $3, 'active', 'user')",
-				userID, req.Provider, providerKey,
-			); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": gin.H{"code": "INTERNAL_ERROR", "message": "계정 생성 실패"},
-				})
-				return
-			}
-
-			if _, err = tx.Exec(
-				"INSERT INTO user_profiles (user_id, nickname) VALUES ($1, $2)",
-				userID, nickname,
-			); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": gin.H{"code": "INTERNAL_ERROR", "message": "프로필 생성 실패"},
-				})
-				return
-			}
-
-			if err := tx.Commit(); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
-				})
-				return
-			}
-		} else if err != nil {
+		existing, err := repo.FindUserByProvider(ctx, req.Provider, providerKey)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
 			})
 			return
 		}
 
-		db.Exec("UPDATE users SET last_login_at = $1 WHERE id = $2", time.Now().UTC(), userID)
+		if existing == nil {
+			userID = uuid.New().String()
+			role = "user"
+			nickname = "유저_" + userID[:8]
+			isNew = true
+
+			if err := repo.CreateUserWithProfile(ctx, userID, req.Provider, providerKey, nickname); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": gin.H{"code": "INTERNAL_ERROR", "message": "계정 생성 실패"},
+				})
+				return
+			}
+		} else {
+			userID = existing.UserID
+			role = existing.Role
+			nickname = existing.Nickname
+		}
+
+		repo.UpdateLastLogin(ctx, userID, time.Now().UTC())
 
 		accessToken, refreshToken, err := auth.GenerateTokens(userID, role)
 		if err != nil {
@@ -140,10 +112,7 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 		}
 
 		// Store refresh token hash in DB for server-side management
-		if _, err := db.Exec(
-			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-			uuid.New().String(), userID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL),
-		); err != nil {
+		if err := repo.StoreRefreshToken(ctx, uuid.New().String(), userID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL)); err != nil {
 			log.Printf("[auth] failed to store refresh token: %v", err)
 		}
 
@@ -167,7 +136,7 @@ func handleLogin(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config
 	}
 }
 
-func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Config) gin.HandlerFunc {
+func handleRefresh(repo repository.AuthRepo, auth *middleware.AuthMiddleware, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req refreshRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -185,13 +154,11 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 			return
 		}
 
+		ctx := c.Request.Context()
+
 		// Verify refresh token exists in DB and hasn't expired
-		var tokenID string
-		err = db.QueryRow(
-			"SELECT id FROM refresh_tokens WHERE token_hash = $1 AND expires_at > NOW()",
-			hashToken(req.RefreshToken),
-		).Scan(&tokenID)
-		if err != nil {
+		tokenID, err := repo.FindRefreshToken(ctx, hashToken(req.RefreshToken))
+		if err != nil || tokenID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": gin.H{"code": "UNAUTHORIZED", "message": "유효하지 않은 리프레시 토큰"},
 			})
@@ -199,9 +166,8 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 		}
 
 		// Check account status FIRST (before deleting anything)
-		var accountStatus string
-		err = db.QueryRow("SELECT account_status FROM users WHERE id = $1", claims.UserID).Scan(&accountStatus)
-		if err != nil {
+		accountStatus, err := repo.GetAccountStatus(ctx, claims.UserID)
+		if err != nil || accountStatus == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": gin.H{"code": "UNAUTHORIZED", "message": "사용자를 찾을 수 없습니다."},
 			})
@@ -214,23 +180,6 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 			return
 		}
 
-		// Transaction for token rotation
-		tx, err := db.Begin()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
-			})
-			return
-		}
-		defer tx.Rollback()
-
-		if _, err := tx.Exec("DELETE FROM refresh_tokens WHERE id = $1", tokenID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
-			})
-			return
-		}
-
 		accessToken, refreshToken, err := auth.GenerateTokens(claims.UserID, claims.Role)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -239,18 +188,8 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 			return
 		}
 
-		// Store new refresh token hash in DB
-		if _, err := tx.Exec(
-			"INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-			uuid.New().String(), claims.UserID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL),
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
-			})
-			return
-		}
-
-		if err := tx.Commit(); err != nil {
+		// Rotate: delete old token and store new one atomically
+		if err := repo.RotateRefreshToken(ctx, tokenID, uuid.New().String(), claims.UserID, hashToken(refreshToken), time.Now().Add(cfg.JWTRefreshTTL)); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"},
 			})
@@ -265,50 +204,37 @@ func handleRefresh(db *sql.DB, auth *middleware.AuthMiddleware, cfg *config.Conf
 	}
 }
 
-func handleGetMe(db *sql.DB) gin.HandlerFunc {
+func handleGetMe(repo repository.AuthRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 
-		var u struct {
-			ID             string  `json:"userId"`
-			Role           string  `json:"role"`
-			AccountStatus  string  `json:"accountStatus"`
-			Nickname       string  `json:"nickname"`
-			AvatarURL      *string `json:"avatarUrl"`
-			Introduction   *string `json:"introduction"`
-			PrimaryServer  *string `json:"primaryServerId"`
-			TradeCount     int     `json:"completedTradeCount"`
-			ReviewCount    int     `json:"positiveReviewCount"`
-			ResponseBadge  string  `json:"responseBadge"`
-			TrustBadge     string  `json:"trustBadge"`
-			AlignmentScore int     `json:"alignmentScore"`
-			AlignmentGrade string  `json:"alignmentGrade"`
-		}
-
-		err := db.QueryRow(`
-			SELECT u.id, u.role, u.account_status,
-				p.nickname, p.avatar_url, p.introduction, p.primary_server_id,
-				p.completed_trade_count, p.positive_review_count, p.response_badge, p.trust_badge,
-				p.alignment_score, p.alignment_grade
-			FROM users u JOIN user_profiles p ON u.id = p.user_id
-			WHERE u.id = $1`, userID,
-		).Scan(&u.ID, &u.Role, &u.AccountStatus,
-			&u.Nickname, &u.AvatarURL, &u.Introduction, &u.PrimaryServer,
-			&u.TradeCount, &u.ReviewCount, &u.ResponseBadge, &u.TrustBadge,
-			&u.AlignmentScore, &u.AlignmentGrade)
-
-		if err != nil {
+		profile, err := repo.GetUserProfile(c.Request.Context(), userID)
+		if err != nil || profile == nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{"code": "NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
 			})
 			return
 		}
 
-		c.JSON(http.StatusOK, u)
+		c.JSON(http.StatusOK, gin.H{
+			"userId":              profile.UserID,
+			"role":                profile.Role,
+			"accountStatus":       profile.AccountStatus,
+			"nickname":            profile.Nickname,
+			"avatarUrl":           profile.AvatarURL,
+			"introduction":        profile.Introduction,
+			"primaryServerId":     profile.PrimaryServerID,
+			"completedTradeCount": profile.TradeCount,
+			"positiveReviewCount": profile.ReviewCount,
+			"responseBadge":       profile.ResponseBadge,
+			"trustBadge":          profile.TrustBadge,
+			"alignmentScore":      profile.AlignmentScore,
+			"alignmentGrade":      profile.AlignmentGrade,
+		})
 	}
 }
 
-func handleUpdateProfile(db *sql.DB) gin.HandlerFunc {
+func handleUpdateProfile(repo repository.AuthRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 
@@ -325,45 +251,28 @@ func handleUpdateProfile(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		setClauses := []string{}
-		args := []interface{}{}
-		paramIdx := 1
-		if req.Nickname != nil {
-			setClauses = append(setClauses, fmt.Sprintf("nickname = $%d", paramIdx))
-			args = append(args, *req.Nickname)
-			paramIdx++
+		fields := repository.ProfileUpdateFields{
+			Nickname:      req.Nickname,
+			Introduction:  req.Introduction,
+			PrimaryServer: req.PrimaryServer,
+			AvatarURL:     req.AvatarURL,
 		}
-		if req.Introduction != nil {
-			setClauses = append(setClauses, fmt.Sprintf("introduction = $%d", paramIdx))
-			args = append(args, *req.Introduction)
-			paramIdx++
-		}
-		if req.PrimaryServer != nil {
-			setClauses = append(setClauses, fmt.Sprintf("primary_server_id = $%d", paramIdx))
-			args = append(args, *req.PrimaryServer)
-			paramIdx++
-		}
-		if req.AvatarURL != nil {
-			setClauses = append(setClauses, fmt.Sprintf("avatar_url = $%d", paramIdx))
-			args = append(args, *req.AvatarURL)
-			paramIdx++
-		}
-		if len(setClauses) == 0 {
-			handleGetMe(db)(c)
+
+		if fields.Nickname == nil && fields.Introduction == nil && fields.PrimaryServer == nil && fields.AvatarURL == nil {
+			handleGetMe(repo)(c)
 			return
 		}
-		args = append(args, userID)
-		query := "UPDATE user_profiles SET " + strings.Join(setClauses, ", ") + fmt.Sprintf(", updated_at = NOW() WHERE user_id = $%d", paramIdx)
-		if _, err := db.Exec(query, args...); err != nil {
+
+		if err := repo.UpdateProfile(c.Request.Context(), userID, fields); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "프로필 수정 실패"}})
 			return
 		}
 
-		handleGetMe(db)(c)
+		handleGetMe(repo)(c)
 	}
 }
 
-func handleLogout(db *sql.DB) gin.HandlerFunc {
+func handleLogout(repo repository.AuthRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 		if userID == "" {
@@ -373,7 +282,7 @@ func handleLogout(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 		// Delete all refresh tokens for this user (logout from all devices)
-		db.Exec("DELETE FROM refresh_tokens WHERE user_id = $1", userID)
+		repo.DeleteRefreshTokensByUser(c.Request.Context(), userID)
 		c.Status(http.StatusNoContent)
 	}
 }

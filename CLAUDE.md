@@ -71,9 +71,14 @@ cd web && npx vitest run
 # Web (E2E — 배포된 서버 대상)
 cd web && npx playwright test
 
+# Web (E2E — 로컬 서버 대상)
+E2E_BASE_URL=http://localhost:3000 npx playwright test
+
 # Flutter
 cd frontend && flutter test
 ```
+
+> Backend: Repository 인터페이스 + Mock 기반 테스트 (68 PASS). Flutter: IApiClient + AuthService 추상화로 위젯 테스트 활성화 (51 PASS).
 
 전체 테스팅 가이드: [docs/testing.md](docs/testing.md)
 

@@ -1,12 +1,9 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +11,7 @@ import (
 	"github.com/jym/lincle/internal/domain"
 	"github.com/jym/lincle/internal/guard"
 	"github.com/jym/lincle/internal/middleware"
+	"github.com/jym/lincle/internal/repository"
 )
 
 type createListingRequest struct {
@@ -34,9 +32,10 @@ type createListingRequest struct {
 	ImageIDs     []string `json:"imageIds"`
 }
 
-func handleCreateListing(db *sql.DB) gin.HandlerFunc {
+func handleCreateListing(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
 		var req createListingRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,9 +47,8 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 
 		// Image ownership check
 		for _, imgID := range req.ImageIDs {
-			var ownerID string
-			err := db.QueryRow("SELECT user_id FROM uploaded_images WHERE id = $1", imgID).Scan(&ownerID)
-			if err != nil || ownerID != userID {
+			owned, err := repo.CheckImageOwnership(ctx, imgID, userID)
+			if err != nil || !owned {
 				c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "본인이 업로드한 이미지만 사용할 수 있습니다."}})
 				return
 			}
@@ -67,20 +65,25 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 		id := uuid.New().String()
 		now := time.Now().UTC()
 
-		_, err := db.Exec(`
-			INSERT INTO listings (id, listing_type, author_user_id, server_id, category_id,
-				item_name, title, description, price_type, price_amount, quantity,
-				enhancement_level, options_text, trade_method,
-				preferred_meeting_area_text, available_time_text,
-				status, visibility, last_activity_at, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'available', 'public', $17, $18, $19)`,
-			id, req.ListingType, userID, req.ServerID, req.CategoryID,
-			req.ItemName, req.Title, req.Description, req.PriceType, req.PriceAmount, req.Quantity,
-			req.Enhancement, req.OptionsText, req.TradeMethod,
-			req.MeetingArea, req.TimeText,
-			now, now, now,
-		)
-		if err != nil {
+		if err := repo.InsertListing(ctx, &repository.InsertListingParams{
+			ID:           id,
+			ListingType:  req.ListingType,
+			AuthorUserID: userID,
+			ServerID:     req.ServerID,
+			CategoryID:   req.CategoryID,
+			ItemName:     req.ItemName,
+			Title:        req.Title,
+			Description:  req.Description,
+			PriceType:    req.PriceType,
+			PriceAmount:  req.PriceAmount,
+			Quantity:     req.Quantity,
+			Enhancement:  req.Enhancement,
+			OptionsText:  req.OptionsText,
+			TradeMethod:  req.TradeMethod,
+			MeetingArea:  req.MeetingArea,
+			TimeText:     req.TimeText,
+			Now:          now,
+		}); err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": gin.H{"code": "INTERNAL_ERROR", "message": "매물 등록에 실패했습니다."},
@@ -89,8 +92,14 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// Record status history
-		db.Exec(`INSERT INTO status_history (id, entity_type, entity_id, to_status, changed_by_user_id, created_at)
-			VALUES ($1, 'listing', $2, 'available', $3, $4)`, uuid.New().String(), id, userID, now)
+		repo.InsertStatusHistory(ctx, &repository.InsertStatusHistoryParams{
+			ID:            uuid.New().String(),
+			EntityType:    "listing",
+			EntityID:      id,
+			ToStatus:      "available",
+			ChangedByUser: userID,
+			CreatedAt:     now,
+		})
 
 		c.JSON(http.StatusCreated, gin.H{
 			"listingId":  id,
@@ -101,7 +110,7 @@ func handleCreateListing(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleListListings(db *sql.DB) gin.HandlerFunc {
+func handleListListings(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		q := c.Query("q")
 		serverID := c.Query("serverId")
@@ -117,68 +126,16 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			limit = 20
 		}
 
-		query := `SELECT l.id, l.listing_type, l.title, l.item_name,
-			l.price_type, l.price_amount, l.enhancement_level,
-			l.server_id, s.name as server_name,
-			l.status, l.trade_method, l.view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = l.id) as favorite_count, l.chat_count,
-			l.last_activity_at, l.created_at,
-			p.user_id as author_id, p.nickname, p.trust_badge, p.response_badge,
-			im.icon_id
-			FROM listings l
-			JOIN servers s ON l.server_id = s.id
-			JOIN user_profiles p ON l.author_user_id = p.user_id
-			LEFT JOIN item_master im ON im.name = l.item_name
-			WHERE l.deleted_at IS NULL AND l.visibility = 'public'`
-
-		args := []interface{}{}
-		paramIdx := 1
-
-		if status != "" {
-			query += fmt.Sprintf(" AND l.status = $%d", paramIdx)
-			args = append(args, status)
-			paramIdx++
-		}
-		if serverID != "" {
-			query += fmt.Sprintf(" AND l.server_id = $%d", paramIdx)
-			args = append(args, serverID)
-			paramIdx++
-		}
-		if categoryID != "" {
-			query += fmt.Sprintf(" AND (l.category_id = $%d OR l.category_id IN (SELECT id FROM categories WHERE parent_id = $%d))", paramIdx, paramIdx+1)
-			args = append(args, categoryID, categoryID)
-			paramIdx += 2
-		}
-		if listingType != "" {
-			query += fmt.Sprintf(" AND l.listing_type = $%d", paramIdx)
-			args = append(args, listingType)
-			paramIdx++
-		}
-		if q != "" {
-			query += fmt.Sprintf(" AND (l.title LIKE $%d OR l.item_name LIKE $%d)", paramIdx, paramIdx+1)
-			pattern := "%" + q + "%"
-			args = append(args, pattern, pattern)
-			paramIdx += 2
-		}
-		if cursor != "" {
-			query += fmt.Sprintf(" AND l.created_at < $%d", paramIdx)
-			args = append(args, cursor)
-			paramIdx++
-		}
-
-		switch sort {
-		case "price_asc":
-			query += " ORDER BY l.price_amount ASC, l.created_at DESC"
-		case "price_desc":
-			query += " ORDER BY l.price_amount DESC, l.created_at DESC"
-		case "popular":
-			query += " ORDER BY favorite_count DESC, l.created_at DESC"
-		default:
-			query += " ORDER BY l.last_activity_at DESC"
-		}
-
-		query += fmt.Sprintf(" LIMIT %d", limit+1)
-
-		rows, err := db.Query(query, args...)
+		items, err := repo.ListListings(c.Request.Context(), repository.ListingFilter{
+			Query:       q,
+			ServerID:    serverID,
+			CategoryID:  categoryID,
+			ListingType: listingType,
+			Status:      status,
+			Sort:        sort,
+			Limit:       limit + 1,
+			Cursor:      cursor,
+		})
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -186,7 +143,6 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			})
 			return
 		}
-		defer rows.Close()
 
 		type listingItem struct {
 			ListingID       string  `json:"listingId"`
@@ -209,51 +165,52 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 			IconURL         *string `json:"iconUrl"`
 		}
 
-		var items []listingItem
-		for rows.Next() {
-			var item listingItem
-			var authorID, nickname, trustBadge, responseBadge string
-			var lastActivity, created time.Time
-			var iconID *string
-
-			err := rows.Scan(&item.ListingID, &item.ListingType, &item.Title, &item.ItemName,
-				&item.PriceType, &item.PriceAmount, &item.EnhancementLvl,
-				&item.ServerID, &item.ServerName,
-				&item.Status, &item.TradeMethod, &item.ViewCount, &item.FavoriteCount, &item.ChatCount,
-				&lastActivity, &created,
-				&authorID, &nickname, &trustBadge, &responseBadge,
-				&iconID)
-			if err != nil {
-				continue
+		var result []listingItem
+		for _, item := range items {
+			li := listingItem{
+				ListingID:      item.ListingID,
+				ListingType:    item.ListingType,
+				Title:          item.Title,
+				ItemName:       item.ItemName,
+				PriceType:      item.PriceType,
+				PriceAmount:    item.PriceAmount,
+				EnhancementLvl: item.EnhancementLvl,
+				ServerID:       item.ServerID,
+				ServerName:     item.ServerName,
+				Status:         item.Status,
+				TradeMethod:    item.TradeMethod,
+				ViewCount:      item.ViewCount,
+				FavoriteCount:  item.FavoriteCount,
+				ChatCount:      item.ChatCount,
+				LastActivityAt: item.LastActivityAt.Format(time.RFC3339),
+				CreatedAt:      item.CreatedAt.Format(time.RFC3339Nano),
+				Author: gin.H{
+					"userId":        item.AuthorID,
+					"nickname":      item.AuthorNickname,
+					"trustBadge":    item.TrustBadge,
+					"responseBadge": item.ResponseBadge,
+				},
 			}
-			item.LastActivityAt = lastActivity.Format(time.RFC3339)
-			item.CreatedAt = created.Format(time.RFC3339Nano)
-			item.Author = gin.H{
-				"userId":        authorID,
-				"nickname":      nickname,
-				"trustBadge":    trustBadge,
-				"responseBadge": responseBadge,
+			if item.IconID != nil {
+				url := "/static/icons/" + *item.IconID + ".png"
+				li.IconURL = &url
 			}
-			if iconID != nil {
-				url := "/static/icons/" + *iconID + ".png"
-				item.IconURL = &url
-			}
-			items = append(items, item)
+			result = append(result, li)
 		}
 
-		hasMore := len(items) > limit
+		hasMore := len(result) > limit
 		if hasMore {
-			items = items[:limit]
+			result = result[:limit]
 		}
 
 		var nextCursor *string
-		if hasMore && len(items) > 0 {
-			c := items[len(items)-1].CreatedAt
-			nextCursor = &c
+		if hasMore && len(result) > 0 {
+			cr := result[len(result)-1].CreatedAt
+			nextCursor = &cr
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"data": items,
+			"data": result,
 			"cursor": gin.H{
 				"next":    nextCursor,
 				"hasMore": hasMore,
@@ -262,86 +219,27 @@ func handleListListings(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleGetListing(db *sql.DB) gin.HandlerFunc {
+func handleGetListing(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
 		// Increment view count
-		db.Exec("UPDATE listings SET view_count = view_count + 1 WHERE id = $1", id)
+		repo.IncrementViewCount(ctx, id)
 
-		var l struct {
-			ID              string  `json:"listingId"`
-			ListingType     string  `json:"listingType"`
-			Title           string  `json:"title"`
-			ItemName        string  `json:"itemName"`
-			Description     string  `json:"description"`
-			PriceType       string  `json:"priceType"`
-			PriceAmount     *int64  `json:"priceAmount"`
-			Quantity        int     `json:"quantity"`
-			Enhancement     *int    `json:"enhancementLevel"`
-			OptionsText     *string `json:"optionsText"`
-			ServerID        string  `json:"serverId"`
-			ServerName      string  `json:"serverName"`
-			CategoryID      string  `json:"categoryId"`
-			CategoryName    string  `json:"categoryName"`
-			Status          string  `json:"status"`
-			Visibility      string  `json:"visibility"`
-			TradeMethod     string  `json:"tradeMethod"`
-			MeetingArea     *string `json:"preferredMeetingAreaText"`
-			TimeText        *string `json:"availableTimeText"`
-			AuthorID        string  `json:"-"`
-			Nickname        string  `json:"-"`
-			TrustBadge      string  `json:"-"`
-			ResponseBadge   string  `json:"-"`
-			TradeCount      int     `json:"-"`
-			ViewCount       int     `json:"viewCount"`
-			FavoriteCount   int     `json:"favoriteCount"`
-			ChatCount       int     `json:"chatCount"`
-			ReservedChatID  *string `json:"reservedChatRoomId"`
-			LastActivityAt  time.Time `json:"-"`
-			CreatedAt       time.Time `json:"-"`
-			UpdatedAt       time.Time `json:"-"`
-		}
-
-		var iconID *string
-		err := db.QueryRow(`
-			SELECT l.id, l.listing_type, l.title, l.item_name, l.description,
-				l.price_type, l.price_amount, l.quantity, l.enhancement_level, l.options_text,
-				l.server_id, s.name, l.category_id, c.name,
-				l.status, l.visibility, l.trade_method,
-				l.preferred_meeting_area_text, l.available_time_text,
-				l.author_user_id, p.nickname, p.trust_badge, p.response_badge, p.completed_trade_count,
-				l.view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = l.id) as favorite_count, l.chat_count,
-				l.reserved_chat_room_id, l.last_activity_at, l.created_at, l.updated_at,
-				im.icon_id
-			FROM listings l
-			JOIN servers s ON l.server_id = s.id
-			JOIN categories c ON l.category_id = c.id
-			JOIN user_profiles p ON l.author_user_id = p.user_id
-			LEFT JOIN item_master im ON im.name = l.item_name
-			WHERE l.id = $1 AND l.deleted_at IS NULL`, id,
-		).Scan(&l.ID, &l.ListingType, &l.Title, &l.ItemName, &l.Description,
-			&l.PriceType, &l.PriceAmount, &l.Quantity, &l.Enhancement, &l.OptionsText,
-			&l.ServerID, &l.ServerName, &l.CategoryID, &l.CategoryName,
-			&l.Status, &l.Visibility, &l.TradeMethod,
-			&l.MeetingArea, &l.TimeText,
-			&l.AuthorID, &l.Nickname, &l.TrustBadge, &l.ResponseBadge, &l.TradeCount,
-			&l.ViewCount, &l.FavoriteCount, &l.ChatCount,
-			&l.ReservedChatID, &l.LastActivityAt, &l.CreatedAt, &l.UpdatedAt,
-			&iconID)
-
-		if err != nil {
+		detail, err := repo.GetListing(ctx, id)
+		if err != nil || detail == nil {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."},
 			})
 			return
 		}
 
-		isOwner := userID == l.AuthorID
+		isOwner := userID == detail.AuthorID
 		var isFavorited bool
 		if userID != "" {
-			db.QueryRow("SELECT COUNT(*) FROM favorites WHERE user_id = $1 AND listing_id = $2", userID, id).Scan(&isFavorited)
+			isFavorited, _ = repo.IsFavorited(ctx, userID, id)
 		}
 
 		// Available actions
@@ -349,7 +247,7 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 		if isOwner {
 			actions = []string{"edit", "change_status"}
 		} else if userID != "" {
-			switch domain.ListingStatus(l.Status) {
+			switch domain.ListingStatus(detail.Status) {
 			case domain.ListingAvailable, domain.ListingReserved:
 				actions = []string{"start_chat", "favorite", "report"}
 			default:
@@ -358,70 +256,70 @@ func handleGetListing(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var iconURL *string
-		if iconID != nil {
-			u := "/static/icons/" + *iconID + ".png"
+		if detail.IconID != nil {
+			u := "/static/icons/" + *detail.IconID + ".png"
 			iconURL = &u
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"listingId":                l.ID,
-			"listingType":              l.ListingType,
-			"title":                    l.Title,
-			"itemName":                 l.ItemName,
-			"description":              l.Description,
-			"priceType":                l.PriceType,
-			"priceAmount":              l.PriceAmount,
-			"quantity":                 l.Quantity,
-			"enhancementLevel":         l.Enhancement,
-			"optionsText":              l.OptionsText,
-			"serverId":                 l.ServerID,
-			"serverName":               l.ServerName,
-			"categoryId":               l.CategoryID,
-			"categoryName":             l.CategoryName,
-			"status":                   l.Status,
-			"visibility":               l.Visibility,
-			"tradeMethod":              l.TradeMethod,
-			"preferredMeetingAreaText":  l.MeetingArea,
-			"availableTimeText":         l.TimeText,
+			"listingId":                detail.ID,
+			"listingType":              detail.ListingType,
+			"title":                    detail.Title,
+			"itemName":                 detail.ItemName,
+			"description":              detail.Description,
+			"priceType":                detail.PriceType,
+			"priceAmount":              detail.PriceAmount,
+			"quantity":                 detail.Quantity,
+			"enhancementLevel":         detail.Enhancement,
+			"optionsText":              detail.OptionsText,
+			"serverId":                 detail.ServerID,
+			"serverName":               detail.ServerName,
+			"categoryId":               detail.CategoryID,
+			"categoryName":             detail.CategoryName,
+			"status":                   detail.Status,
+			"visibility":               detail.Visibility,
+			"tradeMethod":              detail.TradeMethod,
+			"preferredMeetingAreaText":  detail.MeetingArea,
+			"availableTimeText":         detail.TimeText,
 			"iconUrl":                  iconURL,
 			"author": gin.H{
-				"userId":              l.AuthorID,
-				"nickname":            l.Nickname,
-				"trustBadge":          l.TrustBadge,
-				"responseBadge":       l.ResponseBadge,
-				"completedTradeCount": l.TradeCount,
+				"userId":              detail.AuthorID,
+				"nickname":            detail.AuthorNickname,
+				"trustBadge":          detail.TrustBadge,
+				"responseBadge":       detail.ResponseBadge,
+				"completedTradeCount": detail.TradeCount,
 			},
-			"viewCount":           l.ViewCount,
-			"favoriteCount":       l.FavoriteCount,
-			"chatCount":           l.ChatCount,
+			"viewCount":           detail.ViewCount,
+			"favoriteCount":       detail.FavoriteCount,
+			"chatCount":           detail.ChatCount,
 			"isFavorited":         isFavorited,
 			"isOwner":             isOwner,
 			"availableActions":    actions,
-			"reservedChatRoomId":  l.ReservedChatID,
-			"lastActivityAt":      l.LastActivityAt.Format(time.RFC3339),
-			"createdAt":           l.CreatedAt.Format(time.RFC3339),
-			"updatedAt":           l.UpdatedAt.Format(time.RFC3339),
+			"reservedChatRoomId":  detail.ReservedChatID,
+			"lastActivityAt":      detail.LastActivityAt.Format(time.RFC3339),
+			"createdAt":           detail.CreatedAt.Format(time.RFC3339),
+			"updatedAt":           detail.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 }
 
-func handleUpdateListing(db *sql.DB) gin.HandlerFunc {
+func handleUpdateListing(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
 		// Verify ownership
-		var authorID, status string
-		err := db.QueryRow("SELECT author_user_id, status FROM listings WHERE id = $1 AND deleted_at IS NULL", id).Scan(&authorID, &status)
-		if err != nil {
+		owner, err := repo.GetListingOwnerAndStatus(ctx, id)
+		if err != nil || owner == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."}})
 			return
 		}
-		if authorID != userID {
+		if owner.AuthorUserID != userID {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "본인 매물만 수정할 수 있습니다."}})
 			return
 		}
-		if status == "completed" || status == "cancelled" {
+		if owner.Status == "completed" || owner.Status == "cancelled" {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "종결된 매물은 수정할 수 없습니다."}})
 			return
 		}
@@ -443,45 +341,28 @@ func handleUpdateListing(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Build SET clause dynamically with parameterized values only
-		setClauses := []string{}
-		args := []interface{}{}
-		paramIdx := 1
-
-		type field struct {
-			col string
-			val interface{}
-			set bool
-		}
-		fields := []field{
-			{"title", req.Title, req.Title != nil},
-			{"description", req.Description, req.Description != nil},
-			{"price_type", req.PriceType, req.PriceType != nil},
-			{"price_amount", req.PriceAmount, req.PriceAmount != nil},
-			{"quantity", req.Quantity, req.Quantity != nil},
-			{"enhancement_level", req.Enhancement, req.Enhancement != nil},
-			{"options_text", req.OptionsText, req.OptionsText != nil},
-			{"trade_method", req.TradeMethod, req.TradeMethod != nil},
-			{"preferred_meeting_area_text", req.MeetingArea, req.MeetingArea != nil},
-			{"available_time_text", req.TimeText, req.TimeText != nil},
-		}
-		for _, f := range fields {
-			if f.set {
-				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", f.col, paramIdx))
-				args = append(args, f.val)
-				paramIdx++
-			}
+		fields := repository.ListingUpdateFields{
+			Title:       req.Title,
+			Description: req.Description,
+			PriceType:   req.PriceType,
+			PriceAmount: req.PriceAmount,
+			Quantity:    req.Quantity,
+			Enhancement: req.Enhancement,
+			OptionsText: req.OptionsText,
+			TradeMethod: req.TradeMethod,
+			MeetingArea: req.MeetingArea,
+			TimeText:    req.TimeText,
 		}
 
-		if len(setClauses) == 0 {
+		// Check if any fields are set
+		if req.Title == nil && req.Description == nil && req.PriceType == nil && req.PriceAmount == nil &&
+			req.Quantity == nil && req.Enhancement == nil && req.OptionsText == nil && req.TradeMethod == nil &&
+			req.MeetingArea == nil && req.TimeText == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "수정할 필드가 없습니다."}})
 			return
 		}
 
-		query := "UPDATE listings SET " + strings.Join(setClauses, ", ") + fmt.Sprintf(", updated_at = NOW() WHERE id = $%d", paramIdx)
-		args = append(args, id)
-
-		if _, err := db.Exec(query, args...); err != nil {
+		if err := repo.UpdateListing(ctx, id, fields); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "매물 수정 실패"}})
 			return
 		}
@@ -495,10 +376,11 @@ type changeStatusRequest struct {
 	ReasonCode *string `json:"reasonCode"`
 }
 
-func handleChangeListingStatus(db *sql.DB) gin.HandlerFunc {
+func handleChangeListingStatus(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
 		var req changeStatusRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -506,17 +388,17 @@ func handleChangeListingStatus(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var authorID string
-		var currentStatus domain.ListingStatus
-		err := db.QueryRow("SELECT author_user_id, status FROM listings WHERE id = $1 AND deleted_at IS NULL", id).Scan(&authorID, &currentStatus)
-		if err != nil {
+		owner, err := repo.GetListingOwnerAndStatus(ctx, id)
+		if err != nil || owner == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."}})
 			return
 		}
-		if authorID != userID {
+		if owner.AuthorUserID != userID {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "본인 매물만 상태를 변경할 수 있습니다."}})
 			return
 		}
+
+		currentStatus := domain.ListingStatus(owner.Status)
 
 		actionToStatus := map[string]domain.ListingStatus{
 			"reserve":     domain.ListingReserved,
@@ -539,10 +421,19 @@ func handleChangeListingStatus(db *sql.DB) gin.HandlerFunc {
 		}
 
 		now := time.Now().UTC()
-		db.Exec("UPDATE listings SET status = $1, updated_at = $2, last_activity_at = $3 WHERE id = $4", targetStatus, now, now, id)
-		db.Exec(`INSERT INTO status_history (id, entity_type, entity_id, from_status, to_status, changed_by_user_id, reason_code, created_at)
-			VALUES ($1, 'listing', $2, $3, $4, $5, $6, $7)`,
-			uuid.New().String(), id, currentStatus, targetStatus, userID, req.ReasonCode, now)
+		repo.UpdateListingStatus(ctx, id, targetStatus, now)
+
+		fromStr := string(currentStatus)
+		repo.InsertStatusHistory(ctx, &repository.InsertStatusHistoryParams{
+			ID:            uuid.New().String(),
+			EntityType:    "listing",
+			EntityID:      id,
+			FromStatus:    &fromStr,
+			ToStatus:      string(targetStatus),
+			ChangedByUser: userID,
+			ReasonCode:    req.ReasonCode,
+			CreatedAt:     now,
+		})
 
 		c.JSON(http.StatusOK, gin.H{
 			"listingId": id,
@@ -552,72 +443,59 @@ func handleChangeListingStatus(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleFavoriteListing(db *sql.DB) gin.HandlerFunc {
+func handleFavoriteListing(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
+
 		// Verify listing exists
-		var exists bool
-		if err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM listings WHERE id = $1 AND deleted_at IS NULL)", id).Scan(&exists); err != nil || !exists {
+		exists, err := repo.ListingExists(ctx, id)
+		if err != nil || !exists {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."}})
 			return
 		}
-		db.Exec("INSERT INTO favorites (id, user_id, listing_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-			uuid.New().String(), userID, id)
+		repo.AddFavorite(ctx, uuid.New().String(), userID, id)
 		c.Status(http.StatusNoContent)
 	}
 }
 
-func handleUnfavoriteListing(db *sql.DB) gin.HandlerFunc {
+func handleUnfavoriteListing(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := middleware.GetUserID(c)
-		db.Exec("DELETE FROM favorites WHERE user_id = $1 AND listing_id = $2", userID, id)
+		repo.RemoveFavorite(c.Request.Context(), userID, id)
 		c.Status(http.StatusNoContent)
 	}
 }
 
-func handleMyListings(db *sql.DB) gin.HandlerFunc {
+func handleMyListings(repo repository.ListingRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 		status := c.Query("status")
 
-		query := `SELECT id, listing_type, title, item_name, price_type, price_amount,
-			status, view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = listings.id) as favorite_count, chat_count, created_at
-			FROM listings WHERE author_user_id = $1 AND deleted_at IS NULL`
-		args := []interface{}{userID}
-		paramIdx := 2
-
+		var statusPtr *string
 		if status != "" {
-			query += fmt.Sprintf(" AND status = $%d", paramIdx)
-			args = append(args, status)
-			paramIdx++
+			statusPtr = &status
 		}
-		query += " ORDER BY created_at DESC LIMIT 50"
 
-		rows, err := db.Query(query, args...)
+		items, err := repo.ListMyListings(c.Request.Context(), userID, statusPtr)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
-		var items []gin.H
-		for rows.Next() {
-			var id, lt, title, itemName, pt, st string
-			var price *int64
-			var vc, fc, cc int
-			var created time.Time
-			rows.Scan(&id, &lt, &title, &itemName, &pt, &price, &st, &vc, &fc, &cc, &created)
-			items = append(items, gin.H{
-				"listingId": id, "listingType": lt, "title": title, "itemName": itemName,
-				"priceType": pt, "priceAmount": price, "status": st,
-				"viewCount": vc, "favoriteCount": fc, "chatCount": cc,
-				"createdAt": created.Format(time.RFC3339),
+		var result []gin.H
+		for _, item := range items {
+			result = append(result, gin.H{
+				"listingId": item.ListingID, "listingType": item.ListingType, "title": item.Title, "itemName": item.ItemName,
+				"priceType": item.PriceType, "priceAmount": item.PriceAmount, "status": item.Status,
+				"viewCount": item.ViewCount, "favoriteCount": item.FavoriteCount, "chatCount": item.ChatCount,
+				"createdAt": item.CreatedAt.Format(time.RFC3339),
 			})
 		}
 
-		c.JSON(http.StatusOK, gin.H{"data": items})
+		c.JSON(http.StatusOK, gin.H{"data": result})
 	}
 }

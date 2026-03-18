@@ -1,127 +1,268 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
-)
 
-// Reservation handler tests require a database connection.
-// The handlers use *sql.DB directly (not interfaces), so they cannot be
-// unit-tested with mocks without refactoring.
-//
-// These stubs document the critical test scenarios for integration testing.
-// Reservation flows involve multi-table transactions (reservations, chat_rooms,
-// chat_messages, listings, status_history), so integration tests are essential.
+	"github.com/jym/lincle/internal/repository"
+	"github.com/jym/lincle/internal/repository/mock"
+)
 
 // ── CreateReservation ──
 
 func TestCreateReservation_Success_Returns201(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with chat_room, listing, and users")
+	mockRepo := &mock.MockReservationRepo{
+		GetChatRoomForReservationFn: func(ctx context.Context, chatRoomID, userID string) (*repository.ChatRoomReservationInfo, error) {
+			return &repository.ChatRoomReservationInfo{
+				ListingID: "listing-1",
+				SellerID:  "seller-1",
+				BuyerID:   "buyer-1",
+			}, nil
+		},
+		CountActiveReservationsFn: func(ctx context.Context, listingID string) (int, error) {
+			return 0, nil // no active reservations
+		},
+		CreateReservationFn: func(ctx context.Context, params *repository.CreateReservationParams) error {
+			if params.ProposerUserID != "buyer-1" {
+				t.Errorf("proposer = %q, want %q", params.ProposerUserID, "buyer-1")
+			}
+			if params.CounterpartID != "seller-1" {
+				t.Errorf("counterpart = %q, want %q", params.CounterpartID, "seller-1")
+			}
+			if params.ListingID != "listing-1" {
+				t.Errorf("listingID = %q, want %q", params.ListingID, "listing-1")
+			}
+			return nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed a listing (id="listing-1", status="available") owned by "seller-1"
-	// 2. Seed a chat_room (id="chat-1") between "seller-1" and "buyer-1" for "listing-1"
-	// 3. Authenticate as "buyer-1"
-	// 4. POST /api/v1/chats/chat-1/reservations with:
-	//    {
-	//      "scheduledAt": "2026-03-20T14:00:00Z",
-	//      "meetingType": "in_game",
-	//      "serverId": "server-1",
-	//      "meetingPointText": "기란마을 분수대",
-	//      "noteToCounterparty": "14시에 만나요"
-	//    }
-	// 5. Expect 201 with:
-	//    - reservationId (non-empty UUID)
-	//    - status = "proposed"
-	// 6. Verify in DB:
-	//    - reservations row: proposer=buyer-1, counterpart=seller-1, status="proposed"
-	//    - chat_messages row: message_type="system", metadata contains "reservation_proposed"
-	//    - chat_rooms.chat_status updated to "reservation_proposed"
+	r := setupRouter()
+	r.POST("/api/v1/chats/:chatId/reservations", authMiddleware("buyer-1", "user"), handleCreateReservation(mockRepo))
+
+	body := `{
+		"scheduledAt":"2026-03-20T14:00:00Z",
+		"meetingType":"in_game",
+		"serverId":"server-1",
+		"meetingPointText":"기란마을 분수대",
+		"noteToCounterparty":"14시에 만나요"
+	}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/chats/chat-1/reservations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+
+	var resp struct {
+		ReservationID string `json:"reservationId"`
+		Status        string `json:"status"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.ReservationID == "" {
+		t.Error("expected non-empty reservationId")
+	}
+	if resp.Status != "proposed" {
+		t.Errorf("status = %q, want %q", resp.Status, "proposed")
+	}
 }
 
 func TestCreateReservation_ActiveConflict_Returns409(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with existing active reservation")
+	mockRepo := &mock.MockReservationRepo{
+		GetChatRoomForReservationFn: func(ctx context.Context, chatRoomID, userID string) (*repository.ChatRoomReservationInfo, error) {
+			return &repository.ChatRoomReservationInfo{
+				ListingID: "listing-1",
+				SellerID:  "seller-1",
+				BuyerID:   "buyer-1",
+			}, nil
+		},
+		CountActiveReservationsFn: func(ctx context.Context, listingID string) (int, error) {
+			return 1, nil // active reservation exists
+		},
+	}
 
-	// Test plan:
-	// 1. Seed listing "listing-1" (status="available")
-	// 2. Seed chat_room "chat-1" for listing-1 between seller-1 and buyer-1
-	// 3. Seed an existing reservation for listing-1 with status="proposed" (or "confirmed")
-	// 4. Authenticate as "buyer-1"
-	// 5. POST /api/v1/chats/chat-1/reservations with valid reservation data
-	// 6. Expect 409 with:
-	//    {"error": {"code": "CONFLICT", "message": "이미 활성 예약이 존재합니다."}}
-	// 7. Verify no new reservation row created in DB
-	//
-	// This enforces the business rule: only one active (proposed/confirmed)
-	// reservation per listing at a time.
+	r := setupRouter()
+	r.POST("/api/v1/chats/:chatId/reservations", authMiddleware("buyer-1", "user"), handleCreateReservation(mockRepo))
+
+	body := `{
+		"scheduledAt":"2026-03-20T14:00:00Z",
+		"meetingType":"in_game"
+	}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/chats/chat-1/reservations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusConflict, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "CONFLICT" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "CONFLICT")
+	}
 }
 
 // ── ConfirmReservation ──
 
 func TestConfirmReservation_Counterpart_Returns200(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with proposed reservation")
+	mockRepo := &mock.MockReservationRepo{
+		GetReservationForConfirmFn: func(ctx context.Context, reservationID string) (*repository.ReservationConfirmInfo, error) {
+			return &repository.ReservationConfirmInfo{
+				CounterpartUserID: "seller-1",
+				ListingID:         "listing-1",
+				ChatRoomID:        "chat-1",
+			}, nil
+		},
+		ConfirmReservationFn: func(ctx context.Context, params *repository.ConfirmReservationParams) error {
+			if params.ReservationID != "res-1" {
+				t.Errorf("reservationID = %q, want %q", params.ReservationID, "res-1")
+			}
+			return nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed listing "listing-1" (status="available")
-	// 2. Seed chat_room "chat-1" for listing-1
-	// 3. Seed reservation "res-1": proposer=buyer-1, counterpart=seller-1, status="proposed"
-	// 4. Authenticate as "seller-1" (the counterpart — only they can confirm)
-	// 5. POST /api/v1/reservations/res-1/confirm
-	// 6. Expect 200 with:
-	//    - reservationId = "res-1"
-	//    - status = "confirmed"
-	// 7. Verify in DB:
-	//    - reservations.status = "confirmed", confirmed_at is set
-	//    - listings.status = "reserved", reserved_chat_room_id = "chat-1"
-	//    - chat_rooms.chat_status = "reservation_confirmed"
-	//    - status_history row: entity_type="listing", from_status="available", to_status="reserved"
+	r := setupRouter()
+	r.POST("/api/v1/reservations/:resId/confirm", authMiddleware("seller-1", "user"), handleConfirmReservation(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/reservations/res-1/confirm", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		ReservationID string `json:"reservationId"`
+		Status        string `json:"status"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.ReservationID != "res-1" {
+		t.Errorf("reservationId = %q, want %q", resp.ReservationID, "res-1")
+	}
+	if resp.Status != "confirmed" {
+		t.Errorf("status = %q, want %q", resp.Status, "confirmed")
+	}
 }
 
 func TestConfirmReservation_Proposer_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with proposed reservation")
+	mockRepo := &mock.MockReservationRepo{
+		GetReservationForConfirmFn: func(ctx context.Context, reservationID string) (*repository.ReservationConfirmInfo, error) {
+			return &repository.ReservationConfirmInfo{
+				CounterpartUserID: "seller-1", // only seller-1 can confirm
+				ListingID:         "listing-1",
+				ChatRoomID:        "chat-1",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed reservation "res-1": proposer=buyer-1, counterpart=seller-1, status="proposed"
-	// 2. Authenticate as "buyer-1" (the proposer — they CANNOT confirm their own reservation)
-	// 3. POST /api/v1/reservations/res-1/confirm
-	// 4. Expect 403 with:
-	//    {"error": {"code": "FORBIDDEN", "message": "예약 상대방만 확정할 수 있습니다."}}
-	// 5. Verify reservation status unchanged in DB (still "proposed")
-	//
-	// This enforces the business rule: only the counterpart can confirm.
-	// The proposer made the offer; the other party must accept it.
+	r := setupRouter()
+	// Authenticate as buyer-1 (the proposer, NOT the counterpart)
+	r.POST("/api/v1/reservations/:resId/confirm", authMiddleware("buyer-1", "user"), handleConfirmReservation(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/reservations/res-1/confirm", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
 
 // ── CancelReservation ──
 
 func TestCancelReservation_Proposer_Returns200(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with proposed reservation")
+	mockRepo := &mock.MockReservationRepo{
+		GetReservationForCancelFn: func(ctx context.Context, reservationID string) (*repository.ReservationCancelInfo, error) {
+			return &repository.ReservationCancelInfo{
+				ListingID:     "listing-1",
+				ChatRoomID:    "chat-1",
+				ProposerID:    "buyer-1",
+				CounterpartID: "seller-1",
+			}, nil
+		},
+		CancelReservationFn: func(ctx context.Context, params *repository.CancelReservationParams) error {
+			if params.ReservationID != "res-1" {
+				t.Errorf("reservationID = %q, want %q", params.ReservationID, "res-1")
+			}
+			if params.ReasonCode != "changed_mind" {
+				t.Errorf("reasonCode = %q, want %q", params.ReasonCode, "changed_mind")
+			}
+			return nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed listing "listing-1" (status="reserved")
-	// 2. Seed chat_room "chat-1" with chat_status="reservation_proposed"
-	// 3. Seed reservation "res-1": proposer=buyer-1, counterpart=seller-1, status="proposed"
-	// 4. Authenticate as "buyer-1" (the proposer — they CAN cancel)
-	// 5. POST /api/v1/reservations/res-1/cancel with {"reasonCode": "changed_mind"}
-	// 6. Expect 200 with:
-	//    - reservationId = "res-1"
-	//    - status = "cancelled"
-	// 7. Verify in DB:
-	//    - reservations.status = "cancelled", cancelled_at is set, cancellation_reason_code = "changed_mind"
-	//    - listings.status reverted to "available", reserved_chat_room_id = NULL
-	//    - chat_rooms.chat_status reverted to "open"
+	r := setupRouter()
+	r.POST("/api/v1/reservations/:resId/cancel", authMiddleware("buyer-1", "user"), handleCancelReservation(mockRepo))
+
+	body := `{"reasonCode":"changed_mind"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/reservations/res-1/cancel", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		ReservationID string `json:"reservationId"`
+		Status        string `json:"status"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp.ReservationID != "res-1" {
+		t.Errorf("reservationId = %q, want %q", resp.ReservationID, "res-1")
+	}
+	if resp.Status != "cancelled" {
+		t.Errorf("status = %q, want %q", resp.Status, "cancelled")
+	}
 }
 
 func TestCancelReservation_NonParticipant_Returns403(t *testing.T) {
-	t.Skip("requires integration test setup: needs DB with reservation and unrelated user")
+	mockRepo := &mock.MockReservationRepo{
+		GetReservationForCancelFn: func(ctx context.Context, reservationID string) (*repository.ReservationCancelInfo, error) {
+			return &repository.ReservationCancelInfo{
+				ListingID:     "listing-1",
+				ChatRoomID:    "chat-1",
+				ProposerID:    "buyer-1",
+				CounterpartID: "seller-1",
+			}, nil
+		},
+	}
 
-	// Test plan:
-	// 1. Seed reservation "res-1": proposer=buyer-1, counterpart=seller-1, status="proposed"
-	// 2. Authenticate as "user-other" (neither proposer nor counterpart)
-	// 3. POST /api/v1/reservations/res-1/cancel with {"reasonCode": "spam"}
-	// 4. Expect 403 with:
-	//    {"error": {"code": "FORBIDDEN", "message": "예약 참여자만 취소할 수 있습니다."}}
-	// 5. Verify reservation status unchanged in DB
-	//
-	// This enforces the business rule: only the proposer or counterpart
-	// (i.e., the two participants of the reservation) can cancel it.
+	r := setupRouter()
+	// Authenticate as user-other (neither proposer nor counterpart)
+	r.POST("/api/v1/reservations/:resId/cancel", authMiddleware("user-other", "user"), handleCancelReservation(mockRepo))
+
+	body := `{"reasonCode":"spam"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/reservations/res-1/cancel", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
 }
