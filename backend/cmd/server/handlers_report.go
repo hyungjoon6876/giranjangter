@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"time"
@@ -9,9 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jym/lincle/internal/middleware"
+	"github.com/jym/lincle/internal/repository"
 )
 
-func handleCreateReport(db *sql.DB) gin.HandlerFunc {
+func handleCreateReport(repo repository.ReservationRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 		var req struct {
@@ -26,8 +26,14 @@ func handleCreateReport(db *sql.DB) gin.HandlerFunc {
 		}
 
 		reportID := uuid.New().String()
-		if _, err := db.Exec("INSERT INTO reports (id, reporter_user_id, target_type, target_id, report_type, description, status) VALUES ($1, $2, $3, $4, $5, $6, 'submitted')",
-			reportID, userID, req.TargetType, req.TargetID, req.ReportType, req.Description); err != nil {
+		if err := repo.CreateReport(c.Request.Context(), &repository.CreateReportParams{
+			ID:          reportID,
+			ReporterID:  userID,
+			TargetType:  req.TargetType,
+			TargetID:    req.TargetID,
+			ReportType:  req.ReportType,
+			Description: req.Description,
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "신고 접수 실패"}})
 			return
 		}
@@ -36,25 +42,20 @@ func handleCreateReport(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleMyReports(db *sql.DB) gin.HandlerFunc {
+func handleMyReports(repo repository.ReservationRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
-		rows, err := db.Query("SELECT id, target_type, target_id, report_type, status, created_at FROM reports WHERE reporter_user_id = $1 ORDER BY created_at DESC LIMIT 50", userID)
+
+		items, err := repo.ListMyReports(c.Request.Context(), userID)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var reports []gin.H
-		for rows.Next() {
-			var id, tt, tid, rt, st string
-			var created time.Time
-			if err := rows.Scan(&id, &tt, &tid, &rt, &st, &created); err != nil {
-				continue
-			}
-			reports = append(reports, gin.H{"reportId": id, "targetType": tt, "targetId": tid, "reportType": rt, "status": st, "createdAt": created.Format(time.RFC3339)})
+		for _, item := range items {
+			reports = append(reports, gin.H{"reportId": item.ReportID, "targetType": item.TargetType, "targetId": item.TargetID, "reportType": item.ReportType, "status": item.Status, "createdAt": item.CreatedAt.Format(time.RFC3339)})
 		}
 		c.JSON(http.StatusOK, gin.H{"data": reports})
 	}

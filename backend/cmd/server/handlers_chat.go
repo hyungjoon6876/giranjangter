@@ -1,8 +1,6 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,16 +10,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/jym/lincle/internal/event"
 	"github.com/jym/lincle/internal/middleware"
+	"github.com/jym/lincle/internal/repository"
 )
 
-func handleCreateChat(db *sql.DB) gin.HandlerFunc {
+func handleCreateChat(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		listingID := c.Param("id")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
-		var authorID string
-		err := db.QueryRow("SELECT author_user_id FROM listings WHERE id = $1 AND deleted_at IS NULL", listingID).Scan(&authorID)
-		if err != nil {
+		authorID, err := repo.GetListingAuthor(ctx, listingID)
+		if err != nil || authorID == "" {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "매물을 찾을 수 없습니다."}})
 			return
 		}
@@ -31,29 +30,29 @@ func handleCreateChat(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// Check existing chat
-		var existingID string
-		err = db.QueryRow(
-			"SELECT id FROM chat_rooms WHERE listing_id = $1 AND ((seller_user_id = $2 AND buyer_user_id = $3) OR (seller_user_id = $4 AND buyer_user_id = $5))",
-			listingID, authorID, userID, userID, authorID,
-		).Scan(&existingID)
-		if err == nil {
+		existingID, err := repo.FindExistingChatRoom(ctx, listingID, authorID, userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
+			return
+		}
+		if existingID != "" {
 			c.JSON(http.StatusConflict, gin.H{"chatRoomId": existingID, "message": "이미 채팅방이 존재합니다."})
 			return
 		}
 
 		chatID := uuid.New().String()
 		now := time.Now().UTC()
-		_, err = db.Exec(
-			"INSERT INTO chat_rooms (id, listing_id, seller_user_id, buyer_user_id, chat_status, created_at, updated_at) VALUES ($1, $2, $3, $4, 'open', $5, $6)",
-			chatID, listingID, authorID, userID, now, now,
-		)
-		if err != nil {
+		if err := repo.CreateChatRoom(ctx, &repository.CreateChatRoomParams{
+			ID:        chatID,
+			ListingID: listingID,
+			SellerID:  authorID,
+			BuyerID:   userID,
+			Now:       now,
+		}); err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "채팅방 생성에 실패했습니다."}})
 			return
 		}
-
-		db.Exec("UPDATE listings SET chat_count = chat_count + 1 WHERE id = $1", listingID)
 
 		c.JSON(http.StatusCreated, gin.H{
 			"chatRoomId":   chatID,
@@ -66,51 +65,37 @@ func handleCreateChat(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleListChats(db *sql.DB) gin.HandlerFunc {
+func handleListChats(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := middleware.GetUserID(c)
 
-		rows, err := db.Query(`
-			SELECT cr.id, cr.listing_id, l.title, cr.chat_status, cr.last_message_at, cr.updated_at,
-				CASE WHEN cr.seller_user_id = $1 THEN cr.buyer_user_id ELSE cr.seller_user_id END as counterpart_id,
-				p.nickname, p.trust_badge
-			FROM chat_rooms cr
-			JOIN listings l ON cr.listing_id = l.id
-			JOIN user_profiles p ON p.user_id = CASE WHEN cr.seller_user_id = $2 THEN cr.buyer_user_id ELSE cr.seller_user_id END
-			WHERE cr.seller_user_id = $3 OR cr.buyer_user_id = $4
-			ORDER BY COALESCE(cr.last_message_at, cr.created_at) DESC
-			LIMIT 50`, userID, userID, userID, userID)
+		items, err := repo.ListChatRooms(c.Request.Context(), userID)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var chats []gin.H
-		for rows.Next() {
-			var chatID, listingID, title, status, cpID, cpNick, cpBadge string
-			var lastMsg, updated *time.Time
-			if err := rows.Scan(&chatID, &listingID, &title, &status, &lastMsg, &updated, &cpID, &cpNick, &cpBadge); err != nil {
-				continue
-			}
+		for _, item := range items {
 			chats = append(chats, gin.H{
-				"chatRoomId": chatID, "listingId": listingID, "listingTitle": title,
-				"chatStatus": status,
-				"counterparty": gin.H{"userId": cpID, "nickname": cpNick, "trustBadge": cpBadge},
-				"updatedAt": updated,
+				"chatRoomId": item.ChatRoomID, "listingId": item.ListingID, "listingTitle": item.ListingTitle,
+				"chatStatus": item.ChatStatus,
+				"counterparty": gin.H{"userId": item.CounterpartID, "nickname": item.CounterpartNick, "trustBadge": item.CounterpartBadge},
+				"updatedAt": item.UpdatedAt,
 			})
 		}
 		c.JSON(http.StatusOK, gin.H{"data": chats})
 	}
 }
 
-func handleListMessages(db *sql.DB) gin.HandlerFunc {
+func handleListMessages(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		chatID := c.Param("chatId")
 		userID := middleware.GetUserID(c)
 		cursor := c.Query("cursor")
 		limitStr := c.DefaultQuery("limit", "50")
+		ctx := c.Request.Context()
 
 		limit, _ := strconv.Atoi(limitStr)
 		if limit <= 0 || limit > 100 {
@@ -118,46 +103,24 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// Verify participant
-		var count int
-		db.QueryRow("SELECT COUNT(*) FROM chat_rooms WHERE id = $1 AND (seller_user_id = $2 OR buyer_user_id = $3)", chatID, userID, userID).Scan(&count)
-		if count == 0 {
+		isParticipant, err := repo.IsChatParticipant(ctx, chatID, userID)
+		if err != nil || !isParticipant {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "채팅 참여자만 메시지를 조회할 수 있습니다."}})
 			return
 		}
 
-		query := "SELECT id, sender_user_id, message_type, body_text, metadata_json, sent_at FROM chat_messages WHERE chat_room_id = $1 AND deleted_at IS NULL"
-		args := []interface{}{chatID}
-		paramIdx := 2
-
-		if cursor != "" {
-			query += fmt.Sprintf(" AND sent_at < $%d", paramIdx)
-			args = append(args, cursor)
-			paramIdx++
-		}
-
-		query += fmt.Sprintf(" ORDER BY sent_at DESC LIMIT %d", limit+1)
-
-		rows, err := db.Query(query, args...)
+		items, err := repo.ListMessages(ctx, chatID, limit+1, cursor)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var msgs []gin.H
-		for rows.Next() {
-			var id string
-			var sender *string
-			var msgType string
-			var body, meta *string
-			var sentAt time.Time
-			if err := rows.Scan(&id, &sender, &msgType, &body, &meta, &sentAt); err != nil {
-				continue
-			}
+		for _, item := range items {
 			msgs = append(msgs, gin.H{
-				"messageId": id, "senderUserId": sender, "messageType": msgType,
-				"bodyText": body, "metadataJson": meta, "sentAt": sentAt.Format(time.RFC3339Nano),
+				"messageId": item.MessageID, "senderUserId": item.SenderUserID, "messageType": item.MessageType,
+				"bodyText": item.BodyText, "metadataJson": item.MetadataJSON, "sentAt": item.SentAt.Format(time.RFC3339Nano),
 			})
 		}
 
@@ -182,10 +145,11 @@ func handleListMessages(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
+func handleSendMessage(repo repository.ChatRepo, broker *event.Broker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		chatID := c.Param("chatId")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
 
 		var req struct {
 			MessageType     string  `json:"messageType" binding:"required,oneof=text image"`
@@ -198,18 +162,16 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 		}
 
 		// Verify participant and get counterpart
-		var sellerID, buyerID string
-		err := db.QueryRow("SELECT seller_user_id, buyer_user_id FROM chat_rooms WHERE id = $1 AND (seller_user_id = $2 OR buyer_user_id = $3)", chatID, userID, userID).Scan(&sellerID, &buyerID)
-		if err != nil {
+		participants, err := repo.GetChatRoomParticipants(ctx, chatID, userID)
+		if err != nil || participants == nil {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "채팅 참여자만 메시지를 보낼 수 있습니다."}})
 			return
 		}
 
 		// Dedup check
 		if req.ClientMessageID != nil {
-			var existing int
-			db.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE client_message_id = $1", *req.ClientMessageID).Scan(&existing)
-			if existing > 0 {
+			isDup, _ := repo.CheckDuplicateMessage(ctx, *req.ClientMessageID)
+			if isDup {
 				c.JSON(http.StatusOK, gin.H{"message": "이미 전송된 메시지입니다."})
 				return
 			}
@@ -217,14 +179,18 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 
 		msgID := uuid.New().String()
 		now := time.Now().UTC()
-		if _, err := db.Exec(
-			"INSERT INTO chat_messages (id, chat_room_id, sender_user_id, message_type, body_text, client_message_id, sent_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-			msgID, chatID, userID, req.MessageType, req.BodyText, req.ClientMessageID, now,
-		); err != nil {
+		if err := repo.InsertMessage(ctx, &repository.InsertMessageParams{
+			ID:              msgID,
+			ChatRoomID:      chatID,
+			SenderUserID:    userID,
+			MessageType:     req.MessageType,
+			BodyText:        req.BodyText,
+			ClientMessageID: req.ClientMessageID,
+			Now:             now,
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "메시지 저장 실패"}})
 			return
 		}
-		db.Exec("UPDATE chat_rooms SET last_message_at = $1, updated_at = $2 WHERE id = $3", now, now, chatID)
 
 		msgPayload := gin.H{
 			"messageId":    msgID,
@@ -236,9 +202,9 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 		}
 
 		// SSE broadcast to counterpart
-		counterpart := buyerID
-		if userID == buyerID {
-			counterpart = sellerID
+		counterpart := participants.BuyerID
+		if userID == participants.BuyerID {
+			counterpart = participants.SellerID
 		}
 		broker.SendToUser(counterpart, event.SSEEvent{
 			EventType: "new_message",
@@ -249,10 +215,12 @@ func handleSendMessage(db *sql.DB, broker *event.Broker) gin.HandlerFunc {
 	}
 }
 
-func handleMarkRead(db *sql.DB) gin.HandlerFunc {
+func handleMarkRead(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		chatID := c.Param("chatId")
 		userID := middleware.GetUserID(c)
+		ctx := c.Request.Context()
+
 		var req struct {
 			LastReadMessageID string `json:"lastReadMessageId" binding:"required"`
 		}
@@ -260,17 +228,14 @@ func handleMarkRead(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		var chatCount int
-		db.QueryRow("SELECT COUNT(*) FROM chat_rooms WHERE id = $1 AND (seller_user_id = $2 OR buyer_user_id = $2)", chatID, userID).Scan(&chatCount)
-		if chatCount == 0 {
+
+		isParticipant, err := repo.IsChatParticipant(ctx, chatID, userID)
+		if err != nil || !isParticipant {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "FORBIDDEN", "message": "채팅 참여자만 읽음 처리할 수 있습니다."}})
 			return
 		}
 
-		db.Exec(`INSERT INTO chat_read_cursors (chat_room_id, user_id, last_read_message_id, updated_at)
-			VALUES ($1, $2, $3, NOW())
-			ON CONFLICT(chat_room_id, user_id) DO UPDATE SET last_read_message_id = $4, updated_at = NOW()`,
-			chatID, userID, req.LastReadMessageID, req.LastReadMessageID)
+		repo.UpsertReadCursor(ctx, chatID, userID, req.LastReadMessageID)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -312,21 +277,20 @@ func handleSSEConnect(broker *event.Broker) gin.HandlerFunc {
 	}
 }
 
-func handleBlockUser(db *sql.DB) gin.HandlerFunc {
+func handleBlockUser(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		targetID := c.Param("userId")
 		userID := middleware.GetUserID(c)
-		db.Exec("INSERT INTO block_relations (id, blocker_user_id, blocked_user_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-			uuid.New().String(), userID, targetID)
+		repo.BlockUser(c.Request.Context(), uuid.New().String(), userID, targetID)
 		c.Status(http.StatusNoContent)
 	}
 }
 
-func handleUnblockUser(db *sql.DB) gin.HandlerFunc {
+func handleUnblockUser(repo repository.ChatRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		targetID := c.Param("userId")
 		userID := middleware.GetUserID(c)
-		db.Exec("DELETE FROM block_relations WHERE blocker_user_id = $1 AND blocked_user_id = $2", userID, targetID)
+		repo.UnblockUser(c.Request.Context(), userID, targetID)
 		c.Status(http.StatusNoContent)
 	}
 }

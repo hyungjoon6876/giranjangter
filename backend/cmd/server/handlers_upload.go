@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
@@ -14,9 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jym/lincle/internal/config"
 	"github.com/jym/lincle/internal/middleware"
+	"github.com/jym/lincle/internal/repository"
 )
 
-func handleUploadImage(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
+func handleUploadImage(cfg *config.Config, repo repository.UploadRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		file, err := c.FormFile("file")
 		if err != nil {
@@ -106,8 +106,14 @@ func handleUploadImage(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 		url := fmt.Sprintf("/uploads/images/%s", filename)
 
 		userID := middleware.GetUserID(c)
-		if _, err := db.Exec("INSERT INTO uploaded_images (id, user_id, filename, url, content_type, size_bytes) VALUES ($1, $2, $3, $4, $5, $6)",
-			imageID, userID, filename, url, contentType, file.Size); err != nil {
+		if err := repo.InsertImage(c.Request.Context(), &repository.InsertImageParams{
+			ID:          imageID,
+			UserID:      userID,
+			Filename:    filename,
+			URL:         url,
+			ContentType: contentType,
+			SizeBytes:   file.Size,
+		}); err != nil {
 			log.Printf("error: image DB insert failed: %v", err)
 			os.Remove(dstPath) // cleanup orphaned file
 			c.JSON(http.StatusInternalServerError, gin.H{

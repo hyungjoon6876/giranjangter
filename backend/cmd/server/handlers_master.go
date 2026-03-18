@@ -1,56 +1,49 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jym/lincle/internal/repository"
 )
 
-func listServers(db *sql.DB) gin.HandlerFunc {
+func listServers(repo repository.MasterRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, name FROM servers WHERE is_active = 1 ORDER BY sort_order")
+		items, err := repo.ListServers(c.Request.Context())
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var servers []gin.H
-		for rows.Next() {
-			var id, name string
-			rows.Scan(&id, &name)
-			servers = append(servers, gin.H{"serverId": id, "serverName": name})
+		for _, item := range items {
+			servers = append(servers, gin.H{"serverId": item.ServerID, "serverName": item.ServerName})
 		}
 		c.JSON(http.StatusOK, gin.H{"data": servers})
 	}
 }
 
-func listCategories(db *sql.DB) gin.HandlerFunc {
+func listCategories(repo repository.MasterRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, name, parent_id FROM categories ORDER BY parent_id NULLS FIRST, sort_order")
+		items, err := repo.ListCategories(c.Request.Context())
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var categories []gin.H
-		for rows.Next() {
-			var id, name string
-			var parentID *string
-			rows.Scan(&id, &name, &parentID)
-			categories = append(categories, gin.H{"categoryId": id, "categoryName": name, "parentId": parentID})
+		for _, item := range items {
+			categories = append(categories, gin.H{"categoryId": item.CategoryID, "categoryName": item.CategoryName, "parentId": item.ParentID})
 		}
 		c.JSON(http.StatusOK, gin.H{"data": categories})
 	}
 }
 
-func searchItems(db *sql.DB) gin.HandlerFunc {
+func searchItems(repo repository.MasterRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := strings.TrimSpace(c.Query("q"))
 		categoryID := strings.TrimSpace(c.Query("categoryId"))
@@ -61,46 +54,29 @@ func searchItems(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var rows *sql.Rows
-		var err error
-		var args []interface{}
-
-		if categoryID == "" {
-			// Search without category filter
-			sqlQuery := "SELECT id, name, category_id, icon_id FROM item_master WHERE name ILIKE $1 ORDER BY name LIMIT 20"
-			args = []interface{}{"%" + query + "%"}
-			rows, err = db.Query(sqlQuery, args...)
-		} else {
-			// Search with category filter
-			sqlQuery := "SELECT id, name, category_id, icon_id FROM item_master WHERE name ILIKE $1 AND category_id = $2 ORDER BY name LIMIT 20"
-			args = []interface{}{"%" + query + "%", categoryID}
-			rows, err = db.Query(sqlQuery, args...)
+		var catPtr *string
+		if categoryID != "" {
+			catPtr = &categoryID
 		}
 
+		results, err := repo.SearchItems(c.Request.Context(), query, catPtr)
 		if err != nil {
 			log.Printf("error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
 
 		var items []gin.H
-		for rows.Next() {
-			var id, name, categoryID string
-			var iconID sql.NullString
-			rows.Scan(&id, &name, &categoryID, &iconID)
-
-			// Build iconUrl if icon_id is not null
+		for _, r := range results {
 			var iconURL *string
-			if iconID.Valid {
-				u := "/static/icons/" + iconID.String + ".png"
+			if r.IconID != nil {
+				u := "/static/icons/" + *r.IconID + ".png"
 				iconURL = &u
 			}
-
 			items = append(items, gin.H{
-				"id":         id,
-				"name":       name,
-				"categoryId": categoryID,
+				"id":         r.ID,
+				"name":       r.Name,
+				"categoryId": r.CategoryID,
 				"iconUrl":    iconURL,
 			})
 		}
