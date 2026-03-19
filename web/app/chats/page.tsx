@@ -17,6 +17,11 @@ export default function ChatsPage() {
   const { isLoggedIn } = useAuthGuard();
   const { data: me } = useMe();
   const { data: chatsData, isLoading } = useChats();
+  const qc = useQueryClient();
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [reservationOpen, setReservationOpen] = useState(false);
+  const { data: messagesData } = useMessages(activeChatId ?? "");
+  const sendMessage = useSendMessage();
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -25,11 +30,6 @@ export default function ChatsPage() {
   }, [isLoggedIn, router]);
 
   if (!isLoggedIn) return null;
-  const qc = useQueryClient();
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [reservationOpen, setReservationOpen] = useState(false);
-  const { data: messagesData } = useMessages(activeChatId ?? "");
-  const sendMessage = useSendMessage();
 
   const chats = chatsData?.data ?? [];
   const messages = messagesData?.data ? [...messagesData.data].reverse() : [];

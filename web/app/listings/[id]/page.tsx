@@ -13,6 +13,7 @@ import {
   tradeMethodLabel,
 } from "@/components/listing/listing-info";
 import Link from "next/link";
+import Image from "next/image";
 import { Loading } from "@/components/ui/loading";
 import { ErrorState } from "@/components/ui/error-state";
 import { ReportModal } from "@/components/forms/report-modal";
@@ -123,10 +124,13 @@ export default function ListingDetailPage({
             {[...l.images]
               .sort((a, b) => a.order - b.order)
               .map((img, i) => (
-                <img
+                <Image
                   key={img.imageId}
                   src={img.url}
                   alt={`${l.itemName} 이미지 ${i + 1}`}
+                  width={i === 0 ? 200 : 100}
+                  height={i === 0 ? 200 : 100}
+                  unoptimized
                   className={`w-full rounded-lg border border-border object-cover ${
                     i === 0
                       ? "col-span-2 row-span-2 aspect-square"
@@ -141,7 +145,14 @@ export default function ListingDetailPage({
       {/* Item info */}
       <div className="flex items-center gap-3 mb-4">
         {l.iconUrl && (
-          <img src={assetUrl(l.iconUrl)} alt="" className="w-16 h-16" />
+          <Image
+            src={assetUrl(l.iconUrl)}
+            alt=""
+            width={64}
+            height={64}
+            unoptimized
+            className="w-16 h-16"
+          />
         )}
         <div>
           <span className="text-text-primary text-lg">{l.itemName}</span>

@@ -21,7 +21,7 @@ func handleAdminListAuditLogs(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var logs []gin.H
 		for rows.Next() {
@@ -53,7 +53,7 @@ func handleAdminChatMessages(db *sql.DB) gin.HandlerFunc {
 
 		// Verify chat exists
 		var exists bool
-		db.QueryRow("SELECT EXISTS(SELECT 1 FROM chat_rooms WHERE id = $1)", chatID).Scan(&exists)
+		_ = db.QueryRow("SELECT EXISTS(SELECT 1 FROM chat_rooms WHERE id = $1)", chatID).Scan(&exists)
 		if !exists {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "채팅방을 찾을 수 없습니다."}})
 			return
@@ -66,7 +66,7 @@ func handleAdminChatMessages(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var messages []gin.H
 		for rows.Next() {
@@ -100,7 +100,7 @@ func handleAdminListTrades(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var trades []gin.H
 		for rows.Next() {
@@ -160,7 +160,7 @@ func handleAdminListAllListings(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var listings []gin.H
 		for rows.Next() {
@@ -195,7 +195,7 @@ func handleAdminRestoreListing(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 
 		if _, err := tx.Exec("UPDATE listings SET visibility = 'public', updated_at = NOW() WHERE id = $1", listingID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "매물 복원 실패"}})

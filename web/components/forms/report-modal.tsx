@@ -34,7 +34,7 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
       await apiClient.createReport({ targetType, targetId, reasonCode: reason, description: description || undefined });
       onClose();
       addToast("success", "신고가 접수되었습니다");
-    } catch (err) {
+    } catch {
       addToast("error", "신고 접수에 실패했습니다");
     } finally {
       setSubmitting(false);

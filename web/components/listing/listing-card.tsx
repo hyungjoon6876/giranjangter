@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Listing } from "@/lib/types";
 import { TypeBadge, Badge } from "@/components/ui/badge";
 import { formatPrice, formatTimeAgo, statusLabel, statusColor } from "@/lib/utils";
@@ -26,9 +27,12 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <h3 className="font-semibold text-text-primary truncate" title={l.title}>{l.title}</h3>
       <div className="flex items-center gap-1 mt-1 text-sm text-text-secondary">
         {l.iconUrl && (
-          <img
+          <Image
             src={assetUrl(l.iconUrl)}
             alt={`${l.itemName} 아이콘`}
+            width={40}
+            height={40}
+            unoptimized
             className="w-10 h-10"
           />
         )}

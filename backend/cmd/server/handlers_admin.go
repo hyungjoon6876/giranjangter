@@ -21,7 +21,7 @@ func handleAdminListReports(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류가 발생했습니다."}})
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		var reports []gin.H
 		for rows.Next() {
@@ -80,7 +80,7 @@ func handleAdminReportAction(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 
 		actionID := uuid.New().String()
 		if _, err := tx.Exec("INSERT INTO moderation_actions (id, report_id, actor_user_id, target_user_id, action_code, restriction_scope, memo) VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -123,7 +123,7 @@ func handleAdminHideListing(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 
 		if _, err := tx.Exec("UPDATE listings SET visibility = 'hidden', updated_at = NOW() WHERE id = $1", listingID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "매물 숨김 실패"}})
@@ -164,7 +164,7 @@ func handleAdminRestrictUser(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "서버 오류"}})
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 
 		if _, err := tx.Exec("UPDATE users SET account_status = 'restricted' WHERE id = $1", targetUserID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "계정 제한 실패"}})

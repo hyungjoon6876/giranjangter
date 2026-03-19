@@ -46,7 +46,7 @@ export default function CreateListingPage() {
     if (!isLoggedIn) {
       requireAuth("매물 등록");
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, requireAuth]);
 
   if (!isLoggedIn) return null;
 

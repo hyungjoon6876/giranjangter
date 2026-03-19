@@ -29,7 +29,7 @@ export function ReservationModal({ open, onClose, chatId, onCreated }: Reservati
       });
       onCreated();
       onClose();
-    } catch (err) {
+    } catch {
       addToast("error", "예약 제안에 실패했습니다");
     } finally {
       setSubmitting(false);

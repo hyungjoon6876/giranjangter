@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 import { useIsLoggedIn } from "@/lib/hooks/use-auth";
 import { useListings } from "@/lib/hooks/use-listings";
@@ -43,9 +44,11 @@ export default function HomePage() {
         <section className="relative overflow-hidden rounded-xl mb-6 p-6 lg:p-8 bg-gradient-to-br from-dark via-card to-medium border border-border">
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <img
+              <Image
                 src="/logo.png"
                 alt="기란JT"
+                width={140}
+                height={56}
                 className="h-12 lg:h-14 mb-2"
               />
               <p className="text-text-secondary">

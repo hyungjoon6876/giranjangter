@@ -35,7 +35,7 @@ const mockLocalStorage = {
   removeItem: vi.fn((key: string) => { delete store[key]; }),
   clear: vi.fn(() => { Object.keys(store).forEach((k) => delete store[k]); }),
   get length() { return Object.keys(store).length; },
-  key: vi.fn((_i: number) => null),
+  key: vi.fn(() => null),
 };
 vi.stubGlobal("localStorage", mockLocalStorage);
 

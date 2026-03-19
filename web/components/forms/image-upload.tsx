@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/lib/hooks/use-toast";
 import type { UploadedImage } from "@/lib/types";
@@ -118,9 +119,12 @@ export function ImageUpload({
         <div className="grid grid-cols-5 gap-2 mt-3">
           {images.map((img, i) => (
             <div key={img.imageId} className="relative group">
-              <img
+              <Image
                 src={img.thumbnailUrl || img.url}
                 alt={`업로드 이미지 ${i + 1}`}
+                width={100}
+                height={100}
+                unoptimized
                 className="w-full aspect-square object-cover rounded-lg border border-border"
               />
               <button

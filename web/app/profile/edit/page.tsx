@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useMe, useUpdateProfile } from "@/lib/hooks/use-profile";
@@ -23,30 +24,35 @@ export default function ProfileEditPage() {
     queryFn: () => apiClient.getServers(),
   });
 
-  const [form, setForm] = useState({
-    nickname: "",
-    introduction: "",
-    primaryServerId: "",
-  });
-  const [avatarImages, setAvatarImages] = useState<UploadedImage[]>([]);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (me && !initialized) {
-      setForm({
-        nickname: me.nickname,
-        introduction: me.introduction ?? "",
-        primaryServerId: me.primaryServerId ?? "",
-      });
-      setInitialized(true);
+  // Initialize form with user data
+  const initialForm = useMemo(() => {
+    if (!me) {
+      return {
+        nickname: "",
+        introduction: "",
+        primaryServerId: "",
+      };
     }
-  }, [me, initialized]);
+    return {
+      nickname: me.nickname,
+      introduction: me.introduction ?? "",
+      primaryServerId: me.primaryServerId ?? "",
+    };
+  }, [me]);
+
+  const [form, setForm] = useState(initialForm);
+  const [avatarImages, setAvatarImages] = useState<UploadedImage[]>([]);
+
+  // Update form when user data changes
+  useEffect(() => {
+    setForm(initialForm);
+  }, [initialForm]);
 
   useEffect(() => {
     if (!isLoggedIn) {
       requireAuth("프로필 수정");
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, requireAuth]);
 
   if (!isLoggedIn) return null;
   if (isLoading) return <Loading />;
@@ -83,15 +89,21 @@ export default function ProfileEditPage() {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-medium flex items-center justify-center text-2xl font-bold text-gold border-2 border-gold/30 overflow-hidden">
               {avatarImages.length > 0 ? (
-                <img
+                <Image
                   src={avatarImages[0].thumbnailUrl || avatarImages[0].url}
                   alt="프로필"
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="w-full h-full object-cover"
                 />
               ) : me.avatarUrl ? (
-                <img
+                <Image
                   src={me.avatarUrl}
                   alt="프로필"
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="w-full h-full object-cover"
                 />
               ) : (

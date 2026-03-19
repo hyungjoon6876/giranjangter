@@ -159,7 +159,9 @@ func TestRequireAuth_NoHeader_Returns401(t *testing.T) {
 	}
 
 	var resp errorResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp.Error.Code != "UNAUTHORIZED" {
 		t.Errorf("error code = %q, want %q", resp.Error.Code, "UNAUTHORIZED")
 	}
@@ -395,7 +397,9 @@ func TestRejectIfRestricted_Restricted_Returns403(t *testing.T) {
 	}
 
 	var resp errorResponse
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	if resp.Error.Code != "ACCOUNT_RESTRICTED" {
 		t.Errorf("error code = %q, want %q", resp.Error.Code, "ACCOUNT_RESTRICTED")
 	}

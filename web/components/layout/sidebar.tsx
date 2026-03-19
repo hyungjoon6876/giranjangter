@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
@@ -17,7 +18,7 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col w-52 bg-dark text-text-primary min-h-screen flex-shrink-0">
       <div className="px-5 py-4 border-b border-border">
-        <img src="/logo.png" alt="기란JT" className="h-8" />
+        <Image src="/logo.png" alt="기란JT" width={120} height={32} className="h-8" />
       </div>
       <nav className="flex-1 py-2">
         {NAV_ITEMS.map((item) => {

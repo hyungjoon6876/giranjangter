@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useItemSearch } from "@/lib/hooks/use-items";
 import { assetUrl } from "@/lib/api-client";
 import type { ItemSearchResult } from "@/lib/types";
@@ -101,6 +102,7 @@ export function ItemAutocomplete({
       <input
         type="text"
         role="combobox"
+        aria-controls="item-listbox"
         aria-expanded={open}
         aria-autocomplete="list"
         aria-activedescendant={
@@ -118,6 +120,7 @@ export function ItemAutocomplete({
 
       {open && items.length > 0 && (
         <ul
+          id="item-listbox"
           role="listbox"
           className="absolute z-20 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
@@ -135,9 +138,12 @@ export function ItemAutocomplete({
               }`}
             >
               {item.iconUrl && (
-                <img
+                <Image
                   src={assetUrl(item.iconUrl)}
                   alt=""
+                  width={24}
+                  height={24}
+                  unoptimized
                   className="w-6 h-6"
                 />
               )}

@@ -122,7 +122,10 @@ func handleCancelReservation(repo repository.ReservationRepo) gin.HandlerFunc {
 		var req struct {
 			ReasonCode string `json:"reasonCode"`
 		}
-		c.ShouldBindJSON(&req)
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
 
 		info, err := repo.GetReservationForCancel(ctx, resID)
 		if err != nil || info == nil {

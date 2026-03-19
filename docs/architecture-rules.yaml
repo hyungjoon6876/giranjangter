@@ -1,0 +1,48 @@
+# 아키텍처 구조 규칙
+# 생성: harness-constrain | 검증: repo-gardener
+# 스키마 버전: 1
+
+version: 1
+rules:
+  # === Import Direction ===
+
+  - id: go-internal-no-cmd
+    type: import-direction
+    description: "internal 패키지는 cmd를 임포트할 수 없다"
+    deny:
+      - from: "backend/internal/**"
+        to: ["backend/cmd/**"]
+
+  - id: web-no-reverse-import
+    type: import-direction
+    description: "lib/과 components/는 app/을 임포트할 수 없다"
+    deny:
+      - from: "web/lib/**"
+        to: ["web/app/**"]
+      - from: "web/components/**"
+        to: ["web/app/**"]
+
+  - id: flutter-shared-no-features
+    type: import-direction
+    description: "shared/는 features/를 임포트할 수 없다"
+    deny:
+      - from: "frontend/lib/shared/**"
+        to: ["frontend/lib/features/**"]
+
+  # === File Location ===
+
+  - id: go-handler-naming
+    type: file-location
+    description: "HTTP 핸들러는 handlers_*.go 파일에만 정의한다"
+    enforce:
+      pattern: "backend/cmd/server/handlers_*.go"
+      contains: "gin.HandlerFunc"
+
+  # === Method Call Forbidden ===
+
+  - id: go-no-fmt-println
+    type: method-call-forbidden
+    description: "fmt.Println/fmt.Printf를 프로덕션 코드에서 사용하지 않는다 (log.Printf 사용)"
+    scope: "backend/**/*.go"
+    exclude: ["**/*_test.go"]
+    forbidden: ["fmt.Println", "fmt.Printf"]

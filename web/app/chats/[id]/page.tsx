@@ -18,14 +18,6 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const { isLoggedIn } = useAuthGuard();
   const qc = useQueryClient();
   const { data: me } = useMe();
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      router.replace("/login");
-    }
-  }, [isLoggedIn, router]);
-
-  if (!isLoggedIn) return null;
   const { data, isLoading } = useMessages(id);
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -36,12 +28,20 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const messages = data?.data ? [...data.data].reverse() : [];
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      router.replace("/login");
+    }
+  }, [isLoggedIn, router]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  if (!isLoggedIn) return null;
 
   if (isLoading) return <Loading />;
 

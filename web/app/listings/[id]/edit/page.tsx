@@ -1,9 +1,7 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
 import { useListing, useUpdateListing } from "@/lib/hooks/use-listings";
 import { useToast } from "@/lib/hooks/use-toast";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
@@ -25,62 +23,64 @@ export default function EditListingPage({
   const updateListing = useUpdateListing();
   const { addToast } = useToast();
 
-  const { data: servers = [] } = useQuery({
-    queryKey: ["servers"],
-    queryFn: () => apiClient.getServers(),
-  });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => apiClient.getCategories(),
-  });
 
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    itemName: "",
-    priceType: "fixed",
-    priceAmount: "",
-    enhancementLevel: "",
-    optionsText: "",
-    tradeMethod: "either",
-    preferredMeetingAreaText: "",
-    availableTimeText: "",
-  });
-  const [images, setImages] = useState<UploadedImage[]>([]);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (listing && !initialized) {
-      setForm({
-        title: listing.title,
-        description: listing.description ?? "",
-        itemName: listing.itemName,
-        priceType: listing.priceType,
-        priceAmount: listing.priceAmount?.toString() ?? "",
-        enhancementLevel: listing.enhancementLevel?.toString() ?? "",
-        optionsText: listing.optionsText ?? "",
-        tradeMethod: listing.tradeMethod,
-        preferredMeetingAreaText: listing.preferredMeetingAreaText ?? "",
-        availableTimeText: listing.availableTimeText ?? "",
-      });
-      if (listing.images?.length) {
-        setImages(
-          listing.images.map((img) => ({
-            imageId: img.imageId,
-            url: img.url,
-            thumbnailUrl: img.url,
-          })),
-        );
-      }
-      setInitialized(true);
+  // Initialize form with listing data
+  const initialForm = useMemo(() => {
+    if (!listing) {
+      return {
+        title: "",
+        description: "",
+        itemName: "",
+        priceType: "fixed",
+        priceAmount: "",
+        enhancementLevel: "",
+        optionsText: "",
+        tradeMethod: "either",
+        preferredMeetingAreaText: "",
+        availableTimeText: "",
+      };
     }
-  }, [listing, initialized]);
+    return {
+      title: listing.title,
+      description: listing.description ?? "",
+      itemName: listing.itemName,
+      priceType: listing.priceType,
+      priceAmount: listing.priceAmount?.toString() ?? "",
+      enhancementLevel: listing.enhancementLevel?.toString() ?? "",
+      optionsText: listing.optionsText ?? "",
+      tradeMethod: listing.tradeMethod,
+      preferredMeetingAreaText: listing.preferredMeetingAreaText ?? "",
+      availableTimeText: listing.availableTimeText ?? "",
+    };
+  }, [listing]);
+
+  const initialImages = useMemo(() => {
+    if (!listing?.images?.length) return [];
+    return listing.images.map((img) => ({
+      imageId: img.imageId,
+      url: img.url,
+      thumbnailUrl: img.url,
+    }));
+  }, [listing?.images]);
+
+  const [form, setForm] = useState(initialForm);
+  const [images, setImages] = useState<UploadedImage[]>(initialImages);
+
+  // Update form when listing changes
+  useEffect(() => {
+    setForm(initialForm);
+  }, [initialForm]);
+
+  // Update images when listing changes
+  useEffect(() => {
+    setImages(initialImages);
+  }, [initialImages]);
 
   useEffect(() => {
     if (!isLoggedIn) {
       requireAuth("매물 수정");
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, requireAuth]);
 
   if (!isLoggedIn) return null;
   if (isLoading) return <Loading />;

@@ -26,7 +26,7 @@ export function ReviewModal({ open, onClose, completionId, onCreated }: ReviewMo
       await apiClient.createReview(completionId, { rating, comment: comment || undefined });
       onCreated();
       onClose();
-    } catch (err) {
+    } catch {
       addToast("error", "리뷰 제출에 실패했습니다");
     } finally {
       setSubmitting(false);

@@ -5,7 +5,7 @@ import {
   useRef,
   useId,
   useCallback,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -15,6 +15,17 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+}
+
+/** Module-level portal container — created once, shared across all modals. */
+function getPortalContainer(): HTMLElement {
+  let el = document.getElementById("modal-portal");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "modal-portal";
+    document.body.appendChild(el);
+  }
+  return el;
 }
 
 /**
@@ -32,21 +43,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
-    null,
-  );
-
-  // Create / find portal container on mount (client-only)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let el = document.getElementById("modal-portal");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "modal-portal";
-      document.body.appendChild(el);
-    }
-    setPortalContainer(el);
-  }, []);
+  const isClient = useSyncExternalStore(() => () => {}, () => true, () => false);
 
   // Lock body scroll
   useEffect(() => {
@@ -139,7 +136,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     [onClose],
   );
 
-  if (!open || !portalContainer) return null;
+  if (!open || !isClient) return null;
 
   return createPortal(
     <div
@@ -180,7 +177,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         <div className="p-5">{children}</div>
       </div>
     </div>,
-    portalContainer,
+    getPortalContainer(),
   );
 }
 

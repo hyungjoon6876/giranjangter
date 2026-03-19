@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
@@ -37,6 +38,21 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await apiClient.login("google", response.credential);
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      router.push(redirect);
+    } catch (err: unknown) {
+      const apiErr = err as { error?: { message?: string } };
+      setError(apiErr?.error?.message ?? "로그인에 실패했습니다");
+    } finally {
+      setLoading(false);
+    }
+  }, [queryClient, router, redirect]);
+
   useEffect(() => {
     const initGoogle = () => {
       if (!window.google || !googleBtnRef.current) return;
@@ -68,27 +84,12 @@ function LoginContent() {
       }, 100);
       return () => clearInterval(interval);
     }
-  }, []);
-
-  const handleGoogleResponse = async (response: { credential: string }) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.login("google", response.credential);
-      queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push(redirect);
-    } catch (err: unknown) {
-      const apiErr = err as { error?: { message?: string } };
-      setError(apiErr?.error?.message ?? "로그인에 실패했습니다");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [handleGoogleResponse]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
-        <img src="/logo.png" alt="기란JT" className="h-16 mx-auto mb-2" />
+        <Image src="/logo.png" alt="기란JT" width={160} height={64} className="h-16 mx-auto mb-2" />
         <p className="text-text-secondary mb-10">리니지 클래식 거래 플랫폼</p>
 
         {/* Google official Sign-In button */}
