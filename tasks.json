@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "config": {
+    "ralphLoop": null,
+    "maxRetries": 3
+  },
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "테스트 커버리지 80% 달성",
+      "description": "backend(Go)와 web(Vitest) 테스트 커버리지를 80% 이상으로 올린다. 현재 커버리지를 측정하고 부족한 영역에 테스트를 추가한다. backend: go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out, web: npx vitest run --coverage",
+      "status": "pending",
+      "assignedTo": null,
+      "retries": 0,
+      "result": null,
+      "blockedReason": null
+    }
+  ]
+}

@@ -13,11 +13,11 @@
 
 | 항목 | 선택 | 근거 |
 |------|------|------|
-| **언어** | Go 1.22+ | 성능 최상위, 메모리 ~30MB, NAS 단일 바이너리 배포 |
-| **웹 프레임워크** | Gin 또는 Fiber | Gin: 안정성/생태계, Fiber: Express 스타일로 빠른 개발 |
+| **언어** | Go 1.25+ | 성능 최상위, 메모리 ~30MB, NAS 단일 바이너리 배포 |
+| **웹 프레임워크** | Gin | 안정성/생태계, 미들웨어 체인 |
 | **DB** | PostgreSQL 16 | ACID, JSONB, advisory lock, ENUM, 복잡한 JOIN. 거래 정합성 핵심 |
-| **ORM/쿼리** | sqlc | SQL 직접 작성 + Go 타입 안전 코드 자동 생성. 성능 최적, SQL 완전 제어 |
-| **캐시** | Redis 7 | 세션, 읽음 커서, rate limit, SSE 팬아웃, 알림 dedup |
+| **DB 드라이버** | pgx/v5 | `database/sql` 호환, 고성능 PostgreSQL 네이티브 드라이버 |
+| **캐시** | _(미구현, 확장 시 Redis 도입 예정)_ | — |
 | **실시간 (채팅)** | SSE (Server-Sent Events) | goroutine 기반으로 수천 동시 접속 가능. WebSocket보다 인프라 단순 |
 | **인증** | JWT (access + refresh token) | 모바일 앱 친화, 세션리스 |
 | **파일 저장** | 로컬 디스크 (NAS) → S3 (확장) | NAS 스토리지 직접 활용. 확장 시 S3-compatible 전환 |
@@ -28,7 +28,7 @@
 | 항목 | 선택 | 근거 |
 |------|------|------|
 | **프레임워크** | Flutter 3.x (Dart) | iOS + Android + Web 단일 코드베이스 |
-| **상태관리** | Riverpod 2.0 | 타입 안전, 의존성 주입 내장, 테스트 용이 |
+| **상태관리** | Riverpod 3.x | 타입 안전, 의존성 주입 내장, 테스트 용이 |
 | **HTTP 클라이언트** | Dio | 인터셉터, 재시도, 토큰 갱신 지원 |
 | **라우팅** | GoRouter | 딥링크 지원, 선언적 라우팅 |
 | **채팅 UI** | 커스텀 (ListView + StreamBuilder) | 시스템 카드/예약 카드 혼합 필요 → 라이브러리보다 커스텀이 유리 |
@@ -66,11 +66,11 @@
 │ NAS OS + 시스템 프로세스    ~500MB        │
 │ Docker Engine               ~100MB       │
 │ Go 서버 (lincle-api)        ~30-50MB     │
+│ Next.js (lincle-web)        ~150-200MB   │
 │ PostgreSQL 16               ~200-300MB   │
-│ Redis 7                     ~50-100MB    │
 │ Caddy (리버스 프록시)        ~30MB        │
 │ ─────────────────────────────            │
-│ 사용 합계                   ~910MB-1.1GB  │
+│ 사용 합계                   ~1.0-1.2GB    │
 │                                          │
 │ PostgreSQL 튜닝 권장:                     │
 │   shared_buffers = 256MB                 │
@@ -80,7 +80,7 @@
 └──────────────────────────────────────────┘
 ```
 
-→ NAS에 여유가 있으므로 PostgreSQL + Redis 풀 스택 운영 가능.
+→ Redis 미사용으로 여유 있음. 확장 시 Redis 추가해도 2GB 내 운영 가능.
 
 ---
 
@@ -210,18 +210,19 @@ lincle/
 | 볼륨 | Docker volume으로 데이터 영속화 |
 | 커넥션 | max_connections=50 (Go 커넥션풀 10-20) |
 
-### 5.2 Redis 활용 전략
+### 5.2 Redis 활용 전략 (미구현 — 확장 시 도입)
 
-| 용도 | 키 패턴 | TTL |
-|------|---------|-----|
-| JWT refresh token | `auth:refresh:{userId}` | 30일 |
-| 읽음 커서 캐시 | `chat:read:{chatRoomId}:{userId}` | 영구 (DB 동기) |
-| Rate limit | `rate:{userId}:{action}` | 1분~1시간 |
-| SSE 구독 관리 | `sse:sub:{userId}` | 연결 해제 시 삭제 |
-| 알림 dedup | `notif:dedup:{eventKey}` | 5분 |
-| 온라인 상태 | `presence:{userId}` | 5분 (heartbeat) |
+> **현재 상태**: Redis 미사용. JWT refresh token은 PostgreSQL `refresh_tokens` 테이블, SSE는 in-memory broker, rate limit 미구현.
+> 트래픽 증가 시 아래 설계대로 Redis를 도입한다.
 
-→ Redis는 휘발성 데이터 전용. 재시작해도 서비스 영향 없도록 설계.
+| 용도 | 키 패턴 | TTL | 현재 대체 |
+|------|---------|-----|----------|
+| JWT refresh token | `auth:refresh:{userId}` | 30일 | PostgreSQL |
+| 읽음 커서 캐시 | `chat:read:{chatRoomId}:{userId}` | 영구 | PostgreSQL |
+| Rate limit | `rate:{userId}:{action}` | 1분~1시간 | 미구현 |
+| SSE 구독 관리 | `sse:sub:{userId}` | 연결 해제 시 삭제 | in-memory map |
+| 알림 dedup | `notif:dedup:{eventKey}` | 5분 | 미구현 |
+| 온라인 상태 | `presence:{userId}` | 5분 (heartbeat) | 미구현 |
 
 ### 5.4 채팅 실시간 전략 (SSE + Go)
 
