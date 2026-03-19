@@ -118,6 +118,51 @@ final serversProvider = FutureProvider<List<dynamic>>((ref) async {
 
 ---
 
+## TypeScript/React (Web Frontend)
+
+### 파일 네이밍
+- 페이지: `page.tsx` (App Router 규칙)
+- 컴포넌트: `kebab-case.tsx` (예: `listing-card.tsx`, `report-modal.tsx`)
+- 훅: `use-<이름>.ts` (예: `use-listings.ts`, `use-auth.ts`)
+- 타입: `types.ts` (통합), 유틸: `utils.ts`
+
+### 컴포넌트/함수 네이밍
+- 컴포넌트: PascalCase — `ListingCard`, `ReportModal`
+- 훅 함수: camelCase — `useListings`, `useAuth`
+- Props 타입: `<컴포넌트명>Props` — `ListingCardProps`
+
+### 컴포넌트 패턴
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { useListings } from "@/lib/hooks/use-listings";
+import type { Listing } from "@/lib/types";
+
+interface ListingGridProps {
+  serverId?: string;
+}
+
+export function ListingGrid({ serverId }: ListingGridProps) {
+  const { data, isLoading } = useListings({ serverId });
+  // ...
+}
+```
+
+### 데이터 페칭
+- TanStack Query 훅으로 서버 상태 관리 (`lib/hooks/use-*.ts`)
+- API 호출은 `lib/api-client.ts`에 집중
+- null 방어: `data?.data?.length` 패턴 (API가 `data: null` 반환 가능)
+
+### 디렉토리 구조 규칙
+- 페이지: `app/` (App Router)
+- 컴포넌트: `components/<도메인>/` (listing, chat, forms, layout, ui)
+- 공통 UI: `components/ui/` (badge, modal, skeleton, toast 등)
+- 테스트: `__tests__/` (vitest + testing-library)
+
+---
+
 ## 공통
 
 ### 임포트 정렬

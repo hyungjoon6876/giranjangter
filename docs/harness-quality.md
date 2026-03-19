@@ -82,3 +82,32 @@
 - 에러 핸들링: 모든 핸들러에 트랜잭션 적용, db.Exec 에러 체크 추가, SQL injection 패턴 제거
 
 **잔여 과제**: CI/CD 파이프라인 (GitHub Actions), 디자인 시스템 적용 (다크 테마), 테스트 커버리지 확대
+
+---
+
+### 2026-03-20 — harness 4/4 완성 + seed 개선
+
+**종합 점수: 9.1 / 10.0** (▲ +0.9)
+
+| 레이어 | 이전 | 이후 | 점수 | 변화 |
+|--------|------|------|------|------|
+| 1. 에이전트 운영 | Strong | Strong | 10 | — |
+| 2. 레포지토리 지식 | Strong | Strong | 10 | — |
+| 3. 워크플로우 | Adequate | **Strong** | 10 | ▲ +3 |
+| 4. 코딩 컨벤션 | Strong | Strong | 10 | — |
+| 5. 테스팅 | Adequate | **Strong** | 9 | ▲ +2 |
+| 6. 보안 및 시크릿 | Adequate | Adequate | 7 | — |
+| 7. 의존성 관리 | Adequate | **Strong** | 9 | ▲ +2 |
+| 8. 에러 핸들링/로깅 | Strong | Strong | 10 | — |
+| 9. 문서 일관성 | Strong | Strong | 10 | — |
+| 10. 하네스 안정성 | Adequate | **Strong** | 9 | ▲ +2 |
+
+**주요 변경사항**:
+- harness-verify: 3-Tier 자동 검증 훅 설치 (eslint, golangci-lint, tsc, go vet, vitest, go test)
+- harness-constrain: 아키텍처 구조 규칙 5건 + 패턴 규칙 3건
+- harness-loop: 자율 실행 태스크 큐 + Stop 훅
+- harness-seed: 문서 5건 개선 (Redis 실태 반영, Web 컨벤션 추가, sqlite3 제거, Riverpod 버전 갱신, 테스트 구조 갱신)
+- golangci-lint 기존 이슈 25건 수정 (errcheck, ineffassign)
+- ESLint 기존 이슈 38건 수정 (hooks, unused vars, next/image, a11y)
+
+**잔여 과제**: 테스트 커버리지 80% 달성 (tasks.json에 등록됨), CI/CD 파이프라인

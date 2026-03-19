@@ -139,6 +139,8 @@ cd frontend && flutter test
 | [docs/EVENT_CATALOG.md](docs/EVENT_CATALOG.md) | 도메인 이벤트 카탈로그 |
 | [docs/conventions.md](docs/conventions.md) | 코딩 컨벤션 |
 | [docs/testing.md](docs/testing.md) | 테스팅 전략 |
+| [docs/architecture-rules.yaml](docs/architecture-rules.yaml) | 아키텍처 구조 규칙 (자동 검증) |
+| [docs/architecture-patterns.md](docs/architecture-patterns.md) | 아키텍처 패턴 규칙 (에이전트 참조) |
 
 ## 주의사항
 
@@ -146,6 +148,56 @@ cd frontend && flutter test
 - Google OAuth origin 설정: Google Cloud Console에서 도메인 등록 필요 (`giranjt.com`)
 - 아이콘 URL 패턴: `/static/icons/{icon_id}.png` (CDN 원본: `assets.playnccdn.com`)
 - `item_master` 시드 데이터: `backend/db/seed/items.sql`, `backend/db/seed/item_icons.sql`
+
+## 검증 루프
+
+코드 수정 후 자동 검증이 실행된다. 에이전트는 이 규칙을 따른다.
+
+### 검증 계층
+| Tier | 시점 | 도구 | 타임아웃 |
+|------|------|------|----------|
+| 1 | 매 파일 수정 후 | eslint (web), golangci-lint (backend), flutter analyze (frontend) | 10초 |
+| 2 | git commit 전 | go vet, tsc --noEmit | 60초 |
+| 3 | git commit 전 | go test ./..., vitest run | 120초 |
+
+### 실패 시 행동
+- Tier 1 실패: 자동수정이 적용된다. 자동수정 후에도 실패하면 직접 수정한다
+- Tier 2/3 실패: 커밋이 차단된다. 실패 내용을 보고하고 수정한다
+
+### 금지 행동
+
+검증 통과는 목적이 아니라 코드 품질의 결과이다.
+
+**검증 우회 금지:**
+- 테스트를 삭제, 비활성화, skip 처리하지 않는다
+- 린트 규칙을 disable 주석(eslint-disable, noqa, nolint)으로 우회하지 않는다
+- 타입 에러를 any, @ts-ignore, type: ignore 으로 무시하지 않는다
+- 검증 설정 파일(eslint.config, tsconfig 등)의 규칙을 느슨하게 변경하지 않는다
+
+**형식적 수정 금지:**
+- 에러가 나는 코드를 의미 없이 감싸거나(try-catch 후 무시) 숨기지 않는다
+- 사용하지 않는 변수 경고를 _ 접두사로만 해결하지 않는다 (원인을 제거한다)
+- 타입 단언(as Type)으로 타입체커를 속이지 않는다 (실제 타입을 맞춘다)
+- 테스트 기댓값을 현재 (잘못된) 동작에 맞추지 않는다
+
+## 자율 실행 규칙
+
+### 태스크 처리
+- tasks.json에서 status가 "pending"인 태스크를 id 순서대로 처리한다
+- 태스크 시작 시 status를 "in_progress"로, assignedTo에 세션 정보를 기록한다
+- 태스크 완료 시 status를 "done"으로 변경하고 result에 한 줄 요약을 기록한다
+
+### 완료 판단
+- "잘 된 것 같다"는 완료가 아니다. 검증(테스트/린트/빌드)을 통과해야 완료이다
+- 검증 명령이 설정되어 있으면 반드시 실행 후 통과를 확인한다
+
+### 실패 정책
+- retries가 3에 도달하면 "blocked"로 변경하고 blockedReason에 원인 기록
+- blocked 태스크는 건너뛰고 다음 pending 태스크로 이동한다
+
+### 종료 조건
+- 모든 태스크가 "done" 또는 "blocked"이면 작업을 종료한다
+- 종료 시 blocked 태스크가 있으면 사용자에게 목록과 원인을 보고한다
 
 ## 판단이 어려울 때
 

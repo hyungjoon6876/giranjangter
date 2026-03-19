@@ -10,6 +10,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+const emptySubscribe = () => () => {};
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -43,7 +45,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const isClient = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   // Lock body scroll
   useEffect(() => {
