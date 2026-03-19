@@ -39,7 +39,7 @@ test.describe("네비게이션 + 접근성", () => {
   test("로그인 페이지로 이동할 수 있다", async ({ page }) => {
     await page.getByRole("banner").getByRole("link", { name: "로그인" }).click();
     await page.waitForURL("**/login");
-    await expect(page.getByRole("heading", { name: "기란장터" })).toBeVisible();
+    await expect(page.locator("main").getByRole("img", { name: "기란JT" })).toBeVisible();
   });
 
   test("모든 주요 페이지가 크래시 없이 로드된다", async ({ page }) => {

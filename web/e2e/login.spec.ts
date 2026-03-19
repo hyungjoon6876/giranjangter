@@ -16,8 +16,8 @@ test.describe("로그인 페이지", () => {
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByRole("heading", { name: "기란장터" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /개발자 로그인/ })).toBeVisible();
+    await expect(page.locator("main").getByRole("img", { name: "기란JT" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /로그인 없이 둘러보기/ })).toBeVisible();
 
     const jsErrors = errors.filter((e) => e.includes("TypeError") || e.includes("Cannot read"));
     expect(jsErrors).toHaveLength(0);
@@ -35,7 +35,7 @@ test.describe("로그인 페이지", () => {
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: "둘러보기" }).click();
+    await page.getByRole("button", { name: "로그인 없이 둘러보기" }).click();
     await page.waitForURL("/");
     expect(page.url()).not.toContain("/login");
   });

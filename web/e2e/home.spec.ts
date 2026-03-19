@@ -28,7 +28,7 @@ test.describe("홈페이지 — 비로그인 사용자", () => {
   });
 
   test("히어로 섹션이 비로그인 사용자에게 표시된다", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "기란장터", level: 1 })).toBeVisible();
+    await expect(page.getByRole("img", { name: "기란JT" }).first()).toBeVisible();
     await expect(page.getByText("리니지 클래식 아이템 거래, 안전하고 무료")).toBeVisible();
     await expect(page.getByRole("link", { name: "시작하기" })).toBeVisible();
     await expect(page.getByRole("link", { name: "매물 둘러보기" })).toBeVisible();

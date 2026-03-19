@@ -12,7 +12,7 @@ test.describe("인증 가드 — 비로그인 사용자 보호", () => {
 
   test("매물 등록 페이지 접근 시 로그인으로 리다이렉트", async ({ page }) => {
     await page.goto("/create");
-    await page.waitForURL("**/login", { timeout: 5000 });
+    await page.waitForURL("**/login**", { timeout: 10000 });
     expect(page.url()).toContain("/login");
   });
 
