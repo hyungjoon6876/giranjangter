@@ -228,7 +228,7 @@ func handleSendMessage(repo repository.ChatRepo, broker *event.Broker) gin.Handl
 	}
 }
 
-func handleMarkRead(repo repository.ChatRepo) gin.HandlerFunc {
+func handleMarkRead(repo repository.ChatRepo, broker *event.Broker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		chatID := c.Param("chatId")
 		userID := middleware.GetUserID(c)
@@ -249,6 +249,25 @@ func handleMarkRead(repo repository.ChatRepo) gin.HandlerFunc {
 		}
 
 		repo.UpsertReadCursor(ctx, chatID, userID, req.LastReadMessageID)
+
+		// Determine counterpart and send read_receipt
+		participants, err := repo.GetChatRoomParticipants(ctx, chatID, userID)
+		if err == nil && participants != nil {
+			counterpart := participants.BuyerID
+			if userID == participants.BuyerID {
+				counterpart = participants.SellerID
+			}
+			broker.SendToUser(counterpart, event.SSEEvent{
+				EventType: "read_receipt",
+				Data: map[string]interface{}{
+					"chatRoomId":        chatID,
+					"readBy":            userID,
+					"lastReadMessageId": req.LastReadMessageID,
+					"readAt":            time.Now().UTC().Format(time.RFC3339),
+				},
+			})
+		}
+
 		c.Status(http.StatusNoContent)
 	}
 }

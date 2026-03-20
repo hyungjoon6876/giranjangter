@@ -135,7 +135,7 @@ func main() {
 			// Chat
 			write.POST("/listings/:id/chats", handleCreateChat(chatRepo))
 			write.POST("/chats/:chatId/messages", handleSendMessage(chatRepo, sseBroker))
-			write.POST("/chats/:chatId/read", handleMarkRead(chatRepo))
+			write.POST("/chats/:chatId/read", handleMarkRead(chatRepo, sseBroker))
 
 			// Reservations
 			write.POST("/chats/:chatId/reservations", handleCreateReservation(reservationRepo))
