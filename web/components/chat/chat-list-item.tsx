@@ -23,9 +23,22 @@ export function ChatListItem({ chat, isActive, onClick }: ChatListItemProps) {
     >
       <div className="flex items-center justify-between mb-1">
         <span className="font-semibold text-sm text-text-primary">{chat.counterparty.nickname}</span>
-        <span className="text-xs text-text-secondary">
-          {chat.lastMessage ? formatTimeAgo(chat.lastMessage.sentAt) : ""}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {chat.chatStatus !== "open" && (
+            <span className={`text-xs px-1.5 py-0.5 rounded inline-block ${
+              chat.chatStatus === "reservation_proposed" ? "bg-yellow-600/20 text-yellow-400" :
+              chat.chatStatus === "reservation_confirmed" ? "bg-green-600/20 text-green-400" :
+              chat.chatStatus === "deal_completed" ? "bg-gold/20 text-gold" : ""
+            }`}>
+              {chat.chatStatus === "reservation_proposed" && "예약 제안"}
+              {chat.chatStatus === "reservation_confirmed" && "예약 확정"}
+              {chat.chatStatus === "deal_completed" && "거래 완료"}
+            </span>
+          )}
+          <span className="text-xs text-text-secondary">
+            {chat.lastMessage ? formatTimeAgo(chat.lastMessage.sentAt) : ""}
+          </span>
+        </div>
       </div>
       <div className="text-xs text-text-secondary truncate">{chat.listingTitle}</div>
       {chat.lastMessage && (
