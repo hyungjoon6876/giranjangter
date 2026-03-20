@@ -117,21 +117,21 @@ describe("useSSE", () => {
     expect(result.current).toBe("reconnecting");
   });
 
-  it("gives up after MAX_RETRIES (10) and sets disconnected", () => {
+  it("retries infinitely without giving up (no max retry limit)", () => {
     const { result } = renderHook(() => useSSE(), { wrapper: createWrapper() });
 
-    // Exhaust all retries
-    for (let i = 0; i < 10; i++) {
+    // Simulate 15 consecutive errors — should still be reconnecting, never disconnected
+    for (let i = 0; i < 15; i++) {
       const es = esInstances[esInstances.length - 1];
       act(() => { es.onerror?.(); });
-      const delay = Math.min(1000 * Math.pow(2, i), 30000);
+      const delay = Math.min(1000 * Math.pow(2, i), 60_000);
       act(() => { vi.advanceTimersByTime(delay); });
     }
 
-    // 11th error should set disconnected (retryCount is now 10)
-    const lastEs = esInstances[esInstances.length - 1];
-    act(() => { lastEs.onerror?.(); });
-    expect(result.current).toBe("disconnected");
+    // Should still be in reconnecting state, not disconnected
+    expect(result.current).toBe("reconnecting");
+    // All 15 retries should have created new EventSource instances (1 initial + 15 retries)
+    expect(esInstances.length).toBe(16);
   });
 
   it("resets retry count on successful reconnect", () => {
