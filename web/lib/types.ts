@@ -69,6 +69,7 @@ export interface ChatRoom {
   chatStatus: string;
   lastMessage?: Message;
   unreadCount: number;
+  myLastReadMessageId?: string;
   updatedAt: string;
 }
 
@@ -80,6 +81,7 @@ export interface Message {
   bodyText?: string;
   metadataJson?: Record<string, unknown>;
   sentAt: string;
+  status?: "sending" | "sent" | "failed";  // client-only, not from server
 }
 
 export interface Server {
