@@ -27,9 +27,10 @@ function formatMessageTime(sentAt: string): string {
 interface ChatMessageProps {
   message: Message;
   isMine: boolean;
+  onRetry?: (message: Message) => void;
 }
 
-export function ChatMessage({ message, isMine }: ChatMessageProps) {
+export function ChatMessage({ message, isMine, onRetry }: ChatMessageProps) {
   if (message.messageType === "system") {
     return (
       <div className="flex justify-center my-2" role="status">
@@ -40,8 +41,11 @@ export function ChatMessage({ message, isMine }: ChatMessageProps) {
     );
   }
 
+  const isSending = message.status === "sending";
+  const isFailed = message.status === "failed";
+
   return (
-    <div className={`flex mb-1 ${isMine ? "justify-end" : "justify-start"}`}>
+    <div className={`flex mb-1 ${isMine ? "justify-end" : "justify-start"} ${isSending ? "opacity-60" : ""}`}>
       <div
         className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
           isMine
@@ -51,9 +55,16 @@ export function ChatMessage({ message, isMine }: ChatMessageProps) {
       >
         {message.bodyText}
         <span
-          className={`block text-xs text-text-secondary mt-1 ${isMine ? "text-right" : "text-left"}`}
+          className={`block text-xs mt-1 ${isMine ? "text-right" : "text-left"} ${isFailed ? "text-danger" : "text-text-secondary"}`}
         >
-          {formatMessageTime(message.sentAt)}
+          {isSending ? "전송 중..." : isFailed ? (
+            <button
+              onClick={() => onRetry?.(message)}
+              className="hover:underline"
+            >
+              전송 실패 · 재전송
+            </button>
+          ) : formatMessageTime(message.sentAt)}
         </span>
       </div>
     </div>
