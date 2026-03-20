@@ -67,6 +67,9 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 			p.nickname, p.trust_badge,
 			(SELECT li.thumbnail_url FROM listing_images li WHERE li.listing_id = l.id ORDER BY li.sort_order ASC LIMIT 1) as thumbnail_url,
 			l.status,
+			l.price_amount,
+			l.server_id,
+			s.name as server_name,
 			COALESCE(
 				(SELECT COUNT(*) FROM chat_messages cm
 				 WHERE cm.chat_room_id = cr.id AND cm.deleted_at IS NULL
@@ -88,6 +91,7 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 			 WHERE crc2.chat_room_id = cr.id AND crc2.user_id = $7) as my_last_read_msg_id
 		FROM chat_rooms cr
 		JOIN listings l ON cr.listing_id = l.id
+		LEFT JOIN servers s ON l.server_id = s.id
 		JOIN user_profiles p ON p.user_id = CASE WHEN cr.seller_user_id = $2 THEN cr.buyer_user_id ELSE cr.seller_user_id END
 		WHERE cr.seller_user_id = $3 OR cr.buyer_user_id = $4
 		ORDER BY COALESCE(cr.last_message_at, cr.created_at) DESC
@@ -104,7 +108,9 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 			&item.ChatRoomID, &item.ListingID, &item.ListingTitle, &item.ChatStatus,
 			&item.LastMessageAt, &item.UpdatedAt,
 			&item.CounterpartID, &item.CounterpartNick, &item.CounterpartBadge,
-			&item.ListingThumbnail, &item.ListingStatus, &item.UnreadCount,
+			&item.ListingThumbnail, &item.ListingStatus,
+			&item.ListingPrice, &item.ListingServerID, &item.ListingServerName,
+			&item.UnreadCount,
 			&item.LastMessageBody, &item.LastMessageSentAt, &item.MyLastReadMsgID,
 		); err != nil {
 			continue

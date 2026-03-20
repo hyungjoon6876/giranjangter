@@ -337,6 +337,9 @@ type ChatRoomListItem struct {
 	CounterpartBadge    string
 	ListingThumbnail    *string    // thumbnail URL from listing_images
 	ListingStatus       string     // listing status (available, reserved, sold, deleted)
+	ListingPrice        *int64     // listing price_amount
+	ListingServerID     *string    // listing server_id
+	ListingServerName   *string    // server name from servers table
 	UnreadCount         int        // count of unread messages for current user
 	LastMessageBody     *string    // body text of the most recent message
 	LastMessageSentAt   *time.Time // sent_at of the most recent message

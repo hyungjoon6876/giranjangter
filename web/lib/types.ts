@@ -65,6 +65,9 @@ export interface ChatRoom {
   listingTitle: string;
   listingThumbnail?: string;
   listingStatus: string;
+  listingPrice?: number;
+  listingServerId?: string;
+  listingServerName?: string;
   counterparty: Author;
   chatStatus: string;
   lastMessage?: Message;
