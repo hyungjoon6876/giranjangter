@@ -14,9 +14,10 @@ interface ChatPanelProps {
   myUserId: string | null;
   onSelectChat: (chatId: string) => void;
   onSendMessage: (text: string) => void;
+  onRetryMessage?: (message: Message) => void;
 }
 
-export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectChat, onSendMessage }: ChatPanelProps) {
+export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectChat, onSendMessage, onRetryMessage }: ChatPanelProps) {
   const connectionStatus = useSSEConnectionStatus();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ChatInputHandle>(null);
@@ -70,7 +71,7 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
             )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
               {messages.map((m) => (
-                <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId} />
+                <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId || m.status === "sending" || m.status === "failed"} onRetry={onRetryMessage} />
               ))}
               <div ref={bottomRef} />
             </div>

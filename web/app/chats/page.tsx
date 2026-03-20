@@ -59,7 +59,14 @@ export default function ChatsPage() {
           myUserId={me?.userId ?? null}
           onSelectChat={setActiveChatId}
           onSendMessage={(text) => {
-            if (activeChatId) sendMessage.mutate({ chatId: activeChatId, text });
+            if (activeChatId) sendMessage.mutate({ chatId: activeChatId, text, clientMessageId: crypto.randomUUID() });
+          }}
+          onRetryMessage={(m) => {
+            sendMessage.mutate({
+              chatId: m.chatRoomId || activeChatId!,
+              text: m.bodyText ?? "",
+              clientMessageId: crypto.randomUUID(),
+            });
           }}
         />
         {activeChatId && (

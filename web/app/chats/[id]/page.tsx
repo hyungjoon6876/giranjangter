@@ -65,11 +65,22 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
       </div>
       <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
         {messages.map((m) => (
-          <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === me?.userId} />
+          <ChatMessage
+            key={m.messageId}
+            message={m}
+            isMine={m.senderUserId === me?.userId || m.status === "sending" || m.status === "failed"}
+            onRetry={(failedMsg) => {
+              sendMessage.mutate({
+                chatId: failedMsg.chatRoomId || id,
+                text: failedMsg.bodyText ?? "",
+                clientMessageId: crypto.randomUUID(),
+              });
+            }}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
-      <ChatInput ref={inputRef} onSend={(text) => sendMessage.mutate({ chatId: id, text })} />
+      <ChatInput ref={inputRef} onSend={(text) => sendMessage.mutate({ chatId: id, text, clientMessageId: crypto.randomUUID() })} />
 
       <ReservationModal
         open={reservationOpen}
