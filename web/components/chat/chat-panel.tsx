@@ -113,16 +113,6 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               <div className="text-xs text-text-dim">{activeChat.listingTitle}</div>
             </div>
             <ListingInfoCard chat={activeChat} />
-            {connectionStatus === "reconnecting" && (
-              <div role="alert" className="bg-[#e67e22]/10 text-[#e67e22] text-xs text-center py-2 px-4">
-                연결이 끊어졌습니다. 재연결 중...
-              </div>
-            )}
-            {connectionStatus === "disconnected" && (
-              <div role="alert" className="bg-[#e74c3c]/10 text-[#e74c3c] text-xs text-center py-2 px-4">
-                연결이 끊어졌습니다. 페이지를 새로고침해주세요.
-              </div>
-            )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
               {(() => {
                 const grouped = computeGroupFlags(messages);
@@ -148,7 +138,22 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               })()}
               <div ref={bottomRef} />
             </div>
-            <ChatInput ref={inputRef} onSend={onSendMessage} />
+            {/* Connection status — above input */}
+            {connectionStatus === "reconnecting" && (
+              <div role="alert" className="px-4 py-1.5 bg-yellow-600/20 text-yellow-400 text-xs flex items-center gap-2 border-t border-border">
+                <span className="animate-spin inline-block">⟳</span>
+                <span>재연결 중...</span>
+              </div>
+            )}
+            {connectionStatus === "disconnected" && (
+              <div role="alert" className="px-4 py-1.5 bg-red-600/20 text-red-400 text-xs flex items-center justify-between border-t border-border">
+                <span>연결 끊김</span>
+                <button onClick={() => window.location.reload()} className="underline hover:no-underline">
+                  새로고침
+                </button>
+              </div>
+            )}
+            <ChatInput ref={inputRef} onSend={onSendMessage} disabled={connectionStatus === "disconnected"} />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-text-secondary gap-3">
