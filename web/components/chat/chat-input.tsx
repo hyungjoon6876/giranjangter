@@ -59,7 +59,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         placeholder="메시지를 입력하세요"
         rows={1}
         aria-label="메시지 입력"
-        className="flex-1 bg-card border border-border rounded-2xl px-4 py-2 text-sm text-text-primary outline-none focus:border-gold placeholder:text-text-dim resize-none"
+        className="flex-1 bg-card border border-border rounded-2xl px-4 py-2 text-base text-text-primary outline-none focus:border-gold placeholder:text-text-dim resize-none"
         disabled={disabled}
       />
       <button
