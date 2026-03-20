@@ -64,6 +64,8 @@ export function ChatMessage({ message, isMine, onRetry }: ChatMessageProps) {
             >
               전송 실패 · 재전송
             </button>
+          ) : isMine ? (
+            `${formatMessageTime(message.sentAt)} ✓`
           ) : formatMessageTime(message.sentAt)}
         </span>
       </div>

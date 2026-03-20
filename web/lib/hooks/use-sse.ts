@@ -54,6 +54,16 @@ export function useSSE() {
       }
     });
 
+    es.addEventListener("read_receipt", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        qc.invalidateQueries({ queryKey: ["messages", data.chatRoomId] });
+        qc.invalidateQueries({ queryKey: ["chats"] });
+      } catch (err) {
+        console.error("[SSE] Failed to parse read_receipt:", err);
+      }
+    });
+
     es.onerror = () => {
       es.close();
       esRef.current = null;

@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMessages, useSendMessage } from "@/lib/hooks/use-chats";
+import { useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { ChatMessage } from "@/components/chat/chat-message";
@@ -26,6 +26,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const [reportOpen, setReportOpen] = useState(false);
 
   const messages = data?.data ? [...data.data].reverse() : [];
+  useMarkRead(id, messages);
 
   useEffect(() => {
     if (!isLoggedIn) {
