@@ -64,13 +64,33 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT cr.id, cr.listing_id, l.title, cr.chat_status, cr.last_message_at, cr.updated_at,
 			CASE WHEN cr.seller_user_id = $1 THEN cr.buyer_user_id ELSE cr.seller_user_id END as counterpart_id,
-			p.nickname, p.trust_badge
+			p.nickname, p.trust_badge,
+			(SELECT li.thumbnail_url FROM listing_images li WHERE li.listing_id = l.id ORDER BY li.sort_order ASC LIMIT 1) as thumbnail_url,
+			l.status,
+			COALESCE(
+				(SELECT COUNT(*) FROM chat_messages cm
+				 WHERE cm.chat_room_id = cr.id AND cm.deleted_at IS NULL
+				 AND cm.sent_at > COALESCE(
+					 (SELECT crc.updated_at FROM chat_read_cursors crc
+					  WHERE crc.chat_room_id = cr.id AND crc.user_id = $5), cr.created_at
+				 )
+				 AND cm.sender_user_id != $6
+				), 0
+			) as unread_count,
+			(SELECT cm2.body_text FROM chat_messages cm2
+			 WHERE cm2.chat_room_id = cr.id AND cm2.deleted_at IS NULL
+			 ORDER BY cm2.sent_at DESC LIMIT 1) as last_message_body,
+			(SELECT cm3.sent_at FROM chat_messages cm3
+			 WHERE cm3.chat_room_id = cr.id AND cm3.deleted_at IS NULL
+			 ORDER BY cm3.sent_at DESC LIMIT 1) as last_message_sent_at,
+			(SELECT crc2.last_read_message_id FROM chat_read_cursors crc2
+			 WHERE crc2.chat_room_id = cr.id AND crc2.user_id = $7) as my_last_read_msg_id
 		FROM chat_rooms cr
 		JOIN listings l ON cr.listing_id = l.id
 		JOIN user_profiles p ON p.user_id = CASE WHEN cr.seller_user_id = $2 THEN cr.buyer_user_id ELSE cr.seller_user_id END
 		WHERE cr.seller_user_id = $3 OR cr.buyer_user_id = $4
 		ORDER BY COALESCE(cr.last_message_at, cr.created_at) DESC
-		LIMIT 50`, userID, userID, userID, userID)
+		LIMIT 50`, userID, userID, userID, userID, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,9 +99,13 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 	var items []ChatRoomListItem
 	for rows.Next() {
 		var item ChatRoomListItem
-		if err := rows.Scan(&item.ChatRoomID, &item.ListingID, &item.ListingTitle, &item.ChatStatus,
+		if err := rows.Scan(
+			&item.ChatRoomID, &item.ListingID, &item.ListingTitle, &item.ChatStatus,
 			&item.LastMessageAt, &item.UpdatedAt,
-			&item.CounterpartID, &item.CounterpartNick, &item.CounterpartBadge); err != nil {
+			&item.CounterpartID, &item.CounterpartNick, &item.CounterpartBadge,
+			&item.ListingThumbnail, &item.ListingStatus, &item.UnreadCount,
+			&item.LastMessageBody, &item.LastMessageSentAt, &item.MyLastReadMsgID,
+		); err != nil {
 			continue
 		}
 		items = append(items, item)

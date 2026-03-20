@@ -326,15 +326,21 @@ type CreateChatRoomParams struct {
 
 // ChatRoomListItem is the shape returned by ListChatRooms.
 type ChatRoomListItem struct {
-	ChatRoomID         string
-	ListingID          string
-	ListingTitle       string
-	ChatStatus         string
-	LastMessageAt      *time.Time
-	UpdatedAt          *time.Time
-	CounterpartID      string
-	CounterpartNick    string
-	CounterpartBadge   string
+	ChatRoomID          string
+	ListingID           string
+	ListingTitle        string
+	ChatStatus          string
+	LastMessageAt       *time.Time
+	UpdatedAt           *time.Time
+	CounterpartID       string
+	CounterpartNick     string
+	CounterpartBadge    string
+	ListingThumbnail    *string    // thumbnail URL from listing_images
+	ListingStatus       string     // listing status (available, reserved, sold, deleted)
+	UnreadCount         int        // count of unread messages for current user
+	LastMessageBody     *string    // body text of the most recent message
+	LastMessageSentAt   *time.Time // sent_at of the most recent message
+	MyLastReadMsgID     *string    // current user's last read message ID
 }
 
 // ChatParticipants holds the seller and buyer for a chat room.
