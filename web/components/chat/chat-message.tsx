@@ -24,13 +24,42 @@ function formatMessageTime(sentAt: string): string {
   return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()} ${timeStr}`;
 }
 
+export function computeGroupFlags(messages: Message[]) {
+  return messages.map((msg, i) => {
+    const prev = messages[i - 1];
+    const next = messages[i + 1];
+
+    const sameAsPrev =
+      prev &&
+      prev.senderUserId === msg.senderUserId &&
+      prev.messageType !== "system" &&
+      msg.messageType !== "system" &&
+      new Date(msg.sentAt).getTime() - new Date(prev.sentAt).getTime() < 60_000;
+
+    const sameAsNext =
+      next &&
+      next.senderUserId === msg.senderUserId &&
+      next.messageType !== "system" &&
+      msg.messageType !== "system" &&
+      new Date(next.sentAt).getTime() - new Date(msg.sentAt).getTime() < 60_000;
+
+    return {
+      ...msg,
+      isFirstInGroup: !sameAsPrev,
+      isLastInGroup: !sameAsNext,
+    };
+  });
+}
+
 interface ChatMessageProps {
   message: Message;
   isMine: boolean;
   onRetry?: (message: Message) => void;
+  isFirstInGroup?: boolean;
+  isLastInGroup?: boolean;
 }
 
-export function ChatMessage({ message, isMine, onRetry }: ChatMessageProps) {
+export function ChatMessage({ message, isMine, onRetry, isFirstInGroup = true, isLastInGroup = true }: ChatMessageProps) {
   if (message.messageType === "system") {
     return (
       <div className="flex justify-center my-2" role="status">
@@ -44,30 +73,43 @@ export function ChatMessage({ message, isMine, onRetry }: ChatMessageProps) {
   const isSending = message.status === "sending";
   const isFailed = message.status === "failed";
 
+  const cornerClass = isMine
+    ? `${isFirstInGroup ? "rounded-tr-xl" : "rounded-tr"} ${isLastInGroup ? "rounded-br-sm" : "rounded-br"} rounded-tl-xl rounded-bl-xl`
+    : `${isFirstInGroup ? "rounded-tl-xl" : "rounded-tl"} ${isLastInGroup ? "rounded-bl-sm" : "rounded-bl"} rounded-tr-xl rounded-br-xl`;
+
   return (
-    <div className={`flex mb-1 ${isMine ? "justify-end" : "justify-start"} ${isSending ? "opacity-60" : ""}`}>
+    <div className={`flex ${isFirstInGroup ? "mt-2" : "mt-0.5"} ${isMine ? "justify-end" : "justify-start"} ${isSending ? "opacity-60" : ""}`}>
       <div
-        className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
+        className={`max-w-[70%] px-4 py-2.5 text-sm ${cornerClass} ${
           isMine
-            ? "bg-blue-bright text-white rounded-br-sm"
-            : "bg-card border border-border text-text-primary rounded-bl-sm"
+            ? "bg-blue-bright text-white"
+            : "bg-card border border-border text-text-primary"
         }`}
       >
         {message.bodyText}
-        <span
-          className={`block text-xs mt-1 ${isMine ? "text-right" : "text-left"} ${isFailed ? "text-danger" : "text-text-secondary"}`}
-        >
-          {isSending ? "전송 중..." : isFailed ? (
-            <button
-              onClick={() => onRetry?.(message)}
-              className="hover:underline"
-            >
-              전송 실패 · 재전송
-            </button>
-          ) : isMine ? (
-            `${formatMessageTime(message.sentAt)} ✓`
-          ) : formatMessageTime(message.sentAt)}
-        </span>
+        {(isSending || isFailed) && (
+          <span
+            className={`block text-xs mt-1 ${isMine ? "text-right" : "text-left"} ${isFailed ? "text-danger" : "text-text-secondary"}`}
+          >
+            {isSending ? "전송 중..." : (
+              <button
+                onClick={() => onRetry?.(message)}
+                className="hover:underline"
+              >
+                전송 실패 · 재전송
+              </button>
+            )}
+          </span>
+        )}
+        {isLastInGroup && !isSending && !isFailed && (
+          <span
+            className={`block text-xs mt-1 ${isMine ? "text-right" : "text-left"} text-text-secondary`}
+          >
+            {isMine
+              ? `${formatMessageTime(message.sentAt)} ✓`
+              : formatMessageTime(message.sentAt)}
+          </span>
+        )}
       </div>
     </div>
   );

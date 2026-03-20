@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ChatRoom, Message } from "@/lib/types";
 import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 import { ChatListItem } from "./chat-list-item";
-import { ChatMessage } from "./chat-message";
+import { ChatMessage, computeGroupFlags } from "./chat-message";
 import { ChatInput, type ChatInputHandle } from "./chat-input";
 
 interface ChatPanelProps {
@@ -70,8 +70,15 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               </div>
             )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
-              {messages.map((m) => (
-                <ChatMessage key={m.messageId} message={m} isMine={m.senderUserId === myUserId || m.status === "sending" || m.status === "failed"} onRetry={onRetryMessage} />
+              {computeGroupFlags(messages).map((m) => (
+                <ChatMessage
+                  key={m.messageId}
+                  message={m}
+                  isMine={m.senderUserId === myUserId || m.status === "sending" || m.status === "failed"}
+                  isFirstInGroup={m.isFirstInGroup}
+                  isLastInGroup={m.isLastInGroup}
+                  onRetry={onRetryMessage}
+                />
               ))}
               <div ref={bottomRef} />
             </div>

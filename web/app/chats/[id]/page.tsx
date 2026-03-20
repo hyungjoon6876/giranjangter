@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
-import { ChatMessage } from "@/components/chat/chat-message";
+import { ChatMessage, computeGroupFlags } from "@/components/chat/chat-message";
 import { ChatInput, type ChatInputHandle } from "@/components/chat/chat-input";
 import { ReservationModal } from "@/components/forms/reservation-modal";
 import { ReportModal } from "@/components/forms/report-modal";
@@ -26,6 +26,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const [reportOpen, setReportOpen] = useState(false);
 
   const messages = data?.data ? [...data.data].reverse() : [];
+  const groupedMessages = computeGroupFlags(messages);
   useMarkRead(id, messages);
 
   useEffect(() => {
@@ -65,11 +66,13 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
         </button>
       </div>
       <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
-        {messages.map((m) => (
+        {groupedMessages.map((m) => (
           <ChatMessage
             key={m.messageId}
             message={m}
             isMine={m.senderUserId === me?.userId || m.status === "sending" || m.status === "failed"}
+            isFirstInGroup={m.isFirstInGroup}
+            isLastInGroup={m.isLastInGroup}
             onRetry={(failedMsg) => {
               sendMessage.mutate({
                 chatId: failedMsg.chatRoomId || id,
