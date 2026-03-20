@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
+import { useChats, useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
 import { useMe } from "@/lib/hooks/use-profile";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { ChatMessage, computeGroupFlags } from "@/components/chat/chat-message";
@@ -11,6 +11,7 @@ import { ChatInput, type ChatInputHandle } from "@/components/chat/chat-input";
 import { ReservationModal } from "@/components/forms/reservation-modal";
 import { ReportModal } from "@/components/forms/report-modal";
 import { Loading } from "@/components/ui/loading";
+import { ListingInfoCard } from "@/components/chat/chat-panel";
 
 export default function ChatDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,6 +19,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const { isLoggedIn } = useAuthGuard();
   const qc = useQueryClient();
   const { data: me } = useMe();
+  const { data: chatsData } = useChats();
   const { data, isLoading } = useMessages(id);
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -27,6 +29,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
 
   const messages = data?.data ? [...data.data].reverse() : [];
   const groupedMessages = computeGroupFlags(messages);
+  const activeChat = chatsData?.data?.find((c: { chatRoomId: string }) => c.chatRoomId === id);
   useMarkRead(id, messages);
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* Gold accent top bar */}
       <div className="h-0.5 bg-gradient-to-r from-gold/60 via-gold to-gold/60" />
+      {activeChat && <ListingInfoCard chat={activeChat} />}
       <div className="flex items-center gap-2 px-4 py-2 bg-dark border-b border-border">
         <button
           onClick={() => setReservationOpen(true)}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import type { ChatRoom, Message } from "@/lib/types";
 import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 import { ChatListItem } from "./chat-list-item";
@@ -57,8 +59,9 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
           <>
             <div className="px-4 py-3 bg-dark border-b border-border">
               <div className="font-semibold text-sm text-text-primary">{activeChat.counterparty.nickname}</div>
-              <div className="text-xs text-text-dim">{activeChat.listingTitle} · {activeChat.listingStatus}</div>
+              <div className="text-xs text-text-dim">{activeChat.listingTitle}</div>
             </div>
+            <ListingInfoCard chat={activeChat} />
             {connectionStatus === "reconnecting" && (
               <div role="alert" className="bg-[#e67e22]/10 text-[#e67e22] text-xs text-center py-2 px-4">
                 연결이 끊어졌습니다. 재연결 중...
@@ -94,5 +97,40 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
         )}
       </div>
     </div>
+  );
+}
+
+const listingStatusConfig: Record<string, { label: string; color: string; dim?: boolean }> = {
+  available: { label: "거래 가능", color: "bg-green-600" },
+  reserved: { label: "예약중", color: "bg-yellow-600" },
+  sold: { label: "거래 완료", color: "bg-medium", dim: true },
+  deleted: { label: "삭제됨", color: "bg-medium", dim: true },
+};
+
+export function ListingInfoCard({ chat }: { chat: ChatRoom }) {
+  const st = listingStatusConfig[chat.listingStatus] ?? listingStatusConfig.available;
+
+  return (
+    <Link
+      href={`/listings/${chat.listingId}`}
+      className={`flex items-center gap-3 px-4 py-2 border-b border-border hover:bg-medium/50 transition-colors ${st.dim ? "opacity-50" : ""}`}
+    >
+      {chat.listingThumbnail ? (
+        <Image src={chat.listingThumbnail} alt="" width={40} height={40} className="rounded object-cover" unoptimized />
+      ) : (
+        <div className="w-10 h-10 rounded bg-medium flex items-center justify-center text-text-secondary text-xs">?</div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{chat.listingTitle}</p>
+        <p className="text-xs text-text-secondary truncate">
+          {chat.listingPrice != null && `${chat.listingPrice.toLocaleString()} 아덴`}
+          {chat.listingPrice != null && chat.listingServerName && " · "}
+          {chat.listingServerName && chat.listingServerName}
+        </p>
+      </div>
+      <span className={`text-xs px-2 py-0.5 rounded-full text-white whitespace-nowrap ${st.color}`}>
+        {st.label}
+      </span>
+    </Link>
   );
 }
