@@ -78,12 +78,25 @@ func handleListChats(repo repository.ChatRepo) gin.HandlerFunc {
 
 		var chats []gin.H
 		for _, item := range items {
-			chats = append(chats, gin.H{
-				"chatRoomId": item.ChatRoomID, "listingId": item.ListingID, "listingTitle": item.ListingTitle,
-				"chatStatus": item.ChatStatus,
-				"counterparty": gin.H{"userId": item.CounterpartID, "nickname": item.CounterpartNick, "trustBadge": item.CounterpartBadge},
-				"updatedAt": item.UpdatedAt,
-			})
+			chat := gin.H{
+				"chatRoomId":          item.ChatRoomID,
+				"listingId":           item.ListingID,
+				"listingTitle":        item.ListingTitle,
+				"listingThumbnail":    item.ListingThumbnail,
+				"listingStatus":       item.ListingStatus,
+				"chatStatus":          item.ChatStatus,
+				"counterparty":        gin.H{"userId": item.CounterpartID, "nickname": item.CounterpartNick, "trustBadge": item.CounterpartBadge},
+				"unreadCount":         item.UnreadCount,
+				"myLastReadMessageId": item.MyLastReadMsgID,
+				"updatedAt":           item.UpdatedAt,
+			}
+			if item.LastMessageBody != nil {
+				chat["lastMessage"] = gin.H{
+					"bodyText": *item.LastMessageBody,
+					"sentAt":   item.LastMessageSentAt,
+				}
+			}
+			chats = append(chats, chat)
 		}
 		c.JSON(http.StatusOK, gin.H{"data": chats})
 	}
