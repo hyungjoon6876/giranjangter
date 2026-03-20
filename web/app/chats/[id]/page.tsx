@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { Fragment, use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChats, useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
@@ -13,6 +13,44 @@ import { ReportModal } from "@/components/forms/report-modal";
 import { Loading } from "@/components/ui/loading";
 import { ListingInfoCard } from "@/components/chat/chat-panel";
 
+function isSameDay(a: string, b: string): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function formatDateSeparator(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / 86400000);
+  if (diffDays === 0) return "오늘";
+  if (diffDays === 1) return "어제";
+  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 my-3">
+      <div className="flex-1 border-t border-border" />
+      <span className="text-xs text-text-secondary">{label}</span>
+      <div className="flex-1 border-t border-border" />
+    </div>
+  );
+}
+
+function NewMessagesDivider() {
+  return (
+    <div className="flex items-center gap-3 my-3">
+      <div className="flex-1 border-t border-gold" />
+      <span className="text-xs text-gold font-medium">새 메시지</span>
+      <div className="flex-1 border-t border-gold" />
+    </div>
+  );
+}
+
 export default function ChatDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -24,6 +62,8 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ChatInputHandle>(null);
+  const lastReadIdRef = useRef<string | undefined>(undefined);
+  const newMsgRef = useRef<HTMLDivElement>(null);
   const [reservationOpen, setReservationOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -39,8 +79,19 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   }, [isLoggedIn, router]);
 
   useEffect(() => {
+    const chat = chatsData?.data?.find((c: { chatRoomId: string }) => c.chatRoomId === id);
+    if (chat?.myLastReadMessageId) lastReadIdRef.current = chat.myLastReadMessageId;
+  }, [id, chatsData]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (newMsgRef.current) {
+      newMsgRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [id]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -70,22 +121,31 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
         </button>
       </div>
       <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
-        {groupedMessages.map((m) => (
-          <ChatMessage
-            key={m.messageId}
-            message={m}
-            isMine={m.senderUserId === me?.userId || m.status === "sending" || m.status === "failed"}
-            isFirstInGroup={m.isFirstInGroup}
-            isLastInGroup={m.isLastInGroup}
-            onRetry={(failedMsg) => {
-              sendMessage.mutate({
-                chatId: failedMsg.chatRoomId || id,
-                text: failedMsg.bodyText ?? "",
-                clientMessageId: crypto.randomUUID(),
-              });
-            }}
-          />
-        ))}
+        {groupedMessages.map((m, i) => {
+          const prev = groupedMessages[i - 1];
+          const showDateSep = !prev || !isSameDay(prev.sentAt, m.sentAt);
+          const showNewMsgDivider = lastReadIdRef.current && prev?.messageId === lastReadIdRef.current && m.messageId !== lastReadIdRef.current;
+
+          return (
+            <Fragment key={m.messageId}>
+              {showDateSep && <DateSeparator label={formatDateSeparator(m.sentAt)} />}
+              {showNewMsgDivider && <div ref={newMsgRef}><NewMessagesDivider /></div>}
+              <ChatMessage
+                message={m}
+                isMine={m.senderUserId === me?.userId || m.status === "sending" || m.status === "failed"}
+                isFirstInGroup={m.isFirstInGroup}
+                isLastInGroup={m.isLastInGroup}
+                onRetry={(failedMsg) => {
+                  sendMessage.mutate({
+                    chatId: failedMsg.chatRoomId || id,
+                    text: failedMsg.bodyText ?? "",
+                    clientMessageId: crypto.randomUUID(),
+                  });
+                }}
+              />
+            </Fragment>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
       <ChatInput ref={inputRef} onSend={(text) => sendMessage.mutate({ chatId: id, text, clientMessageId: crypto.randomUUID() })} />

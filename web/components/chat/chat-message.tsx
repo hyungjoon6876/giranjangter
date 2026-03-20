@@ -1,4 +1,5 @@
 import type { Message } from "@/lib/types";
+import { ReservationCardMessage } from "./reservation-card-message";
 
 function formatMessageTime(sentAt: string): string {
   const date = new Date(sentAt);
@@ -60,6 +61,10 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, isMine, onRetry, isFirstInGroup = true, isLastInGroup = true }: ChatMessageProps) {
+  if (message.messageType === "reservation_card") {
+    return <ReservationCardMessage message={message} isMine={isMine} />;
+  }
+
   if (message.messageType === "system") {
     return (
       <div className="flex justify-center my-2" role="status">

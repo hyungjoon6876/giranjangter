@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { ChatRoom, Message } from "@/lib/types";
@@ -8,6 +8,44 @@ import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 import { ChatListItem } from "./chat-list-item";
 import { ChatMessage, computeGroupFlags } from "./chat-message";
 import { ChatInput, type ChatInputHandle } from "./chat-input";
+
+function isSameDay(a: string, b: string): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function formatDateSeparator(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / 86400000);
+  if (diffDays === 0) return "오늘";
+  if (diffDays === 1) return "어제";
+  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 my-3">
+      <div className="flex-1 border-t border-border" />
+      <span className="text-xs text-text-secondary">{label}</span>
+      <div className="flex-1 border-t border-border" />
+    </div>
+  );
+}
+
+function NewMessagesDivider() {
+  return (
+    <div className="flex items-center gap-3 my-3">
+      <div className="flex-1 border-t border-gold" />
+      <span className="text-xs text-gold font-medium">새 메시지</span>
+      <div className="flex-1 border-t border-gold" />
+    </div>
+  );
+}
 
 interface ChatPanelProps {
   chats: ChatRoom[];
@@ -23,10 +61,23 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
   const connectionStatus = useSSEConnectionStatus();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ChatInputHandle>(null);
+  const lastReadIdRef = useRef<string | undefined>(undefined);
+  const newMsgRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const chat = chats.find(c => c.chatRoomId === activeChatId);
+    if (chat?.myLastReadMessageId) lastReadIdRef.current = chat.myLastReadMessageId;
+  }, [activeChatId, chats]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (newMsgRef.current) {
+      newMsgRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [activeChatId]);
 
   useEffect(() => {
     if (activeChatId) {
@@ -73,16 +124,28 @@ export function ChatPanel({ chats, activeChatId, messages, myUserId, onSelectCha
               </div>
             )}
             <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
-              {computeGroupFlags(messages).map((m) => (
-                <ChatMessage
-                  key={m.messageId}
-                  message={m}
-                  isMine={m.senderUserId === myUserId || m.status === "sending" || m.status === "failed"}
-                  isFirstInGroup={m.isFirstInGroup}
-                  isLastInGroup={m.isLastInGroup}
-                  onRetry={onRetryMessage}
-                />
-              ))}
+              {(() => {
+                const grouped = computeGroupFlags(messages);
+                return grouped.map((m, i) => {
+                  const prev = grouped[i - 1];
+                  const showDateSep = !prev || !isSameDay(prev.sentAt, m.sentAt);
+                  const showNewMsgDivider = lastReadIdRef.current && prev?.messageId === lastReadIdRef.current && m.messageId !== lastReadIdRef.current;
+
+                  return (
+                    <Fragment key={m.messageId}>
+                      {showDateSep && <DateSeparator label={formatDateSeparator(m.sentAt)} />}
+                      {showNewMsgDivider && <div ref={newMsgRef}><NewMessagesDivider /></div>}
+                      <ChatMessage
+                        message={m}
+                        isMine={m.senderUserId === myUserId || m.status === "sending" || m.status === "failed"}
+                        isFirstInGroup={m.isFirstInGroup}
+                        isLastInGroup={m.isLastInGroup}
+                        onRetry={onRetryMessage}
+                      />
+                    </Fragment>
+                  );
+                });
+              })()}
               <div ref={bottomRef} />
             </div>
             <ChatInput ref={inputRef} onSend={onSendMessage} />
