@@ -198,10 +198,17 @@ class ApiClient {
     return this.fetch(`/chats/${chatId}/messages`);
   }
 
-  async sendMessage(chatId: string, text: string): Promise<Message> {
+  async sendMessage(chatId: string, text: string, clientMessageId: string): Promise<Message> {
     return this.fetch(`/chats/${chatId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ messageType: "text", bodyText: text }),
+      body: JSON.stringify({ messageType: "text", bodyText: text, clientMessageId }),
+    });
+  }
+
+  async markRead(chatId: string, lastReadMessageId: string): Promise<void> {
+    await this.fetch(`/chats/${chatId}/read`, {
+      method: "POST",
+      body: JSON.stringify({ lastReadMessageId }),
     });
   }
 
