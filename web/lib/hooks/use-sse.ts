@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api-client";
 
@@ -12,16 +12,32 @@ export function useSSEConnectionStatus(): SSEConnectionStatus {
   return useContext(SSEContext);
 }
 
-const MAX_RETRIES = 10;
-
 export function useSSE() {
   const qc = useQueryClient();
   const esRef = useRef<EventSource | null>(null);
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEventRef = useRef<number>(Date.now());
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<SSEConnectionStatus>("disconnected");
+  const statusRef = useRef<SSEConnectionStatus>("disconnected");
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
+  // Keep statusRef in sync with state
+  useEffect(() => {
+    statusRef.current = connectionStatus;
+  }, [connectionStatus]);
+
+  const reconnect = useCallback(() => {
+    // Close existing connection if any
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    setReconnectTrigger((c) => c + 1);
+  }, []);
+
+  // SSE connection effect
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
     if (!token) return;
@@ -30,11 +46,18 @@ export function useSSE() {
     esRef.current = es;
 
     es.onopen = () => {
-      setConnectionStatus("connected");
       retryCountRef.current = 0;
+      lastEventRef.current = Date.now();
+      setConnectionStatus("connected");
     };
 
+    // Heartbeat listener — server sends heartbeat every 30s
+    es.addEventListener("heartbeat", () => {
+      lastEventRef.current = Date.now();
+    });
+
     es.addEventListener("new_message", (e) => {
+      lastEventRef.current = Date.now();
       try {
         const data = JSON.parse(e.data);
         qc.invalidateQueries({ queryKey: ["messages", data.chatRoomId] });
@@ -45,6 +68,7 @@ export function useSSE() {
     });
 
     es.addEventListener("status_change", (e) => {
+      lastEventRef.current = Date.now();
       try {
         if (e.data) JSON.parse(e.data);
         qc.invalidateQueries({ queryKey: ["listings"] });
@@ -55,6 +79,7 @@ export function useSSE() {
     });
 
     es.addEventListener("read_receipt", (e) => {
+      lastEventRef.current = Date.now();
       try {
         const data = JSON.parse(e.data);
         qc.invalidateQueries({ queryKey: ["messages", data.chatRoomId] });
@@ -68,16 +93,21 @@ export function useSSE() {
       es.close();
       esRef.current = null;
 
-      if (retryCountRef.current >= MAX_RETRIES) {
-        setConnectionStatus("disconnected");
-        return;
-      }
-
       setConnectionStatus("reconnecting");
-      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 60_000);
       retryCountRef.current += 1;
       retryTimerRef.current = setTimeout(() => setReconnectTrigger((c) => c + 1), delay);
     };
+
+    // Heartbeat timeout check — if no event for 45s, connection is stale
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (Date.now() - lastEventRef.current > 45_000) {
+        es.close();
+        esRef.current = null;
+        setConnectionStatus("reconnecting");
+        setReconnectTrigger((c) => c + 1);
+      }
+    }, 15_000);
 
     return () => {
       es.close();
@@ -86,8 +116,33 @@ export function useSSE() {
         clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
       }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
     };
   }, [qc, reconnectTrigger]);
+
+  // Tab visibility + network recovery
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && statusRef.current !== "connected") {
+        reconnect();
+      }
+    };
+    const handleOnline = () => {
+      if (statusRef.current !== "connected") {
+        reconnect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [reconnect]);
 
   return connectionStatus;
 }
