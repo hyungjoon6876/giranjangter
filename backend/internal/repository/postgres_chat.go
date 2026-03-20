@@ -71,7 +71,8 @@ func (r *PostgresChatRepo) ListChatRooms(ctx context.Context, userID string) ([]
 				(SELECT COUNT(*) FROM chat_messages cm
 				 WHERE cm.chat_room_id = cr.id AND cm.deleted_at IS NULL
 				 AND cm.sent_at > COALESCE(
-					 (SELECT crc.updated_at FROM chat_read_cursors crc
+					 (SELECT cm_read.sent_at FROM chat_read_cursors crc
+					  JOIN chat_messages cm_read ON cm_read.id = crc.last_read_message_id
 					  WHERE crc.chat_room_id = cr.id AND crc.user_id = $5), cr.created_at
 				 )
 				 AND cm.sender_user_id != $6
