@@ -11,6 +11,7 @@ import { ChatListItem } from "@/components/chat/chat-list-item";
 import { ReservationModal } from "@/components/forms/reservation-modal";
 import { Loading } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 
 export default function ChatsPage() {
   const router = useRouter();
@@ -20,7 +21,9 @@ export default function ChatsPage() {
   const qc = useQueryClient();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [reservationOpen, setReservationOpen] = useState(false);
-  const { data: messagesData } = useMessages(activeChatId ?? "");
+  const connectionStatus = useSSEConnectionStatus();
+  const sseConnected = connectionStatus === "connected";
+  const { data: messagesData } = useMessages(activeChatId ?? "", sseConnected);
   const sendMessage = useSendMessage();
 
   useEffect(() => {
@@ -32,7 +35,7 @@ export default function ChatsPage() {
   if (!isLoggedIn) return null;
 
   const chats = chatsData?.data ?? [];
-  const messages = messagesData?.data ? [...messagesData.data].reverse() : [];
+  const messages = messagesData?.pages ? messagesData.pages.flatMap((p) => [...p.data]).reverse() : [];
   useMarkRead(activeChatId ?? "", messages);
 
   if (isLoading) return <Loading />;

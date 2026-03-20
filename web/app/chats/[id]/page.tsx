@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, use, useEffect, useRef, useState } from "react";
+import { Fragment, use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChats, useMessages, useSendMessage, useMarkRead } from "@/lib/hooks/use-chats";
@@ -12,6 +12,7 @@ import { ReservationModal } from "@/components/forms/reservation-modal";
 import { ReportModal } from "@/components/forms/report-modal";
 import { Loading } from "@/components/ui/loading";
 import { ListingInfoCard } from "@/components/chat/chat-panel";
+import { useSSEConnectionStatus } from "@/lib/hooks/use-sse";
 
 function isSameDay(a: string, b: string): boolean {
   const da = new Date(a);
@@ -58,16 +59,35 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const qc = useQueryClient();
   const { data: me } = useMe();
   const { data: chatsData } = useChats();
-  const { data, isLoading } = useMessages(id);
+  const connectionStatus = useSSEConnectionStatus();
+  const sseConnected = connectionStatus === "connected";
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useMessages(id, sseConnected);
   const sendMessage = useSendMessage();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<ChatInputHandle>(null);
   const lastReadIdRef = useRef<string | undefined>(undefined);
   const newMsgRef = useRef<HTMLDivElement>(null);
   const [reservationOpen, setReservationOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
-  const messages = data?.data ? [...data.data].reverse() : [];
+  const messages = data?.pages ? data.pages.flatMap((p) => [...p.data]).reverse() : [];
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop < 50 && hasNextPage && !isFetchingNextPage) {
+      const prevHeight = el.scrollHeight;
+      const prevTop = el.scrollTop;
+      fetchNextPage().then(() => {
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight + prevTop;
+          }
+        });
+      });
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   const groupedMessages = computeGroupFlags(messages);
   const activeChat = chatsData?.data?.find((c: { chatRoomId: string }) => c.chatRoomId === id);
   useMarkRead(id, messages);
@@ -120,7 +140,10 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
           신고
         </button>
       </div>
-      <div role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
+      <div ref={scrollRef} onScroll={handleScroll} role="log" aria-live="polite" className="flex-1 overflow-y-auto p-4">
+        {isFetchingNextPage && (
+          <div className="text-center py-2 text-text-secondary text-xs">이전 메시지 불러오는 중...</div>
+        )}
         {groupedMessages.map((m, i) => {
           const prev = groupedMessages[i - 1];
           const showDateSep = !prev || !isSameDay(prev.sentAt, m.sentAt);

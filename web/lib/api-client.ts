@@ -194,8 +194,9 @@ class ApiClient {
     return this.fetch("/chats");
   }
 
-  async getMessages(chatId: string): Promise<PaginatedResponse<Message>> {
-    return this.fetch(`/chats/${chatId}/messages`);
+  async getMessages(chatId: string, cursor?: string): Promise<PaginatedResponse<Message>> {
+    const params = cursor ? `?cursor=${cursor}` : "";
+    return this.fetch(`/chats/${chatId}/messages${params}`);
   }
 
   async sendMessage(chatId: string, text: string, clientMessageId: string): Promise<Message> {

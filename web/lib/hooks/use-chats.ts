@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type InfiniteData } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { PaginatedResponse, Message } from "@/lib/types";
 
@@ -11,12 +11,16 @@ export function useChats() {
   });
 }
 
-export function useMessages(chatId: string) {
-  return useQuery({
+export function useMessages(chatId: string, sseConnected?: boolean) {
+  return useInfiniteQuery({
     queryKey: ["messages", chatId],
-    queryFn: () => apiClient.getMessages(chatId),
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      apiClient.getMessages(chatId, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.cursor?.hasMore ? lastPage.cursor.next : undefined,
     enabled: !!chatId,
-    refetchInterval: 5_000, // Poll every 5s as fallback to SSE
+    refetchInterval: sseConnected ? false : 5_000,
   });
 }
 
@@ -35,7 +39,7 @@ export function useSendMessage() {
 
     onMutate: async ({ chatId, text, clientMessageId }) => {
       await qc.cancelQueries({ queryKey: ["messages", chatId] });
-      const previous = qc.getQueryData<PaginatedResponse<Message>>(["messages", chatId]);
+      const previous = qc.getQueryData<InfiniteData<PaginatedResponse<Message>>>(["messages", chatId]);
 
       const optimisticMsg: Message = {
         messageId: clientMessageId,
@@ -47,32 +51,60 @@ export function useSendMessage() {
         status: "sending",
       };
 
-      // PREPEND because data is in DESC order (newest first)
-      qc.setQueryData<PaginatedResponse<Message>>(["messages", chatId], (old) => ({
-        data: [optimisticMsg, ...(old?.data ?? [])],
-        cursor: old?.cursor ?? { hasMore: false },
-      }));
+      // PREPEND to first page because data is in DESC order (newest first)
+      qc.setQueryData<InfiniteData<PaginatedResponse<Message>>>(
+        ["messages", chatId],
+        (old) => {
+          if (!old) return old;
+          const firstPage = old.pages[0];
+          return {
+            ...old,
+            pages: [
+              { ...firstPage, data: [optimisticMsg, ...firstPage.data] },
+              ...old.pages.slice(1),
+            ],
+          };
+        }
+      );
 
       return { previous, chatId };
     },
 
     onSuccess: (serverMsg, { chatId, clientMessageId }) => {
-      qc.setQueryData<PaginatedResponse<Message>>(["messages", chatId], (old) => ({
-        data: (old?.data ?? []).map((m) =>
-          m.messageId === clientMessageId ? { ...serverMsg, status: "sent" as const } : m
-        ),
-        cursor: old?.cursor ?? { hasMore: false },
-      }));
+      qc.setQueryData<InfiniteData<PaginatedResponse<Message>>>(
+        ["messages", chatId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.map((m) =>
+                m.messageId === clientMessageId ? { ...serverMsg, status: "sent" as const } : m
+              ),
+            })),
+          };
+        }
+      );
       qc.invalidateQueries({ queryKey: ["chats"] });
     },
 
     onError: (_err, { chatId, clientMessageId }) => {
-      qc.setQueryData<PaginatedResponse<Message>>(["messages", chatId], (old) => ({
-        data: (old?.data ?? []).map((m) =>
-          m.messageId === clientMessageId ? { ...m, status: "failed" as const } : m
-        ),
-        cursor: old?.cursor ?? { hasMore: false },
-      }));
+      qc.setQueryData<InfiniteData<PaginatedResponse<Message>>>(
+        ["messages", chatId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.map((m) =>
+                m.messageId === clientMessageId ? { ...m, status: "failed" as const } : m
+              ),
+            })),
+          };
+        }
+      );
     },
   });
 }
