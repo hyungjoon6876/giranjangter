@@ -1,5 +1,29 @@
 import type { Message } from "@/lib/types";
 
+function formatMessageTime(sentAt: string): string {
+  const date = new Date(sentAt);
+  const now = new Date();
+  const timeStr = date.toLocaleTimeString("ko-KR", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  if (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  ) {
+    return timeStr; // Today: "오후 3:42"
+  }
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}월 ${date.getDate()}일 ${timeStr}`;
+  }
+
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()} ${timeStr}`;
+}
+
 interface ChatMessageProps {
   message: Message;
   isMine: boolean;
@@ -26,6 +50,11 @@ export function ChatMessage({ message, isMine }: ChatMessageProps) {
         }`}
       >
         {message.bodyText}
+        <span
+          className={`block text-xs text-text-secondary mt-1 ${isMine ? "text-right" : "text-left"}`}
+        >
+          {formatMessageTime(message.sentAt)}
+        </span>
       </div>
     </div>
   );
