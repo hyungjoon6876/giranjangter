@@ -6,10 +6,11 @@ import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const REPORT_REASONS = [
-  { value: "scam", label: "사기 의심" },
+  { value: "scam_suspicion", label: "사기 의심" },
   { value: "fake_listing", label: "허위 매물" },
-  { value: "abuse", label: "욕설/비하" },
+  { value: "harassment", label: "욕설/비하" },
   { value: "spam", label: "도배/스팸" },
+  { value: "no_show", label: "거래 불이행" },
   { value: "other", label: "기타" },
 ];
 
@@ -31,7 +32,7 @@ export function ReportModal({ open, onClose, targetType, targetId }: ReportModal
     if (!reason) return;
     setSubmitting(true);
     try {
-      await apiClient.createReport({ targetType, targetId, reasonCode: reason, description: description || undefined });
+      await apiClient.createReport({ targetType, targetId, reportType: reason, description: description || "신고합니다" });
       onClose();
       addToast("success", "신고가 접수되었습니다");
     } catch {
