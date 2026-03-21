@@ -255,3 +255,238 @@ func TestSendMessage_DedupByClientMessageID(t *testing.T) {
 	// Ensure the middleware helper is in scope — suppress unused import
 	_ = middleware.GetUserID
 }
+
+// ── ListChats ──
+
+func TestListChats_Success_Returns200(t *testing.T) {
+	mockRepo := &mock.MockChatRepo{
+		ListChatRoomsFn: func(ctx context.Context, userID string) ([]repository.ChatRoomListItem, error) {
+			return []repository.ChatRoomListItem{
+				{
+					ChatRoomID:       "chat-1",
+					ListingID:        "listing-1",
+					ListingTitle:     "아이템 판매",
+					ChatStatus:       "open",
+					CounterpartID:    "user-2",
+					CounterpartNick:  "상대방",
+					CounterpartBadge: "trusted",
+					UnreadCount:      2,
+				},
+				{
+					ChatRoomID:       "chat-2",
+					ListingID:        "listing-2",
+					ListingTitle:     "다른 아이템",
+					ChatStatus:       "closed",
+					CounterpartID:    "user-3",
+					CounterpartNick:  "판매자",
+					CounterpartBadge: "fast",
+					UnreadCount:      0,
+				},
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/chats", authMiddleware("user-1", "user"), handleListChats(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/chats", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 2 {
+		t.Errorf("len(data) = %d, want 2", len(resp.Data))
+	}
+	if resp.Data[0]["chatRoomId"] != "chat-1" {
+		t.Errorf("chatRoomId = %v, want %q", resp.Data[0]["chatRoomId"], "chat-1")
+	}
+	if resp.Data[0]["unreadCount"] != float64(2) {
+		t.Errorf("unreadCount = %v, want 2", resp.Data[0]["unreadCount"])
+	}
+}
+
+func TestListChats_EmptyList_Returns200(t *testing.T) {
+	mockRepo := &mock.MockChatRepo{
+		ListChatRoomsFn: func(ctx context.Context, userID string) ([]repository.ChatRoomListItem, error) {
+			return []repository.ChatRoomListItem{}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/chats", authMiddleware("user-1", "user"), handleListChats(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/chats", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(resp.Data))
+	}
+}
+
+// ── MarkRead ──
+
+func TestMarkRead_Success_Returns204(t *testing.T) {
+	var updatedChatRoomID, updatedUserID, updatedMessageID string
+
+	mockRepo := &mock.MockChatRepo{
+		IsChatParticipantFn: func(ctx context.Context, chatRoomID, userID string) (bool, error) {
+			return true, nil // user is participant
+		},
+		UpsertReadCursorFn: func(ctx context.Context, chatRoomID, userID, lastReadMessageID string) error {
+			updatedChatRoomID = chatRoomID
+			updatedUserID = userID
+			updatedMessageID = lastReadMessageID
+			return nil
+		},
+	}
+
+	broker := event.NewBroker()
+	r := setupRouter()
+	r.POST("/api/v1/chats/:chatId/read", authMiddleware("user-1", "user"), handleMarkRead(mockRepo, broker))
+
+	body := `{"lastReadMessageId":"msg-123"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/chats/chat-1/read", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+
+	if updatedChatRoomID != "chat-1" {
+		t.Errorf("chatRoomID = %q, want %q", updatedChatRoomID, "chat-1")
+	}
+	if updatedUserID != "user-1" {
+		t.Errorf("userID = %q, want %q", updatedUserID, "user-1")
+	}
+	if updatedMessageID != "msg-123" {
+		t.Errorf("messageID = %q, want %q", updatedMessageID, "msg-123")
+	}
+}
+
+func TestMarkRead_NonParticipant_Returns403(t *testing.T) {
+	mockRepo := &mock.MockChatRepo{
+		IsChatParticipantFn: func(ctx context.Context, chatRoomID, userID string) (bool, error) {
+			return false, nil // not a participant
+		},
+	}
+
+	broker := event.NewBroker()
+	r := setupRouter()
+	r.POST("/api/v1/chats/:chatId/read", authMiddleware("user-other", "user"), handleMarkRead(mockRepo, broker))
+
+	body := `{"lastReadMessageId":"msg-123"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/chats/chat-1/read", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "FORBIDDEN" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "FORBIDDEN")
+	}
+}
+
+// ── BlockUser ──
+
+func TestBlockUser_Success_Returns204(t *testing.T) {
+	var blockerID, blockedID string
+
+	mockRepo := &mock.MockChatRepo{
+		BlockUserFn: func(ctx context.Context, id, blocker, blocked string) error {
+			blockerID = blocker
+			blockedID = blocked
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.POST("/api/v1/users/:userId/block", authMiddleware("user-1", "user"), handleBlockUser(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/users/user-bad/block", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+
+	if blockerID != "user-1" {
+		t.Errorf("blockerID = %q, want %q", blockerID, "user-1")
+	}
+	if blockedID != "user-bad" {
+		t.Errorf("blockedID = %q, want %q", blockedID, "user-bad")
+	}
+}
+
+func TestBlockUser_SelfBlock_Returns204(t *testing.T) {
+	mockRepo := &mock.MockChatRepo{}
+
+	r := setupRouter()
+	r.POST("/api/v1/users/:userId/block", authMiddleware("user-1", "user"), handleBlockUser(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/users/user-1/block", nil)
+	r.ServeHTTP(w, req)
+
+	// Handler doesn't validate self-blocking, it just calls repo
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+}
+
+// ── UnblockUser ──
+
+func TestUnblockUser_Success_Returns204(t *testing.T) {
+	var unblockerID, unblockedID string
+
+	mockRepo := &mock.MockChatRepo{
+		UnblockUserFn: func(ctx context.Context, blocker, blocked string) error {
+			unblockerID = blocker
+			unblockedID = blocked
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.DELETE("/api/v1/users/:userId/block", authMiddleware("user-1", "user"), handleUnblockUser(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/api/v1/users/user-bad/block", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+
+	if unblockerID != "user-1" {
+		t.Errorf("unblockerID = %q, want %q", unblockerID, "user-1")
+	}
+	if unblockedID != "user-bad" {
+		t.Errorf("unblockedID = %q, want %q", unblockedID, "user-bad")
+	}
+}
