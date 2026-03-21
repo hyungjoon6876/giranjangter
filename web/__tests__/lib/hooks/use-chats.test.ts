@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement, type ReactNode } from "react";
+import { createQueryWrapper } from "@/__tests__/test-utils";
 
-// Mock the api-client module
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
     isLoggedIn: false,
@@ -24,19 +22,6 @@ import {
   useMarkRead,
 } from "@/lib/hooks/use-chats";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: queryClient }, children);
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -49,7 +34,7 @@ describe("useChats", () => {
   it("does not fetch when user is not logged in", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: false, configurable: true });
 
-    const { result } = renderHook(() => useChats(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useChats(), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getChats).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -60,7 +45,7 @@ describe("useChats", () => {
     const mockChats = { data: [{ chatRoomId: "chat-1", lastMessage: "Hello" }], cursor: { hasMore: false } };
     vi.mocked(apiClient.getChats).mockResolvedValue(mockChats);
 
-    const { result } = renderHook(() => useChats(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useChats(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -77,7 +62,7 @@ describe("useMessages", () => {
     };
     vi.mocked(apiClient.getMessages).mockResolvedValue(mockMessages);
 
-    const { result } = renderHook(() => useMessages("chat-1"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMessages("chat-1"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -86,7 +71,7 @@ describe("useMessages", () => {
   });
 
   it("does not fetch when chatId is empty", () => {
-    const { result } = renderHook(() => useMessages(""), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMessages(""), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getMessages).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -99,7 +84,7 @@ describe("useMessages", () => {
     };
     vi.mocked(apiClient.getMessages).mockResolvedValue(page);
 
-    const { result } = renderHook(() => useMessages("chat-1"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMessages("chat-1"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.hasNextPage).toBe(true);
@@ -110,7 +95,7 @@ describe("useMessages", () => {
 
     const { result } = renderHook(
       () => useMessages("chat-1", true),
-      { wrapper: createWrapper() }
+      { wrapper: createQueryWrapper() }
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -131,7 +116,7 @@ describe("useSendMessage", () => {
     };
     vi.mocked(apiClient.sendMessage).mockResolvedValue(mockMessage);
 
-    const { result } = renderHook(() => useSendMessage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useSendMessage(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({
       chatId: "chat-1",
@@ -157,7 +142,7 @@ describe("useSendMessage", () => {
     };
     vi.mocked(apiClient.sendMessage).mockResolvedValue(mockMessage);
 
-    const { result } = renderHook(() => useSendMessage(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useSendMessage(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({
       chatId: "chat-1",
@@ -175,7 +160,7 @@ describe("useCreateChat", () => {
     const mockResult = { chatRoomId: "new-chat-1" };
     vi.mocked(apiClient.createChat).mockResolvedValue(mockResult);
 
-    const { result } = renderHook(() => useCreateChat(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateChat(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("listing-123");
 
@@ -189,7 +174,7 @@ describe("useCreateChat", () => {
     const error = { error: { code: "FORBIDDEN", message: "Cannot create chat with own listing" } };
     vi.mocked(apiClient.createChat).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useCreateChat(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateChat(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("listing-123");
 
@@ -224,7 +209,7 @@ describe("useMarkRead", () => {
       },
     ];
 
-    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createWrapper() });
+    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createQueryWrapper() });
 
     await waitFor(() => {
       expect(apiClient.markRead).toHaveBeenCalledWith("chat-1", "msg-2");
@@ -255,7 +240,7 @@ describe("useMarkRead", () => {
       },
     ];
 
-    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createWrapper() });
+    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createQueryWrapper() });
 
     await waitFor(() => {
       expect(apiClient.markRead).toHaveBeenCalledWith("chat-1", "msg-1");
@@ -275,7 +260,7 @@ describe("useMarkRead", () => {
       },
     ];
 
-    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createWrapper() });
+    renderHook(() => useMarkRead("chat-1", messages), { wrapper: createQueryWrapper() });
 
     expect(apiClient.markRead).not.toHaveBeenCalled();
   });
@@ -297,7 +282,7 @@ describe("useMarkRead", () => {
 
     // Should not throw error
     expect(() => {
-      renderHook(() => useMarkRead("chat-1", messages), { wrapper: createWrapper() });
+      renderHook(() => useMarkRead("chat-1", messages), { wrapper: createQueryWrapper() });
     }).not.toThrow();
   });
 });

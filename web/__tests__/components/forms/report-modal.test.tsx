@@ -17,14 +17,14 @@ vi.mock("@/lib/api-client", () => ({
 
 beforeEach(() => {
   const portalRoot = document.createElement("div");
-  portalRoot.setAttribute("id", "portal-root");
+  portalRoot.setAttribute("id", "modal-portal");
   document.body.appendChild(portalRoot);
   vi.clearAllMocks();
 });
 
 afterEach(() => {
   cleanup();
-  document.getElementById("portal-root")?.remove();
+  document.getElementById("modal-portal")?.remove();
 });
 
 describe("ReportModal", () => {

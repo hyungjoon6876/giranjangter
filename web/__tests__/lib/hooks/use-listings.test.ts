@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement, type ReactNode } from "react";
+import { createQueryWrapper } from "@/__tests__/test-utils";
 
-// Mock the api-client module
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
     getListings: vi.fn(),
@@ -26,19 +24,6 @@ import {
   useToggleFavorite,
 } from "@/lib/hooks/use-listings";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: queryClient }, children);
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -52,7 +37,7 @@ describe("useListings", () => {
     const mockData = { data: [], cursor: { hasMore: false } };
     vi.mocked(apiClient.getListings).mockResolvedValue(mockData);
 
-    const { result } = renderHook(() => useListings(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useListings(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -71,7 +56,7 @@ describe("useListings", () => {
     const mockData = { data: [], cursor: { hasMore: false } };
     vi.mocked(apiClient.getListings).mockResolvedValue(mockData);
 
-    const { result } = renderHook(() => useListings(params), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useListings(params), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -82,7 +67,7 @@ describe("useListings", () => {
     const params = { serverId: "bartz", sort: "recent" };
     vi.mocked(apiClient.getListings).mockResolvedValue({ data: [], cursor: { hasMore: false } });
 
-    const { result } = renderHook(() => useListings(params), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useListings(params), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.getListings).toHaveBeenCalledWith(params);
@@ -94,7 +79,7 @@ describe("useListing", () => {
     const mockListing = { listingId: "test-1", title: "Test Listing" };
     vi.mocked(apiClient.getListing).mockResolvedValue(mockListing);
 
-    const { result } = renderHook(() => useListing("test-1"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useListing("test-1"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -105,7 +90,7 @@ describe("useListing", () => {
   it("does not fetch when ID is empty", () => {
     vi.mocked(apiClient.getListing).mockResolvedValue({} as any);
 
-    const { result } = renderHook(() => useListing(""), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useListing(""), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getListing).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -118,7 +103,7 @@ describe("useCreateListing", () => {
     const mockCreatedListing = { listingId: "new-1", ...listingData };
     vi.mocked(apiClient.createListing).mockResolvedValue(mockCreatedListing);
 
-    const { result } = renderHook(() => useCreateListing(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateListing(), { wrapper: createQueryWrapper() });
 
     result.current.mutate(listingData);
 
@@ -132,7 +117,7 @@ describe("useCreateListing", () => {
     const error = { error: { code: "INVALID_DATA", message: "Missing required fields" } };
     vi.mocked(apiClient.createListing).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useCreateListing(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateListing(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ title: "Invalid" });
 
@@ -148,7 +133,7 @@ describe("useUpdateListing", () => {
     const mockUpdatedListing = { listingId: "test-1", ...updateData };
     vi.mocked(apiClient.updateListing).mockResolvedValue(mockUpdatedListing);
 
-    const { result } = renderHook(() => useUpdateListing(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateListing(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ id: "test-1", data: updateData });
 
@@ -163,7 +148,7 @@ describe("useChangeListingStatus", () => {
   it("calls apiClient.changeListingStatus with ID and status", async () => {
     vi.mocked(apiClient.changeListingStatus).mockResolvedValue();
 
-    const { result } = renderHook(() => useChangeListingStatus(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useChangeListingStatus(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ id: "test-1", status: "sold" });
 
@@ -177,7 +162,7 @@ describe("useToggleFavorite", () => {
   it("calls unfavoriteListing when currently favorited", async () => {
     vi.mocked(apiClient.unfavoriteListing).mockResolvedValue();
 
-    const { result } = renderHook(() => useToggleFavorite(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useToggleFavorite(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ id: "test-1", isFavorited: true });
 
@@ -190,7 +175,7 @@ describe("useToggleFavorite", () => {
   it("calls favoriteListing when not currently favorited", async () => {
     vi.mocked(apiClient.favoriteListing).mockResolvedValue();
 
-    const { result } = renderHook(() => useToggleFavorite(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useToggleFavorite(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ id: "test-1", isFavorited: false });
 

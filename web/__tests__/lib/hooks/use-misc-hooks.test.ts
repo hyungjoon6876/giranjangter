@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
+import { createQueryWrapper } from "@/__tests__/test-utils";
 
 // Mock the api-client module
 vi.mock("@/lib/api-client", () => ({
@@ -35,18 +36,6 @@ import { useUserReviews } from "@/lib/hooks/use-reviews";
 import { useBlockUser, useUnblockUser } from "@/lib/hooks/use-users";
 import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: queryClient }, children);
-  };
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -61,7 +50,7 @@ describe("useItemSearch", () => {
     const mockItems = [{ itemId: "item-1", itemName: "집행검", iconUrl: "/icons/sword.png" }];
     vi.mocked(apiClient.searchItems).mockResolvedValue(mockItems);
 
-    const { result } = renderHook(() => useItemSearch("집"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useItemSearch("집"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -73,7 +62,7 @@ describe("useItemSearch", () => {
     const mockItems = [{ itemId: "item-2", itemName: "활", iconUrl: "/icons/bow.png" }];
     vi.mocked(apiClient.searchItems).mockResolvedValue(mockItems);
 
-    const { result } = renderHook(() => useItemSearch("", "weapon"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useItemSearch("", "weapon"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -82,7 +71,7 @@ describe("useItemSearch", () => {
   });
 
   it("does not fetch when query is empty and no categoryId", () => {
-    const { result } = renderHook(() => useItemSearch(""), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useItemSearch(""), { wrapper: createQueryWrapper() });
 
     expect(apiClient.searchItems).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -92,7 +81,7 @@ describe("useItemSearch", () => {
     const mockItems = [{ itemId: "item-3", itemName: "집행검+7", iconUrl: "/icons/sword.png" }];
     vi.mocked(apiClient.searchItems).mockResolvedValue(mockItems);
 
-    const { result } = renderHook(() => useItemSearch("집행검", "weapon"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useItemSearch("집행검", "weapon"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -102,7 +91,7 @@ describe("useItemSearch", () => {
   it("uses correct query key with parameters", async () => {
     vi.mocked(apiClient.searchItems).mockResolvedValue([]);
 
-    const { result } = renderHook(() => useItemSearch("test", "armor"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useItemSearch("test", "armor"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.searchItems).toHaveBeenCalledWith({ q: "test", categoryId: "armor" });
@@ -116,7 +105,7 @@ describe("useUserReviews", () => {
     ];
     vi.mocked(apiClient.getUserReviews).mockResolvedValue(mockReviews);
 
-    const { result } = renderHook(() => useUserReviews("user-123"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUserReviews("user-123"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -125,14 +114,14 @@ describe("useUserReviews", () => {
   });
 
   it("does not fetch when userId is empty", () => {
-    const { result } = renderHook(() => useUserReviews(""), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUserReviews(""), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getUserReviews).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
   });
 
   it("does not fetch when userId is falsy", () => {
-    const { result } = renderHook(() => useUserReviews("" as any), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUserReviews("" as any), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getUserReviews).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -141,7 +130,7 @@ describe("useUserReviews", () => {
   it("uses correct query key with userId", async () => {
     vi.mocked(apiClient.getUserReviews).mockResolvedValue([]);
 
-    const { result } = renderHook(() => useUserReviews("user-456"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUserReviews("user-456"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.getUserReviews).toHaveBeenCalledWith("user-456");
@@ -152,7 +141,7 @@ describe("useBlockUser", () => {
   it("calls apiClient.blockUser with userId", async () => {
     vi.mocked(apiClient.blockUser).mockResolvedValue();
 
-    const { result } = renderHook(() => useBlockUser(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useBlockUser(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("user-to-block");
 
@@ -164,7 +153,7 @@ describe("useBlockUser", () => {
   it("invalidates listings and chats cache on success", async () => {
     vi.mocked(apiClient.blockUser).mockResolvedValue();
 
-    const wrapper = createWrapper();
+    const wrapper = createQueryWrapper();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     });
@@ -188,7 +177,7 @@ describe("useBlockUser", () => {
     const error = { error: { code: "USER_NOT_FOUND", message: "User does not exist" } };
     vi.mocked(apiClient.blockUser).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useBlockUser(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useBlockUser(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("invalid-user");
 
@@ -202,7 +191,7 @@ describe("useUnblockUser", () => {
   it("calls apiClient.unblockUser with userId", async () => {
     vi.mocked(apiClient.unblockUser).mockResolvedValue();
 
-    const { result } = renderHook(() => useUnblockUser(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUnblockUser(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("user-to-unblock");
 
@@ -214,7 +203,7 @@ describe("useUnblockUser", () => {
   it("invalidates listings and chats cache on success", async () => {
     vi.mocked(apiClient.unblockUser).mockResolvedValue();
 
-    const wrapper = createWrapper();
+    const wrapper = createQueryWrapper();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     });
@@ -238,7 +227,7 @@ describe("useUnblockUser", () => {
     const error = { error: { code: "NOT_BLOCKED", message: "User is not currently blocked" } };
     vi.mocked(apiClient.unblockUser).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useUnblockUser(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUnblockUser(), { wrapper: createQueryWrapper() });
 
     result.current.mutate("not-blocked-user");
 

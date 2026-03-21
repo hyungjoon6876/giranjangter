@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
+import { createQueryWrapper } from "@/__tests__/test-utils";
 
-// Mock the api-client module
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
     isLoggedIn: false,
@@ -26,19 +26,6 @@ import {
   useUpdateProfile,
 } from "@/lib/hooks/use-profile";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: queryClient }, children);
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -51,7 +38,7 @@ describe("useMe", () => {
   it("does not fetch when user is not logged in", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: false, configurable: true });
 
-    const { result } = renderHook(() => useMe(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMe(), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getMe).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -62,7 +49,7 @@ describe("useMe", () => {
     const mockUser = { userId: "u1", nickname: "TestUser", email: "test@example.com" };
     vi.mocked(apiClient.getMe).mockResolvedValue(mockUser);
 
-    const { result } = renderHook(() => useMe(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMe(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -75,7 +62,7 @@ describe("useMyListings", () => {
   it("does not fetch when user is not logged in", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: false, configurable: true });
 
-    const { result } = renderHook(() => useMyListings(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyListings(), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getMyListings).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -86,7 +73,7 @@ describe("useMyListings", () => {
     const mockListings = { data: [{ listingId: "l1", title: "My Item" }], cursor: { hasMore: false } };
     vi.mocked(apiClient.getMyListings).mockResolvedValue(mockListings);
 
-    const { result } = renderHook(() => useMyListings(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyListings(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -99,7 +86,7 @@ describe("useMyListings", () => {
     const mockListings = { data: [], cursor: { hasMore: false } };
     vi.mocked(apiClient.getMyListings).mockResolvedValue(mockListings);
 
-    const { result } = renderHook(() => useMyListings("available"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyListings("available"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -110,7 +97,7 @@ describe("useMyListings", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: true, configurable: true });
     vi.mocked(apiClient.getMyListings).mockResolvedValue({ data: [], cursor: { hasMore: false } });
 
-    const { result } = renderHook(() => useMyListings("sold"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyListings("sold"), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.getMyListings).toHaveBeenCalledWith("sold");
@@ -121,7 +108,7 @@ describe("useMyTrades", () => {
   it("does not fetch when user is not logged in", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: false, configurable: true });
 
-    const { result } = renderHook(() => useMyTrades(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyTrades(), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getMyTrades).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -132,7 +119,7 @@ describe("useMyTrades", () => {
     const mockTrades = { data: [{ listingId: "t1", title: "Trade Item" }], cursor: { hasMore: false } };
     vi.mocked(apiClient.getMyTrades).mockResolvedValue(mockTrades);
 
-    const { result } = renderHook(() => useMyTrades(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMyTrades(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -145,7 +132,7 @@ describe("useNotifications", () => {
   it("does not fetch when user is not logged in", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: false, configurable: true });
 
-    const { result } = renderHook(() => useNotifications(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNotifications(), { wrapper: createQueryWrapper() });
 
     expect(apiClient.getNotifications).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
@@ -159,7 +146,7 @@ describe("useNotifications", () => {
     };
     vi.mocked(apiClient.getNotifications).mockResolvedValue(mockNotifications);
 
-    const { result } = renderHook(() => useNotifications(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNotifications(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -171,7 +158,7 @@ describe("useNotifications", () => {
     Object.defineProperty(apiClient, 'isLoggedIn', { value: true, configurable: true });
     vi.mocked(apiClient.getNotifications).mockResolvedValue({ data: [], cursor: { hasMore: false } });
 
-    const { result } = renderHook(() => useNotifications(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNotifications(), { wrapper: createQueryWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(apiClient.getNotifications).toHaveBeenCalled();
@@ -182,7 +169,7 @@ describe("useMarkNotificationsRead", () => {
   it("calls apiClient.markNotificationsRead with IDs", async () => {
     vi.mocked(apiClient.markNotificationsRead).mockResolvedValue();
 
-    const { result } = renderHook(() => useMarkNotificationsRead(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMarkNotificationsRead(), { wrapper: createQueryWrapper() });
 
     result.current.mutate(["n1", "n2", "n3"]);
 
@@ -193,7 +180,7 @@ describe("useMarkNotificationsRead", () => {
 
   it("invalidates notifications cache on success", async () => {
     vi.mocked(apiClient.markNotificationsRead).mockResolvedValue();
-    const wrapper = createWrapper();
+    const wrapper = createQueryWrapper();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     });
@@ -217,7 +204,7 @@ describe("useMarkNotificationsRead", () => {
     const error = { error: { code: "NOT_FOUND", message: "Notifications not found" } };
     vi.mocked(apiClient.markNotificationsRead).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useMarkNotificationsRead(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMarkNotificationsRead(), { wrapper: createQueryWrapper() });
 
     result.current.mutate(["invalid-id"]);
 
@@ -238,7 +225,7 @@ describe("useUpdateProfile", () => {
     const updatedUser = { userId: "u1", ...profileData };
     vi.mocked(apiClient.updateProfile).mockResolvedValue(updatedUser);
 
-    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createQueryWrapper() });
 
     result.current.mutate(profileData);
 
@@ -251,7 +238,7 @@ describe("useUpdateProfile", () => {
   it("invalidates 'me' cache on successful profile update", async () => {
     vi.mocked(apiClient.updateProfile).mockResolvedValue({ userId: "u1" });
 
-    const wrapper = createWrapper();
+    const wrapper = createQueryWrapper();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     });
@@ -274,7 +261,7 @@ describe("useUpdateProfile", () => {
     const error = { error: { code: "INVALID_NICKNAME", message: "Nickname already taken" } };
     vi.mocked(apiClient.updateProfile).mockRejectedValue(error);
 
-    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createQueryWrapper() });
 
     result.current.mutate({ nickname: "taken-nick" });
 
@@ -287,7 +274,7 @@ describe("useUpdateProfile", () => {
     const partialData = { nickname: "OnlyNickname" };
     vi.mocked(apiClient.updateProfile).mockResolvedValue({ userId: "u1", ...partialData });
 
-    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateProfile(), { wrapper: createQueryWrapper() });
 
     result.current.mutate(partialData);
 
