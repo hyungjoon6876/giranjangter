@@ -257,17 +257,22 @@ type ListingUpdateFields struct {
 
 // MyListingItem is the compact shape returned by ListMyListings.
 type MyListingItem struct {
-	ListingID     string
-	ListingType   string
-	Title         string
-	ItemName      string
-	PriceType     string
-	PriceAmount   *int64
-	Status        string
-	ViewCount     int
-	FavoriteCount int
-	ChatCount     int
-	CreatedAt     time.Time
+	ListingID       string
+	ListingType     string
+	Title           string
+	ItemName        string
+	PriceType       string
+	PriceAmount     *int64
+	EnhancementLvl  *int
+	ServerName      string
+	Status          string
+	ViewCount       int
+	FavoriteCount   int
+	ChatCount       int
+	CreatedAt       time.Time
+	AuthorID        string
+	AuthorNickname  string
+	IconID          *string
 }
 
 // ─── Chat ────────────────────────────────────────────

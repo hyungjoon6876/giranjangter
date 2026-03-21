@@ -12,7 +12,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
   return (
     <Link
       href={`/listings/${l.listingId}`}
-      aria-label={`${l.itemName}${l.enhancementLevel != null ? ` +${l.enhancementLevel}` : ""}, ${formatPrice(l.priceAmount)}원, ${l.serverName}`}
+      aria-label={`${l.itemName}${l.enhancementLevel != null ? ` +${l.enhancementLevel}` : ""}, ${formatPrice(l.priceAmount)}원${l.serverName ? `, ${l.serverName}` : ""}`}
       className={`group relative block bg-card border border-border rounded-xl p-4
         hover:border-[rgba(196,163,90,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.1)]
         hover:-translate-y-0.5 transition-all duration-300
@@ -22,7 +22,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="flex items-center gap-2 mb-2">
         <TypeBadge type={l.listingType} />
         <Badge label={statusLabel(l.status)} color={statusColor(l.status)} />
-        <span className="ml-auto text-sm text-text-secondary">{l.serverName}</span>
+        {l.serverName && <span className="ml-auto text-sm text-text-secondary">{l.serverName}</span>}
       </div>
       <h3 className="font-semibold text-text-primary truncate" title={l.title}>{l.title}</h3>
       <div className="flex items-center gap-1 mt-1 text-sm text-text-secondary">
@@ -53,7 +53,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">
-        <span>{l.author.nickname}</span>
+        <span>{l.author?.nickname}</span>
         <span>{formatTimeAgo(l.createdAt)}</span>
       </div>
     </Link>
