@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // PostgresMasterRepo implements MasterRepo using PostgreSQL via database/sql.
@@ -53,22 +54,25 @@ func (r *PostgresMasterRepo) SearchItems(ctx context.Context, query string, cate
 
 	const cols = `SELECT id, name, category_id, icon_id, sub_category, option_text, is_enchantable, safe_enchant_level, max_enchant_level FROM item_master`
 
+	// category filter: match exact ID or any child category (parent_id = ID)
+	const catFilter = `(category_id = $%d OR category_id IN (SELECT id FROM categories WHERE parent_id = $%d))`
+
 	if query == "" {
 		// Category-only browse mode
 		if categoryID == nil || *categoryID == "" {
 			return nil, nil
 		}
 		rows, err = r.db.QueryContext(ctx,
-			cols+` WHERE category_id = $1 ORDER BY name LIMIT 20`,
-			*categoryID)
+			cols+` WHERE `+fmt.Sprintf(catFilter, 1, 2)+` ORDER BY name LIMIT 20`,
+			*categoryID, *categoryID)
 	} else if categoryID == nil || *categoryID == "" {
 		rows, err = r.db.QueryContext(ctx,
 			cols+` WHERE name ILIKE $1 ORDER BY name LIMIT 20`,
 			"%"+query+"%")
 	} else {
 		rows, err = r.db.QueryContext(ctx,
-			cols+` WHERE name ILIKE $1 AND category_id = $2 ORDER BY name LIMIT 20`,
-			"%"+query+"%", *categoryID)
+			cols+` WHERE name ILIKE $1 AND `+fmt.Sprintf(catFilter, 2, 3)+` ORDER BY name LIMIT 20`,
+			"%"+query+"%", *categoryID, *categoryID)
 	}
 	if err != nil {
 		return nil, err
