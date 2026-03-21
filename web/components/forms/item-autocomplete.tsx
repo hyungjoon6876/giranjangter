@@ -36,7 +36,6 @@ export function ItemAutocomplete({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -102,6 +101,9 @@ export function ItemAutocomplete({
     onChange("");
     setSearchQuery("");
     setDebouncedQuery("");
+    setActiveCategoryId(null);
+    setActiveSubCategoryId(null);
+    onEnhancementChange?.(0);
   }
 
   const handleSearchInput = useCallback(
@@ -234,7 +236,6 @@ export function ItemAutocomplete({
     <div className={className}>
       {/* Category tabs */}
       <div
-        ref={tabsRef}
         className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide"
         role="tablist"
         aria-label="아이템 카테고리"

@@ -54,7 +54,10 @@ func (r *PostgresMasterRepo) SearchItems(ctx context.Context, query string, cate
 	const cols = `SELECT id, name, category_id, icon_id, sub_category, option_text, is_enchantable, safe_enchant_level, max_enchant_level FROM item_master`
 
 	if query == "" {
-		// Category-only browse mode: categoryID must be non-nil and non-empty (caller ensures this)
+		// Category-only browse mode
+		if categoryID == nil || *categoryID == "" {
+			return nil, nil
+		}
 		rows, err = r.db.QueryContext(ctx,
 			cols+` WHERE category_id = $1 ORDER BY name LIMIT 20`,
 			*categoryID)

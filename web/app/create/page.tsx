@@ -76,8 +76,13 @@ export default function CreateListingPage() {
     }));
   }
 
-  function handleEnhancementChange(level: number) {
-    setEnhancementLevel(level);
+  function handleItemNameChange(value: string) {
+    update("itemName", value);
+    // When autocomplete clears the item (value=""), sync parent state
+    if (!value) {
+      setSelectedItem(null);
+      setEnhancementLevel(0);
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,9 +143,9 @@ export default function CreateListingPage() {
           </label>
           <ItemAutocomplete
             value={form.itemName}
-            onChange={(v) => update("itemName", v)}
+            onChange={handleItemNameChange}
             onSelect={handleItemSelect}
-            onEnhancementChange={handleEnhancementChange}
+            onEnhancementChange={setEnhancementLevel}
             enhancementLevel={enhancementLevel}
             required
           />
