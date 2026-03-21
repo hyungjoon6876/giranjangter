@@ -158,31 +158,21 @@ export default function EditListingPage({
 
         <h3 className={sectionClass}>아이템</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="itemName" className={labelClass}>
-              아이템명 *
-            </label>
-            <ItemAutocomplete
-              value={form.itemName}
-              categoryId={listing.categoryId}
-              onChange={(v) => update("itemName", v)}
-              required
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="enhancementLevel" className={labelClass}>
-              강화 수치
-            </label>
-            <input
-              id="enhancementLevel"
-              className={inputClass}
-              type="number"
-              value={form.enhancementLevel}
-              onChange={(e) => update("enhancementLevel", e.target.value)}
-            />
-          </div>
+        <div>
+          <label className={labelClass}>
+            아이템 *
+          </label>
+          <ItemAutocomplete
+            value={form.itemName}
+            onChange={(v) => update("itemName", v)}
+            onEnhancementChange={(level) =>
+              update("enhancementLevel", String(level))
+            }
+            enhancementLevel={
+              form.enhancementLevel ? Number(form.enhancementLevel) : 0
+            }
+            required
+          />
         </div>
 
         <div>

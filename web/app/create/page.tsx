@@ -22,11 +22,6 @@ export default function CreateListingPage() {
     queryFn: () => apiClient.getServers(),
     enabled: isLoggedIn,
   });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => apiClient.getCategories(),
-    enabled: isLoggedIn,
-  });
 
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [form, setForm] = useState({
@@ -109,77 +104,45 @@ export default function CreateListingPage() {
         {/* Section: 기본 정보 */}
         <h3 className={sectionClass}>기본 정보</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="serverId" className={labelClass}>
-              서버 *
-            </label>
-            <select
-              id="serverId"
-              className={inputClass}
-              value={form.serverId}
-              onChange={(e) => update("serverId", e.target.value)}
-              required
-              aria-required="true"
-            >
-              <option value="">선택</option>
-              {servers.map((s) => (
-                <option key={s.serverId} value={s.serverId}>
-                  {s.serverName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="categoryId" className={labelClass}>
-              카테고리 *
-            </label>
-            <select
-              id="categoryId"
-              className={inputClass}
-              value={form.categoryId}
-              onChange={(e) => update("categoryId", e.target.value)}
-              required
-              aria-required="true"
-            >
-              <option value="">선택</option>
-              {categories
-                .filter((c) => !c.parentId)
-                .map((c) => (
-                  <option key={c.categoryId} value={c.categoryId}>
-                    {c.categoryName}
-                  </option>
-                ))}
-            </select>
-          </div>
+        <div>
+          <label htmlFor="serverId" className={labelClass}>
+            서버 *
+          </label>
+          <select
+            id="serverId"
+            className={inputClass}
+            value={form.serverId}
+            onChange={(e) => update("serverId", e.target.value)}
+            required
+            aria-required="true"
+          >
+            <option value="">선택</option>
+            {servers.map((s) => (
+              <option key={s.serverId} value={s.serverId}>
+                {s.serverName}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="itemName" className={labelClass}>
-              아이템명 *
-            </label>
-            <ItemAutocomplete
-              value={form.itemName}
-              categoryId={form.categoryId || undefined}
-              onChange={(v) => update("itemName", v)}
-              required
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="enhancementLevel" className={labelClass}>
-              강화 수치 (선택)
-            </label>
-            <input
-              id="enhancementLevel"
-              className={inputClass}
-              type="number"
-              value={form.enhancementLevel}
-              onChange={(e) => update("enhancementLevel", e.target.value)}
-            />
-          </div>
+        <div>
+          <label className={labelClass}>
+            아이템 *
+          </label>
+          <ItemAutocomplete
+            value={form.itemName}
+            onChange={(v) => update("itemName", v)}
+            onSelect={(item) => {
+              update("categoryId", item.categoryId);
+            }}
+            onEnhancementChange={(level) =>
+              update("enhancementLevel", String(level))
+            }
+            enhancementLevel={
+              form.enhancementLevel ? Number(form.enhancementLevel) : 0
+            }
+            required
+          />
         </div>
 
         {/* Section: 상세 정보 */}
