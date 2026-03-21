@@ -644,10 +644,15 @@ type CategoryItem struct {
 
 // ItemSearchResult is the shape returned by SearchItems.
 type ItemSearchResult struct {
-	ID         string
-	Name       string
-	CategoryID string
-	IconID     *string
+	ID             string
+	Name           string
+	CategoryID     string
+	IconID         *string
+	SubCategory    string  // NOT NULL in DB
+	OptionText     *string // nullable
+	IsEnchantable  int     // 0 or 1, NOT NULL
+	SafeEnchantLvl int     // NOT NULL DEFAULT 0
+	MaxEnchantLvl  int     // NOT NULL DEFAULT 0
 }
 
 // ─── Upload ──────────────────────────────────────────

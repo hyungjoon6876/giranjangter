@@ -51,13 +51,20 @@ func (r *PostgresMasterRepo) SearchItems(ctx context.Context, query string, cate
 	var rows *sql.Rows
 	var err error
 
-	if categoryID == nil || *categoryID == "" {
+	const cols = `SELECT id, name, category_id, icon_id, sub_category, option_text, is_enchantable, safe_enchant_level, max_enchant_level FROM item_master`
+
+	if query == "" {
+		// Category-only browse mode: categoryID must be non-nil and non-empty (caller ensures this)
 		rows, err = r.db.QueryContext(ctx,
-			"SELECT id, name, category_id, icon_id FROM item_master WHERE name ILIKE $1 ORDER BY name LIMIT 20",
+			cols+` WHERE category_id = $1 ORDER BY name LIMIT 20`,
+			*categoryID)
+	} else if categoryID == nil || *categoryID == "" {
+		rows, err = r.db.QueryContext(ctx,
+			cols+` WHERE name ILIKE $1 ORDER BY name LIMIT 20`,
 			"%"+query+"%")
 	} else {
 		rows, err = r.db.QueryContext(ctx,
-			"SELECT id, name, category_id, icon_id FROM item_master WHERE name ILIKE $1 AND category_id = $2 ORDER BY name LIMIT 20",
+			cols+` WHERE name ILIKE $1 AND category_id = $2 ORDER BY name LIMIT 20`,
 			"%"+query+"%", *categoryID)
 	}
 	if err != nil {
@@ -68,7 +75,7 @@ func (r *PostgresMasterRepo) SearchItems(ctx context.Context, query string, cate
 	var items []ItemSearchResult
 	for rows.Next() {
 		var item ItemSearchResult
-		if err := rows.Scan(&item.ID, &item.Name, &item.CategoryID, &item.IconID); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.CategoryID, &item.IconID, &item.SubCategory, &item.OptionText, &item.IsEnchantable, &item.SafeEnchantLvl, &item.MaxEnchantLvl); err != nil {
 			continue
 		}
 		items = append(items, item)

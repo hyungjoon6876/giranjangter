@@ -126,6 +126,11 @@ export interface ItemSearchResult {
   name: string;
   categoryId: string;
   iconUrl?: string;
+  subCategory: string;
+  optionText?: string;
+  isEnchantable: boolean;
+  safeEnchantLevel: number;
+  maxEnchantLevel: number;
 }
 
 export interface Review {

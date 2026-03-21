@@ -48,8 +48,8 @@ func searchItems(repo repository.MasterRepo) gin.HandlerFunc {
 		query := strings.TrimSpace(c.Query("q"))
 		categoryID := strings.TrimSpace(c.Query("categoryId"))
 
-		// Return empty array if query is empty
-		if query == "" {
+		// Return empty array if both query and categoryId are empty
+		if query == "" && categoryID == "" {
 			c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
 			return
 		}
@@ -74,10 +74,15 @@ func searchItems(repo repository.MasterRepo) gin.HandlerFunc {
 				iconURL = &u
 			}
 			items = append(items, gin.H{
-				"id":         r.ID,
-				"name":       r.Name,
-				"categoryId": r.CategoryID,
-				"iconUrl":    iconURL,
+				"id":              r.ID,
+				"name":            r.Name,
+				"categoryId":      r.CategoryID,
+				"iconUrl":         iconURL,
+				"subCategory":     r.SubCategory,
+				"optionText":      r.OptionText,
+				"isEnchantable":   r.IsEnchantable != 0,
+				"safeEnchantLevel": r.SafeEnchantLvl,
+				"maxEnchantLevel":  r.MaxEnchantLvl,
 			})
 		}
 		c.JSON(http.StatusOK, gin.H{"data": items})
