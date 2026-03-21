@@ -447,3 +447,178 @@ func TestGetMe_Unauthenticated_Returns401(t *testing.T) {
 		t.Errorf("error.code = %q, want %q", resp.Error.Code, "UNAUTHORIZED")
 	}
 }
+
+// ── UpdateProfile ──
+
+func TestUpdateProfile_Success_Returns200(t *testing.T) {
+	var updatedUserID string
+	var updatedFields repository.ProfileUpdateFields
+
+	mockRepo := &mock.MockAuthRepo{
+		UpdateProfileFn: func(ctx context.Context, userID string, fields repository.ProfileUpdateFields) error {
+			updatedUserID = userID
+			updatedFields = fields
+			return nil
+		},
+		GetUserProfileFn: func(ctx context.Context, userID string) (*repository.FullUserProfile, error) {
+			return &repository.FullUserProfile{
+				UserID:         userID,
+				Role:           "user",
+				AccountStatus:  "active",
+				Nickname:       "새닉네임",
+				Introduction:   stringPtr("안녕하세요!"),
+				TradeCount:     5,
+				ReviewCount:    3,
+				ResponseBadge:  "fast",
+				TrustBadge:     "trusted",
+				AlignmentScore: 50,
+				AlignmentGrade: "neutral",
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.PATCH("/api/v1/me", authMiddleware("user-1", "user"), handleUpdateProfile(mockRepo))
+
+	body := `{"nickname":"새닉네임","introduction":"안녕하세요!"}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/me", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	if updatedUserID != "user-1" {
+		t.Errorf("userID = %q, want %q", updatedUserID, "user-1")
+	}
+	if updatedFields.Nickname == nil || *updatedFields.Nickname != "새닉네임" {
+		t.Errorf("nickname = %v, want %q", updatedFields.Nickname, "새닉네임")
+	}
+	if updatedFields.Introduction == nil || *updatedFields.Introduction != "안녕하세요!" {
+		t.Errorf("introduction = %v, want %q", updatedFields.Introduction, "안녕하세요!")
+	}
+
+	var resp meResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Nickname != "새닉네임" {
+		t.Errorf("response nickname = %q, want %q", resp.Nickname, "새닉네임")
+	}
+}
+
+func TestUpdateProfile_NoFields_ReturnsCurrentProfile(t *testing.T) {
+	mockRepo := &mock.MockAuthRepo{
+		GetUserProfileFn: func(ctx context.Context, userID string) (*repository.FullUserProfile, error) {
+			return &repository.FullUserProfile{
+				UserID:         userID,
+				Role:           "user",
+				AccountStatus:  "active",
+				Nickname:       "기존닉네임",
+				TradeCount:     5,
+				ReviewCount:    3,
+				ResponseBadge:  "fast",
+				TrustBadge:     "trusted",
+				AlignmentScore: 50,
+				AlignmentGrade: "neutral",
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.PATCH("/api/v1/me", authMiddleware("user-1", "user"), handleUpdateProfile(mockRepo))
+
+	body := `{}` // no fields to update
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/me", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp meResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Nickname != "기존닉네임" {
+		t.Errorf("nickname = %q, want %q", resp.Nickname, "기존닉네임")
+	}
+}
+
+func TestUpdateProfile_InvalidJSON_Returns400(t *testing.T) {
+	mockRepo := &mock.MockAuthRepo{}
+
+	r := setupRouter()
+	r.PATCH("/api/v1/me", authMiddleware("user-1", "user"), handleUpdateProfile(mockRepo))
+
+	body := `{invalid json}`
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/api/v1/me", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "VALIDATION_ERROR" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "VALIDATION_ERROR")
+	}
+}
+
+// ── Logout ──
+
+func TestLogout_Success_Returns204(t *testing.T) {
+	var deletedUserID string
+
+	mockRepo := &mock.MockAuthRepo{
+		DeleteRefreshTokensByUserFn: func(ctx context.Context, userID string) error {
+			deletedUserID = userID
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.POST("/api/v1/auth/logout", authMiddleware("user-1", "user"), handleLogout(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/auth/logout", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+
+	if deletedUserID != "user-1" {
+		t.Errorf("deletedUserID = %q, want %q", deletedUserID, "user-1")
+	}
+}
+
+func TestLogout_NoAuth_Returns401(t *testing.T) {
+	auth := newTestAuth()
+	mockRepo := &mock.MockAuthRepo{}
+
+	r := setupRouter()
+	r.POST("/api/v1/auth/logout", auth.RequireAuth(), handleLogout(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/auth/logout", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusUnauthorized, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "UNAUTHORIZED" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "UNAUTHORIZED")
+	}
+}
+
+// Helper function
+func stringPtr(s string) *string {
+	return &s
+}

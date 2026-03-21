@@ -9,10 +9,10 @@
       "id": "task-001",
       "title": "테스트 커버리지 80% 달성",
       "description": "backend(Go)와 web(Vitest) 테스트 커버리지를 80% 이상으로 올린다. 현재 커버리지를 측정하고 부족한 영역에 테스트를 추가한다. backend: go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out, web: npx vitest run --coverage",
-      "status": "pending",
-      "assignedTo": null,
+      "status": "done",
+      "assignedTo": "ethereal-noodling-papert",
       "retries": 0,
-      "result": null,
+      "result": "Web 81.25% 달성 (62%→81%). Backend는 cmd/server 47.6% (18%→48%), admin 핸들러 raw *sql.DB 의존으로 80% 불가 → 사용자 승인하에 현재 수준 마무리",
       "blockedReason": null
     }
   ]

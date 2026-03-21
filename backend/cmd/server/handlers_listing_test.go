@@ -360,3 +360,352 @@ func TestCreateListing_PriceRequired_ForNonOffer(t *testing.T) {
 		t.Errorf("error.message = %q, want to contain '가격'", resp.Error.Message)
 	}
 }
+
+// ── ListListings ──
+
+func TestListListings_Success_Returns200(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListListingsFn: func(ctx context.Context, filter repository.ListingFilter) ([]repository.ListingListItem, error) {
+			return []repository.ListingListItem{
+				{
+					ListingID:       "listing-1",
+					ListingType:     "sell",
+					Title:           "아이템 판매",
+					ItemName:        "진명황의 집행검",
+					PriceType:       "fixed",
+					PriceAmount:     int64Ptr(50000),
+					EnhancementLvl:  intPtr(5),
+					ServerID:        "server-1",
+					ServerName:      "데포로쥬",
+					Status:          "available",
+					TradeMethod:     "in_game",
+					ViewCount:       10,
+					FavoriteCount:   2,
+					ChatCount:       3,
+					AuthorID:        "user-1",
+					AuthorNickname:  "판매자",
+					TrustBadge:      "trusted",
+					ResponseBadge:   "fast",
+					IconID:          strPtr("sword_icon"),
+				},
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/listings", handleListListings(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/listings?q=진명황&serverId=server-1", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 1 {
+		t.Errorf("len(data) = %d, want 1", len(resp.Data))
+	}
+	if resp.Data[0]["listingId"] != "listing-1" {
+		t.Errorf("listingId = %v, want %q", resp.Data[0]["listingId"], "listing-1")
+	}
+}
+
+func TestListListings_EmptyResults_Returns200(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListListingsFn: func(ctx context.Context, filter repository.ListingFilter) ([]repository.ListingListItem, error) {
+			return []repository.ListingListItem{}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/listings", handleListListings(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/listings", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(resp.Data))
+	}
+}
+
+// ── GetListing ──
+
+func TestGetListing_Success_Returns200(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		GetListingFn: func(ctx context.Context, listingID string) (*repository.ListingDetail, error) {
+			return &repository.ListingDetail{
+				ID:              "listing-1",
+				ListingType:     "sell",
+				Title:           "아이템 판매",
+				ItemName:        "진명황의 집행검",
+				Description:     "좋은 아이템입니다",
+				PriceType:       "fixed",
+				PriceAmount:     int64Ptr(50000),
+				Quantity:        1,
+				Enhancement:     intPtr(5),
+				ServerID:        "server-1",
+				ServerName:      "데포로쥬",
+				CategoryID:      "cat-1",
+				CategoryName:    "무기",
+				Status:          "available",
+				TradeMethod:     "in_game",
+				AuthorID:        "user-1",
+				AuthorNickname:  "판매자",
+				TrustBadge:      "trusted",
+				ResponseBadge:   "fast",
+				ViewCount:       10,
+				FavoriteCount:   2,
+				ChatCount:       3,
+			}, nil
+		},
+		IncrementViewCountFn: func(ctx context.Context, listingID string) error {
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/listings/:id", handleGetListing(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/listings/listing-1", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["listingId"] != "listing-1" {
+		t.Errorf("listingId = %v, want %q", resp["listingId"], "listing-1")
+	}
+	if resp["title"] != "아이템 판매" {
+		t.Errorf("title = %v, want %q", resp["title"], "아이템 판매")
+	}
+}
+
+func TestGetListing_NotFound_Returns404(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		GetListingFn: func(ctx context.Context, listingID string) (*repository.ListingDetail, error) {
+			return nil, nil // listing not found
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/listings/:id", handleGetListing(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/listings/nonexistent", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNotFound, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "NOT_FOUND" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "NOT_FOUND")
+	}
+}
+
+// ── FavoriteListing ──
+
+func TestFavoriteListing_Success_Returns204(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListingExistsFn: func(ctx context.Context, listingID string) (bool, error) {
+			return true, nil
+		},
+		AddFavoriteFn: func(ctx context.Context, id, userID, listingID string) error {
+			if userID != "user-1" {
+				t.Errorf("userID = %q, want %q", userID, "user-1")
+			}
+			if listingID != "listing-1" {
+				t.Errorf("listingID = %q, want %q", listingID, "listing-1")
+			}
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/favorite", authMiddleware("user-1", "user"), handleFavoriteListing(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/listing-1/favorite", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+}
+
+func TestFavoriteListing_NotFound_Returns404(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListingExistsFn: func(ctx context.Context, listingID string) (bool, error) {
+			return false, nil // listing doesn't exist
+		},
+	}
+
+	r := setupRouter()
+	r.POST("/api/v1/listings/:id/favorite", authMiddleware("user-1", "user"), handleFavoriteListing(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/api/v1/listings/nonexistent/favorite", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNotFound, w.Body.String())
+	}
+
+	var resp errResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error.Code != "NOT_FOUND" {
+		t.Errorf("error.code = %q, want %q", resp.Error.Code, "NOT_FOUND")
+	}
+}
+
+// ── UnfavoriteListing ──
+
+func TestUnfavoriteListing_Success_Returns204(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		RemoveFavoriteFn: func(ctx context.Context, userID, listingID string) error {
+			if userID != "user-1" {
+				t.Errorf("userID = %q, want %q", userID, "user-1")
+			}
+			if listingID != "listing-1" {
+				t.Errorf("listingID = %q, want %q", listingID, "listing-1")
+			}
+			return nil
+		},
+	}
+
+	r := setupRouter()
+	r.DELETE("/api/v1/listings/:id/favorite", authMiddleware("user-1", "user"), handleUnfavoriteListing(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/api/v1/listings/listing-1/favorite", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+}
+
+// ── MyListings ──
+
+func TestMyListings_Success_Returns200(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListMyListingsFn: func(ctx context.Context, userID string, status *string) ([]repository.MyListingItem, error) {
+			return []repository.MyListingItem{
+				{
+					ListingID:     "listing-1",
+					ListingType:   "sell",
+					Title:         "아이템 판매",
+					ItemName:      "진명황의 집행검",
+					PriceType:     "fixed",
+					PriceAmount:   int64Ptr(50000),
+					Status:        "available",
+					ViewCount:     10,
+					FavoriteCount: 2,
+					ChatCount:     3,
+				},
+				{
+					ListingID:     "listing-2",
+					ListingType:   "buy",
+					Title:         "아이템 구매",
+					ItemName:      "다른 아이템",
+					PriceType:     "offer",
+					PriceAmount:   nil,
+					Status:        "sold",
+					ViewCount:     5,
+					FavoriteCount: 1,
+					ChatCount:     2,
+				},
+			}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/my/listings", authMiddleware("user-1", "user"), handleMyListings(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/my/listings?status=available", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 2 {
+		t.Errorf("len(data) = %d, want 2", len(resp.Data))
+	}
+	if resp.Data[0]["listingId"] != "listing-1" {
+		t.Errorf("listingId = %v, want %q", resp.Data[0]["listingId"], "listing-1")
+	}
+	if resp.Data[0]["title"] != "아이템 판매" {
+		t.Errorf("title = %v, want %q", resp.Data[0]["title"], "아이템 판매")
+	}
+}
+
+func TestMyListings_EmptyList_Returns200(t *testing.T) {
+	mockRepo := &mock.MockListingRepo{
+		ListMyListingsFn: func(ctx context.Context, userID string, status *string) ([]repository.MyListingItem, error) {
+			return []repository.MyListingItem{}, nil
+		},
+	}
+
+	r := setupRouter()
+	r.GET("/api/v1/my/listings", authMiddleware("user-1", "user"), handleMyListings(mockRepo))
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/my/listings", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Data []interface{} `json:"data"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if len(resp.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(resp.Data))
+	}
+}
+
+// Helper functions
+func strPtr(s string) *string {
+	return &s
+}
+
+func intPtr(i int) *int {
+	return &i
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
+}
