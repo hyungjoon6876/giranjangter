@@ -52,6 +52,29 @@ func main() {
 		}
 	}()
 
+	// Cleanup old notifications on startup (older than 7 days)
+	if result, err := db.Exec("DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '7 days'"); err != nil {
+		log.Printf("notification cleanup warning: %v", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		log.Printf("cleaned up %d old notifications", n)
+	}
+
+	// Periodic cleanup of old notifications (every 24 hours)
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			result, err := db.Exec("DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '7 days'")
+			if err != nil {
+				log.Printf("notification cleanup error: %v", err)
+				continue
+			}
+			if n, _ := result.RowsAffected(); n > 0 {
+				log.Printf("cleaned up %d old notifications", n)
+			}
+		}
+	}()
+
 	// Create repositories
 	authRepo := repository.NewPostgresAuthRepo(db)
 	listingRepo := repository.NewPostgresListingRepo(db)
