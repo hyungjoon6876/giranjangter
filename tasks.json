@@ -9,11 +9,11 @@
       "id": "task-001",
       "title": "테스트 커버리지 80% 달성",
       "description": "backend(Go)와 web(Vitest) 테스트 커버리지를 80% 이상으로 올린다. 현재 커버리지를 측정하고 부족한 영역에 테스트를 추가한다. backend: go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out, web: npx vitest run --coverage",
-      "status": "pending",
+      "status": "blocked",
       "assignedTo": null,
       "retries": 0,
       "result": null,
-      "blockedReason": null
+      "blockedReason": "다른 워크트리에서 진행 중인 태스크. 이 워크트리는 프로필 매물 버그 수정 전용."
     }
   ]
 }

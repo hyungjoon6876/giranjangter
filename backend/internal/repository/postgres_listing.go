@@ -266,18 +266,25 @@ func (r *PostgresListingRepo) RemoveFavorite(ctx context.Context, userID, listin
 }
 
 func (r *PostgresListingRepo) ListMyListings(ctx context.Context, userID string, status *string) ([]MyListingItem, error) {
-	query := `SELECT id, listing_type, title, item_name, price_type, price_amount,
-		status, view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = listings.id) as favorite_count, chat_count, created_at
-		FROM listings WHERE author_user_id = $1 AND deleted_at IS NULL`
+	query := `SELECT l.id, l.listing_type, l.title, l.item_name, l.price_type, l.price_amount,
+		l.enhancement_level, s.name as server_name,
+		l.status, l.view_count, (SELECT COUNT(*) FROM favorites f WHERE f.listing_id = l.id) as favorite_count, l.chat_count, l.created_at,
+		p.user_id as author_id, p.nickname,
+		im.icon_id
+		FROM listings l
+		JOIN servers s ON l.server_id = s.id
+		JOIN user_profiles p ON l.author_user_id = p.user_id
+		LEFT JOIN item_master im ON im.name = l.item_name
+		WHERE l.author_user_id = $1 AND l.deleted_at IS NULL`
 	args := []interface{}{userID}
 	paramIdx := 2
 
 	if status != nil {
-		query += fmt.Sprintf(" AND status = $%d", paramIdx)
+		query += fmt.Sprintf(" AND l.status = $%d", paramIdx)
 		args = append(args, *status)
 		paramIdx++
 	}
-	query += " ORDER BY created_at DESC LIMIT 50"
+	query += " ORDER BY l.created_at DESC LIMIT 50"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -290,7 +297,10 @@ func (r *PostgresListingRepo) ListMyListings(ctx context.Context, userID string,
 		var item MyListingItem
 		if err := rows.Scan(&item.ListingID, &item.ListingType, &item.Title, &item.ItemName,
 			&item.PriceType, &item.PriceAmount,
-			&item.Status, &item.ViewCount, &item.FavoriteCount, &item.ChatCount, &item.CreatedAt); err != nil {
+			&item.EnhancementLvl, &item.ServerName,
+			&item.Status, &item.ViewCount, &item.FavoriteCount, &item.ChatCount, &item.CreatedAt,
+			&item.AuthorID, &item.AuthorNickname,
+			&item.IconID); err != nil {
 			continue
 		}
 		items = append(items, item)
