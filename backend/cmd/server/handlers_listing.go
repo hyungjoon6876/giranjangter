@@ -488,12 +488,18 @@ func handleMyListings(repo repository.ListingRepo) gin.HandlerFunc {
 
 		var result []gin.H
 		for _, item := range items {
-			result = append(result, gin.H{
+			entry := gin.H{
 				"listingId": item.ListingID, "listingType": item.ListingType, "title": item.Title, "itemName": item.ItemName,
 				"priceType": item.PriceType, "priceAmount": item.PriceAmount, "status": item.Status,
+				"enhancementLevel": item.EnhancementLvl, "serverName": item.ServerName,
 				"viewCount": item.ViewCount, "favoriteCount": item.FavoriteCount, "chatCount": item.ChatCount,
 				"createdAt": item.CreatedAt.Format(time.RFC3339),
-			})
+				"author": gin.H{"userId": item.AuthorID, "nickname": item.AuthorNickname},
+			}
+			if item.IconID != nil {
+				entry["iconUrl"] = "/static/icons/" + *item.IconID + ".png"
+			}
+			result = append(result, entry)
 		}
 
 		c.JSON(http.StatusOK, gin.H{"data": result})
