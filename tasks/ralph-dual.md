@@ -87,14 +87,22 @@ normalized_selector 규칙: data-testid 우선 → 없으면 id → 없으면 cl
 ### 1) Detect
 {PAGE}를 production URL에 3 뷰포트에서 로드, A1-A5+B1-B5 결과 수집.
 
-### 2) Dedup
-tasks/bug-found.md 읽고 (page, rule_id, normalized_selector) 키로 비교, 새 위반만 처리.
+### 2) Dedup + 처리 대상 결정
 
-### 3) 처리할 새 버그 0건이면
-바로 결과 반환 (consecutive_no_new가 메인에서 +1 됨):
-  { "page_visited": "{PAGE}", "new_count": 0, "fixed_ids": [], "blocked_ids": [], "files_touched": [] }
+tasks/bug-found.md 읽고 (page, rule_id, normalized_selector) 키로 비교.
 
-### 4) 처리할 새 버그가 있으면 각 버그에 대해 순차:
+- **new_count**: 이번에 detect로 새로 발견된 항목 중 bug-found.md에 없는 개수 (consecutive_no_new 판정에만 사용)
+- **처리 대상**:
+  - 이번에 새로 발견된 모든 항목 (위 dedup으로 새 entry 추가)
+  - PLUS bug-found.md에서 `page == {PAGE}` AND `status == open` 인 기존 항목 (이전 iter에서 처리 못 한 것)
+- 처리 대상은 모두 이 iter 안에서 순차 처리한다. **deferral 금지**.
+- `status == blocked`인 항목은 재처리하지 않는다 (사람 손 필요로 분류되어 needs-human.md로 이미 라우팅됨).
+
+### 3) 처리 대상이 0건이면
+바로 결과 반환:
+  { "page_visited": "{PAGE_RESOLVED}", "new_count": 0, "fixed_ids": [], "blocked_ids": [], "files_touched": [] }
+
+### 4) 처리 대상이 있으면 각각 순차:
 
 a) bug-found.md에 status: open으로 추가 (id: bug-NNNN, found_at_iter: {ITER})
 
@@ -105,9 +113,10 @@ b) Localize:
 
 c) bug-state.files_modified_count[<file>] >= 3인 파일 → blocked + needs-human
 
-d) Branch + Fix:
+d) Branch + Fix (코드 파일만 수정. tasks/* 상태 파일은 main에서만 수정):
    - git checkout -b auto/bug-{ITER}-{ID}
-   - Edit 도구로 코드 수정
+   - Edit 도구로 코드 수정 (web/, backend/, frontend/, admin/, shared/ 안)
+   - tasks/* 파일은 이 단계에서 건드리지 않는다
 
 e) Verify Tier 1+2+3 (실패 시 어느 단계에서든 → 브랜치 폐기 + needs-human):
    Tier 1 lint:
@@ -133,12 +142,19 @@ g) Code Review:
 
 h) Merge:
    - git checkout main
+   - 코드 파일만 stage: `git add <code-files>` (tasks/* 제외)
    - git merge --squash auto/bug-{ITER}-{ID}
    - git commit -m "fix(auto): <evidence 한 줄> [bug-{ID}]"
    - git branch -D auto/bug-{ITER}-{ID}
-   - bug-found.md status를 fixed로 변경 + fixed_at_iter 기록
-   - bug-fixed.md에 항목 추가
-   - bug-state.files_modified_count[<file>] += 1
+   - 그 다음 main 작업 트리에서 (uncommitted) tasks/* 갱신:
+     • bug-found.md status를 fixed로 변경 + fixed_at_iter 기록
+     • bug-fixed.md에 항목 추가
+   - bug-state.files_modified_count[<file>] += 1 — 메인이 §6에서 처리
+
+블록(localize/verify/review 실패) 시:
+   - git checkout main && git branch -D auto/bug-{ITER}-{ID}
+   - bug-found.md에서 해당 항목 status를 blocked로 변경 + blocked_reason 기록 (uncommitted)
+   - needs-human.md에 항목 추가 (uncommitted)
 
 ### 5) 결과 반환
 
@@ -290,12 +306,24 @@ c) `tasks/ralph-progress.md`에 한 줄 append:
    `iter {N} | bugs +{found}/-{fixed}={open} | improvs +{new}={total} | {events}`
    events 예: "merged auto/bug-12-0007", "blocked bug-12-0008 localize-failed", "skip /listings/:id (no sample)"
 
+d) **Iter end commit** — 모든 tasks/* 변경(JSON state + 누적 .md들)을 한 커밋으로 묶음:
+   ```bash
+   git add tasks/
+   git commit -m "chore(ralph): iter {N} state — bugs +{found}/-{fixed}, improvs +{new}"
+   ```
+   이렇게 하면 코드 fix 커밋(`fix(auto): ...`)과 상태 커밋(`chore(ralph): iter N state`)이 분리되어 history가 깔끔하다.
+   상태 변경이 없으면(아무 일도 일어나지 않으면) 빈 커밋 만들지 말고 skip.
+
 ## 7. 안전장치 / 동시성
 
 - 두 subagent는 같은 message에서 Agent tool 2개 동시 호출 (병렬)
-- bug-found.md, bug-fixed.md, needs-human.md, bug-state.json은 bug-detect-fix subagent만 쓴다
-- improvements.md, improve-state.json은 improve-suggest subagent만 쓴다
-- ralph-progress.md는 메인이 직접 쓴다
+- bug-found.md, bug-fixed.md, needs-human.md는 bug-detect-fix subagent가 main 작업 트리에서 수정 (uncommitted)
+- bug-state.json은 메인이 §6에서 갱신
+- improvements.md는 improve-suggest subagent가 main 작업 트리에서 수정 (uncommitted)
+- improve-state.json은 메인이 §6에서 갱신
+- ralph-progress.md는 메인이 §6에서 추가
+- **모든 tasks/* 변경의 커밋은 메인이 §6 d)에서 한 번에 묶음** (subagent는 tasks/* 커밋하지 않음)
+- 코드 fix 커밋은 별도 (auto/bug-* 브랜치 squash merge로 main에 들어옴)
 - 매 iter 메인은 코드 파일 직접 수정 금지 (subagent에게 위임)
 - 같은 파일 3회 이상 자동수정 차단 (files_modified_count로 체크)
 

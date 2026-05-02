@@ -1,15 +1,17 @@
 {
-  "iteration": 0,
+  "iteration": 1,
   "consecutive_no_new": 0,
-  "last_page_index": -1,
+  "last_page_index": 0,
   "page_queue": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chat"],
-  "pages_visited": [],
-  "pages_visited_count": 0,
+  "pages_visited": ["/"],
+  "pages_visited_count": 1,
   "sample_listing_id": null,
-  "files_modified_count": {},
+  "files_modified_count": {
+    "web/components/listing/listing-filters.tsx": 1
+  },
   "totals": {
-    "found": 0,
-    "fixed": 0,
+    "found": 3,
+    "fixed": 1,
     "blocked": 0
   }
 }
