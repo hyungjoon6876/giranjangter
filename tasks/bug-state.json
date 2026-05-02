@@ -1,0 +1,15 @@
+{
+  "iteration": 0,
+  "consecutive_no_new": 0,
+  "last_page_index": -1,
+  "page_queue": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chat"],
+  "pages_visited": [],
+  "pages_visited_count": 0,
+  "sample_listing_id": null,
+  "files_modified_count": {},
+  "totals": {
+    "found": 0,
+    "fixed": 0,
+    "blocked": 0
+  }
+}
