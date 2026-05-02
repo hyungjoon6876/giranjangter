@@ -26,12 +26,12 @@ export function ListingFilters({
   const topCategories = categories.filter((c) => !c.parentId);
 
   const chipBase =
-    "px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold";
+    "px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold min-h-[32px]";
   const chipActive = "btn-gold-gradient text-white";
   const chipInactive = "bg-medium text-text-secondary hover:bg-light";
 
   const smallChipBase =
-    "px-3 py-1.5 rounded-lg text-xs whitespace-nowrap transition-colors border";
+    "px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-colors border min-h-[32px]";
   const smallChipActive = "border-gold text-gold bg-gold/10";
   const smallChipInactive =
     "border-border text-text-secondary bg-medium hover:bg-light";
