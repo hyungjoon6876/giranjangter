@@ -2202,3 +2202,135 @@
   effort: large
   impact: medium
   evidence: "API: 카테고리=무기 매물 가격 [200000, 43680742, 1, 10] — std 가 평균보다 높은 long-tail. fraud/anomaly/outlier grep 백엔드 0건. 가격 1원·10원 매물은 100% 사기 또는 테스트일 확률 높지만 일반 사용자에 노출."
+
+- id: imp-0201
+  found_at_iter: 14
+  area: listing_detail
+  type: performance
+  target: jsonld_product_offer_schema
+  problem: "<script type='application/ld+json'> 가 페이지에 0건이다. Google 의 Product/Offer rich result 가이드에 따르면 매물 페이지는 name/image/description/offers(price, priceCurrency, availability, seller) 를 JSON-LD 로 노출해야 검색 결과에 가격·이미지·재고 상태가 함께 표시된다. 현재는 일반 텍스트 스니펫만 인덱싱되어 검색 CTR 가 낮다."
+  proposal: "web/app/listings/[id]/page.tsx 를 server component 로 분리하고 generateMetadata 와 별개로 <Script id='ld-product' type='application/ld+json'> 에 Product schema 를 직렬화한다. 필드: name=title, image=[iconUrl 절대 URL], description=description, sku=listingId, offers={'@type':'Offer', price=priceAmount, priceCurrency='KRW', availability=status==='available'?'InStock':'OutOfStock', seller={'@type':'Person', name=author.nickname}}, brand={'@type':'Brand', name=serverName}. imp-0048(메타) 과 함께 적용."
+  effort: small
+  impact: high
+  evidence: "Playwright: document.querySelectorAll('script[type=\"application/ld+json\"]').length === 0. API 응답에 productSchema 에 매핑 가능한 모든 필드(title, iconUrl, description, listingId, priceAmount, status, author.nickname, serverName) 존재."
+
+- id: imp-0202
+  found_at_iter: 14
+  area: listing_detail
+  type: performance
+  target: jsonld_breadcrumb_schema
+  problem: "BreadcrumbList JSON-LD 가 없어 검색 결과에 'giranjt.com > 마켓 > 질리언 > 둔기' 같은 계층 표시가 안 된다. 동시에 시각적 breadcrumb UI 도 없다(imp-0057). 둘이 동시 부재라 사용자/검색엔진 모두 매물의 위치 컨텍스트를 잃는다."
+  proposal: "imp-0057 의 시각 breadcrumb 와 함께 BreadcrumbList JSON-LD(item: '/', '/listings?server=zillian', '/listings?server=zillian&category=weapon_mace', '/listings/<id>') 를 주입. position 1..4. server component 의 generateMetadata 와 같은 자리에서 함께 처리."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: breadcrumbSchema=false (JSON-LD 0건), 시각 breadcrumb 도 imp-0057 에서 부재 확인. API 의 serverName/categoryName 이 인덱스 키로 사용 가능."
+
+- id: imp-0203
+  found_at_iter: 14
+  area: listing_detail
+  type: feature
+  target: item_master_db_link
+  problem: "아이템 아이콘(64x64)을 클릭/호버해도 '도리깨' 아이템의 마스터 정보(공격력, 무게, 직업 제한, 강화 표 등)를 볼 수 없다. 리니지 클래식 사용자는 +10 도리깨가 어느 직업에 어떤 효과인지 알아야 가격 정당성을 판단하는데, 매물 상세에서 도감 정보가 단절되어 외부 위키로 이탈한다."
+  proposal: "(1) 아이콘 우측에 작은 'i' 인포 칩을 두고 클릭 시 popover 로 itemMaster 정보(공격력, 무게, 장착 직업, 강화 단계별 효과) 노출. (2) 아이콘 자체는 <a href='/items/{categoryId}/{itemMasterId}'> 로 감싸서 새 도감 페이지(또는 동일 카테고리 매물 목록)로 라우팅. (3) backend item_master 시드에 baseStats JSON 컬럼 추가, GET /api/v1/items/:id 신설."
+  effort: large
+  impact: medium
+  evidence: "Playwright: 아이콘 img alt='', title 없음, 부모 a/button 없음(클릭 불가). itemMasterDb 검색 0건('레벨/장착 직업/아이템 설명' 어떤 텍스트도 페이지에 없음). 사용자가 아이템 정보를 얻으려면 외부 위키 검색 필요."
+
+- id: imp-0204
+  found_at_iter: 14
+  area: listing_detail
+  type: ux
+  target: stale_listing_warning
+  problem: "createdAt='2026-03-21T01:58:50Z' 와 lastActivityAt 가 정확히 같다 — 게시 후 1개월간 단 한 번도 가격 수정/응답이 없었다. chatCount=0 favoriteCount=0 도 같이 실패 시그널이지만 페이지는 '판매중' 그대로 표시한다. 거래 의사가 살아있는 매물인지 실질적으로 죽은 매물인지 사용자가 판별 어렵다."
+  proposal: "lastActivityAt - createdAt 차이가 작고(즉 활동 0) (now - lastActivityAt) > 14일이면 '⚠️ 게시 후 활동 없음 (1개월)' dim 톤 헬퍼 라인을 stats 옆에 노출. 30일 이상이면 '판매자가 응답할 가능성이 낮습니다' 톤으로 강화. 60일 이상이면 backend cron 으로 status='archived' 자동 전환 + 응답 없음 매물 검색에서 후순위. imp-0049(time semantic) 과 같은 영역."
+  effort: small
+  impact: medium
+  evidence: "API: createdAt=lastActivityAt='2026-03-21T01:58:50Z' (정확히 같음 → 활동 0), now=2026-05-03 → 약 43일 경과, viewCount=22 chatCount=0 favoriteCount=0. 페이지에 '활동 없음/장기 미응답' 시그널 0건."
+
+- id: imp-0205
+  found_at_iter: 14
+  area: listing_detail
+  type: content
+  target: korean_price_readable_format
+  problem: "가격 표시 '200,000원' 은 읽기는 가능하지만 한국어 화자에게 '20만원' 이 더 직관적이다. 큰 숫자(예: 43,680,742원)일수록 인지 부담이 커지는데, '4,368만원' 또는 '약 4,300만원' 보조 라벨이 없다. 또한 스크린리더가 '이백만원' 으로 읽지 못하고 '이백천원' 으로 잘못 읽을 가능성."
+  proposal: "(1) 가격 옆 또는 아래 작은 톤으로 '약 20만원' 보조 라벨 추가. 1억 이상이면 '약 1.2억', 1,000만 이상이면 '약 4,300만원' 처럼 만/억 단위. (2) <span aria-label='이십만 원'> 처럼 한국어 음독 aria-label 부여(toKoreanNumeral 헬퍼). (3) 통일된 KRW 포맷 유틸 web/lib/format/krw.ts 신설."
+  effort: small
+  impact: low
+  evidence: "Playwright: 가격 텍스트 '200,000원', 보조 라벨 0건. 같은 카테고리 다른 매물 '43,680,742원' 도 동일 패턴. 가격 element 의 aria-label 없음(스크린리더는 '이만 원' 또는 '이십만 원' 둘 중 무작위)."
+
+- id: imp-0206
+  found_at_iter: 14
+  area: listing_detail
+  type: a11y_mobile
+  target: viewport_disable_user_zoom
+  problem: "<meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1'> 으로 핀치줌이 차단되어 있다. 이는 WCAG 1.4.4 (Resize Text) 와 모바일 a11y 가이드 위반이다. 시력 약한 사용자가 매물 사진/설명/가격을 확대해서 볼 수 없고, 강화 +10 같은 작은 텍스트도 확대 불가."
+  proposal: "viewport 메타에서 maximum-scale=1 제거(또는 maximum-scale=5, user-scalable=yes). web/app/layout.tsx 의 viewport 설정 수정. iOS 에서 input focus 시 자동 zoom 우려는 input font-size>=16px 또는 user-scalable 유지로 해결 가능. PWA 일관성을 위해 standalone 모드에서만 maximum-scale 유지하도록 conditional."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: <meta name='viewport'> content='width=device-width, initial-scale=1, maximum-scale=1', blocksZoom=true. WCAG 1.4.4 / SC 1.4.10 미달 — 시력 약한 사용자 핀치줌 불가."
+
+- id: imp-0207
+  found_at_iter: 14
+  area: listing_detail
+  type: feature
+  target: seller_other_listings_preview
+  problem: "imp-0046 은 '같은 server+category' 비슷한 매물 추천이고, 이건 다른 각도 — '판매자 da1e387a 의 다른 매물' 미니 카드 3-4개를 판매자 정보 카드 아래에 노출. 사용자가 한 판매자에게 신뢰가 가면 묶음으로 거래하고 싶어하는 패턴(특히 같은 서버/같은 직업의 풀세트 거래)을 지원."
+  proposal: "GET /api/v1/listings?authorId=<userId>&excludeId=<listingId>&limit=4&status=available API 추가. 판매자 카드(L99 부근) 아래 SellerOtherListingsPreview 컴포넌트로 가로 스크롤 미니 카드. 0건이면 표시하지 않음. imp-0046 과 컴포넌트 재사용 가능."
+  effort: medium
+  impact: medium
+  evidence: "API author.userId='da1e387a-fd67-4189-8475-b1a379e9a2a2' 존재(이 유저는 listings 페이지에서 4매물 중 3매물 보유 — 다른 매물 표시할 자료 충분). 페이지 검색 '판매자의 다른|이 판매자의' 0건. imp-0046 의 similar 와 별개 축."
+
+- id: imp-0208
+  found_at_iter: 14
+  area: listing_detail
+  type: feature
+  target: notify_on_price_change_subscription
+  problem: "찜 등록(imp-0042) 이외에 '가격 변경/상태 변경/응답 시 알림' 같은 세분 구독이 없다. 비싸서 못 사는 매물을 '20만원 이하로 떨어지면 알려줘' 같이 가격 트리거로 설정하면 buy-side 컨버전이 살아난다."
+  proposal: "찜 버튼 옆 ⋯ 메뉴에 '가격 알림 설정' 추가. 모달에서 'X원 이하 도달 시 알림' 트리거 설정. 백엔드: listing_price_alerts 테이블(user_id, listing_id, threshold_price, channel='in_app|email|kakao'). priceAmount 변경 시 cron 으로 임계값 비교 → 알림 fanout. status='reserved' 변경 시 즉시 '예약됨' 알림."
+  effort: large
+  impact: medium
+  evidence: "Playwright: '가격 변동 알림|상태 알림' 텍스트 0건, statusAlert=false. priceType='fixed' 매물도 협상 가능성 있어 가격 변경은 흔함. 비슷한 기능: 당근/번개장터 모두 가격 알림 제공."
+
+- id: imp-0209
+  found_at_iter: 14
+  area: listing_detail
+  type: ux
+  target: counter_offer_inline_form
+  problem: "priceType='fixed' 든 'negotiable' 든 buyer 가 직접 '제시 가격'을 보내는 폼이 매물 상세에 없다. 사용자는 채팅을 시작해서 '15만원 어떠세요?' 라고 자유 텍스트로 적어야 하고, 판매자도 협상 진행을 추적하기 어렵다."
+  proposal: "negotiable 매물에 '제시 가격 입력' 인라인 폼 + 'X원 으로 제시' 버튼 추가. 클릭 시 채팅방 자동 생성 + 첫 메시지로 'BuyerNickname 님이 150,000원을 제시했습니다' 시스템 메시지 + offerAmount 가 chat_room.proposed_price 에 저장. 판매자 채팅창에 '수락/거절/역제안' 인라인 액션 버튼. priceType='fixed' 도 'fixed_with_negotiation' 옵션 추가 시 활성화."
+  effort: large
+  impact: high
+  evidence: "Playwright: 'offer/제시/입찰/역제안' 텍스트 0건, offerForm=false counterOffer=false. priceType='fixed' 200,000 매물에 협상 진입점 없음. 채팅 기반 자유 협상은 추적/통계/완료율 측정 불가."
+
+- id: imp-0210
+  found_at_iter: 14
+  area: listing_detail
+  type: content
+  target: newcomer_safe_trade_warning
+  problem: "판매자 trustBadge='newcomer' (가입 신규 + 거래 0회) 인데도 '안전 거래 가이드 / 사기 주의 / 첫 거래 유의사항' 같은 보호 카피가 매물 상세 어디에도 없다. 신규 사용자에게 첫 거래는 사기 위험이 가장 높은 시점인데, 플랫폼이 아무 가이드도 제공하지 않는다."
+  proposal: "trustBadge='newcomer' 또는 completedTradeCount<3 일 때 판매자 카드 아래 InfoBox '⚠️ 첫 거래 유의사항' 펼침: (1) 게임 내 거래 인증 후 송금, (2) 외부 카톡 송금 강요 시 신고, (3) 채팅 내 메시지 캡처 보존, (4) 거래 후 리뷰 작성. 카피는 5줄 이내 한국어 친근체. 같은 박스에 '신고하기' 직접 링크."
+  effort: small
+  impact: high
+  evidence: "API: author.trustBadge='newcomer', completedTradeCount=0. Playwright: '안전 거래|사기 주의|유의사항' 텍스트 0건 safeTrade=false. 신규 거래자에게 안내 부재."
+
+- id: imp-0211
+  found_at_iter: 14
+  area: listing_detail
+  type: feature
+  target: recently_viewed_strip
+  problem: "방문자가 마켓 → 매물 A → 마켓 → 매물 B → 매물 A 패턴으로 비교 탐색하는데, 매물 상세에서 '내가 최근에 본 매물' 가로 스크롤 strip 이 없다. 비교 추적이 불가능해 사용자는 백 버튼 + 메모리에 의존한다."
+  proposal: "localStorage 의 recentlyViewedListings 배열(최대 10건, listingId+title+priceAmount+iconUrl+viewedAt) 에 페이지 진입 시 unshift. 매물 상세 하단(혹은 imp-0046 비슷한 매물 위)에 '최근 본 매물' 섹션 렌더. 클릭 시 해당 매물로 이동. 익명/로그인 둘 다 동작 가능, 로그인 시 server 동기화 옵션."
+  effort: small
+  impact: medium
+  evidence: "Playwright: '최근 본|recently viewed' 0건 recentlyViewed=false. localStorage.recentlyViewedListings undefined. 비교 탐색이 흔한 거래 행위인데 도구 부재."
+
+- id: imp-0212
+  found_at_iter: 14
+  area: listing_detail
+  type: feature
+  target: kakaotalk_share_intent
+  problem: "공유(imp-0056) 가 navigator.share + clipboard 폴백만 있고, 한국 사용자가 가장 많이 쓰는 카카오톡 직접 공유 SDK 가 없다. 카톡으로 매물 링크를 보낼 때 미리보기(og:image, og:title)도 깨져있어(localhost:3000) 시각적 어필 0."
+  proposal: "(1) 카카오 JavaScript SDK 의 Kakao.Share.sendDefault({objectType:'feed', content:{title, description, imageUrl, link}}) 호출 버튼 추가('카카오톡으로 공유'). (2) imp-0048(메타 동적 주입) 으로 og:image 를 listing.images[0] 또는 iconUrl 절대 URL 로 fix. (3) 공유 메뉴를 Sheet/Popover 로 묶어 [카톡 / 텔레그램 / URL 복사 / QR 코드] 4 옵션 통합. KAKAO_APP_KEY 환경변수 필요."
+  effort: medium
+  impact: medium
+  evidence: "Playwright: '카카오|kakao' 0건, telegramShare false, qrCode false. og:image='http://localhost:3000/images/og-image.png'(잘못됨). intentLinks=[] (kakaolink:// 또는 다른 앱 인텐트 0건). 카톡 공유는 한국 시장 거래 매물 99% 의 1순위 공유 채널."
