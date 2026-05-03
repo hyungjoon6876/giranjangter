@@ -11,7 +11,9 @@
   viewport: 1280x800
   evidence: "axe-core color-contrast: foreground #5a4e54 on background #17131a = 2.31:1 (need 4.5:1). Affects 6+ DOM nodes including footer nav links, copyright, contact email."
   source_root_cause: "shared/design-tokens.json — colors.textDim = #5A4E54 (too dark vs bg #17131A)"
-  status: open
+  status: fixed
+  fixed_at_iter: 3
+  fix_note: "resolved by bug-0005 squash commit (same root cause: design token textDim)"
 
 - id: bug-0002
   found_at_iter: 1
@@ -44,3 +46,25 @@
   source_root_cause: "web/app/listings/ has no page.tsx — listings browse is rendered by app/page.tsx (root /), so /listings is unrouted"
   status: fixed
   fixed_at_iter: 2
+
+- id: bug-0005
+  found_at_iter: 3
+  page: /listings/:id
+  rule_id: B-4-color-contrast
+  normalized_selector: ".text-text-dim"
+  viewport: 1280x800,375x667
+  evidence: "axe-core color-contrast: 9 nodes fail WCAG AA. Page-specific (조회/관심/채팅/시간 spans, '리뷰 보기 ›' link) compute 2.52:1 on bg #08080C and 2.31:1 on bg #17131A; bottom-nav labels (마켓/채팅/등록/프로필) 2.31:1 on #17131A — all from text-text-dim → tokens.colors.textDim=#5A4E54. Same root token also affected bug-0001 on / (open since iter 1)."
+  source_root_cause: "shared/design-tokens.json — colors.textDim = #5A4E54 (insufficient contrast on #08080C and #17131A). Affects every page using text-text-dim Tailwind class."
+  status: fixed
+  fixed_at_iter: 3
+
+- id: bug-0006
+  found_at_iter: 3
+  page: /listings/:id
+  rule_id: B-3-tap-target
+  normalized_selector: "header a[href='/login']"
+  viewport: 375x667
+  evidence: "Header '로그인' link measures 57x30 (height < 32). text-sm font + py-1.5 (6px) = ~30px height. Project rule ≥32px / WCAG 2.5.5 minimum 24px. Anonymous users at 375x667 hit small login tap target on every page."
+  source_root_cause: "web/components/layout/header.tsx:84 — Link className uses 'py-1.5' producing 30px height for non-logged-in 로그인 link"
+  status: fixed
+  fixed_at_iter: 3

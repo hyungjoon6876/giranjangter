@@ -19,3 +19,22 @@
   files_touched: ["web/app/listings/page.tsx"]
   verification: "curl http://localhost:3000/listings: 307 Location: / 확인 (이전 production은 404). next build: /listings ○ Static prerendered. 244 vitest tests pass, eslint clean."
   squash_commit: "75209c9"
+
+- id: bug-0005
+  fixed_at_iter: 3
+  page: /listings/:id
+  rule_id: B-4-color-contrast
+  fix_summary: "shared/design-tokens.json textDim #5A4E54 → #8C8085. axe-core 9개 violation 해결, 동일 root token 사용하는 모든 페이지에 영향. bug-0001 (page=/, 같은 .text-text-dim selector) 도 함께 해결."
+  files_touched: ["shared/design-tokens.json"]
+  verification: "localhost:3000/ axe color-contrast 0 violations 확인. 244 vitest tests pass, eslint clean. 새 색상: 5.28:1 on #08080C, 4.84:1 on #17131A (PASS WCAG AA 4.5:1)."
+  squash_commit: "0808a83"
+  resolved_alongside: ["bug-0001"]
+
+- id: bug-0006
+  fixed_at_iter: 3
+  page: /listings/:id
+  rule_id: B-3-tap-target
+  fix_summary: "web/components/layout/header.tsx — 로그인 Link py-1.5 → py-2 + min-h-[32px] inline-flex items-center. 30px → 34px로 키워 WCAG 2.5.5 / 프로젝트 ≥32px 룰 충족."
+  files_touched: ["web/components/layout/header.tsx"]
+  verification: "localhost:3000 375x667 재탐지: 로그인 link height 30 → 34px. 244 vitest pass, eslint clean."
+  squash_commit: "03a7162"

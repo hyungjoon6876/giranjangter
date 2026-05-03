@@ -454,3 +454,212 @@
   impact: low
   evidence: "Playwright: 카드 4개 aria-label 모두 '<itemName>[ +<level>], <price>원, <serverName>' 패턴. listingType('판매') status('판매중') 누락."
 
+- id: imp-0042
+  found_at_iter: 3
+  area: listing_detail
+  type: ux
+  target: anonymous_user_action_bar_invisible
+  problem: "비로그인 방문자에게 채팅하기/찜/공유/신고 액션 바가 통째로 숨겨진다. 백엔드 응답이 availableActions=null 이면 web/app/listings/[id]/page.tsx L207 조건 `actions.length > 0` 이 false 가 되어 sticky 액션 바 자체가 렌더되지 않는다. 결과적으로 매물 상세 페이지에 '판매자에게 문의', '관심 등록', '공유' 같은 핵심 거래 진입점이 단 하나도 보이지 않아 익명 사용자는 매물을 발견해도 즉시 다음 행동으로 이어질 수 없다."
+  proposal: "익명 사용자도 액션 바를 보이게 하되, 클릭 시 useAuthGuard 의 requireAuth 가 로그인 모달을 띄우는 패턴으로 통일한다. handleChat/toggleFav 가 이미 requireAuth 를 거치므로 actions.length>0 조건을 제거하거나, availableActions 가 null 이면 기본값 ['favorite','start_chat'] 을 사용한다. 공유/신고는 인증 없이도 동작 가능."
+  effort: small
+  impact: high
+  evidence: "Curl https://giranjt.com/api/v1/listings/b155f6a7-a80b-4db5-ac3f-a080b3ad656d (anon) → availableActions=null. Playwright 비로그인 375x667: button 0개(in main), 인터랙티브 요소는 'a[href=/profile/.../reviews]' 1개와 skip-link 만 노출. role=toolbar 미존재. web/app/listings/[id]/page.tsx L62, L207 조건 확인."
+
+- id: imp-0043
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: server_category_name_display
+  problem: "API 응답에 serverName='질리언', categoryName='둔기' 가 포함되어 있는데 매물 상세 페이지 어디에도 표시되지 않는다. 사용자는 매물 검색에서 가장 핵심적인 두 차원(서버/카테고리)을 매물을 클릭한 뒤 알 길이 없어, '질리언 서버 무기' 매물인지 다른 서버인지 매번 메모리에 의존해야 한다."
+  proposal: "h1 제목 위 또는 거래 정보 카드에 '#질리언 · 둔기' 형태의 메타 칩을 노출한다. 각 칩을 클릭하면 /?server=zillian 또는 /?category=weapon_mace 로 동일 조건의 다른 매물 목록으로 이동(필터 URL 동기화 imp-0027 의존). breadcrumb 형식도 가능: 마켓 > 질리언 > 둔기 > 도리깨 +10."
+  effort: small
+  impact: high
+  evidence: "API 응답 JSON: serverName='질리언', serverId='zillian', categoryName='둔기', categoryId='weapon_mace'. Playwright 페이지 텍스트 검색: '질리언' 0건, '둔기' 0건. h1 위 영역 '판매 / 판매중 / 무관' 칩 3개와 stats(조회/관심/채팅/시간) 만 표시."
+
+- id: imp-0044
+  found_at_iter: 3
+  area: listing_detail
+  type: a11y_mobile
+  target: stats_text_color_contrast
+  problem: "조회/관심/채팅/시간 4개 stat 텍스트의 명도 대비가 2.52:1 로 WCAG AA(4.5:1) 미달이다. 색상 #5a4e54 (text-text-dim) on #08080c, font-size 12px. axe-core color-contrast violation serious 1건 발생."
+  proposal: "Tailwind 토큰 'text-text-dim' (rgb(90,78,84)) 를 'text-text-secondary' (taupe rgb(163,134,118)) 로 변경하거나, 디자인 토큰의 text-dim 값 자체를 명도 50%+ 로 올린다. 동시에 stats 폰트를 13-14px 로 키워 large-text 임계 적용 가능. shared/design-tokens.json + web/app/globals.css 의 --color-text-dim 변수."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright + axe-core: '조회 15', '관심 0', '채팅 0', '1개월 전' 4개 span 모두 color=#5a4e54, bg=#08080c, ratio=2.52, 12px. web/app/listings/[id]/page.tsx L113 'text-text-dim' 클래스 사용."
+
+- id: imp-0045
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: image_gallery_zoom_lightbox
+  problem: "API 의 listing.images 배열을 그리드로 렌더하지만(page.tsx L121-143) 클릭/탭 시 확대(lightbox/modal) 하는 인터랙션이 없다. iconUrl(64x64) fallback 도 모니터 화면에서는 작은 썸네일이라 +10 강화 아이템의 디테일을 확인할 수 없다. 거래에서 이미지는 신뢰의 1차 시그널인데 작은 썸네일만 제공하면 의심이 커진다."
+  proposal: "이미지 클릭 시 fullscreen lightbox(예: yet-another-react-lightbox 또는 자체 dialog)를 열어 핀치줌/스와이프 가능하게 한다. iconUrl 만 있는 경우에도 카드를 키워 200x200 이상으로 노출. 키보드 ESC 닫기, Tab trap, role=dialog aria-modal=true 적용."
+  effort: medium
+  impact: high
+  evidence: "Playwright: main img 1개(item icon 64x64), tabIndex=-1, role=null, aria-label=null, parentTag='DIV' (a/button 안에 없음 → isClickable=false), cursor='auto'. 코드 page.tsx L122-141 grid 만 그리고 onClick 미구현."
+
+- id: imp-0046
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: similar_listings_section
+  problem: "매물 상세 하단에 '비슷한 매물 / 같은 서버 매물 / 같은 판매자의 다른 매물' 섹션이 없다. 사용자는 마음에 안 들면 뒤로가기 → 다시 목록 탐색 루프로 돌아가야 하고, 거래 매칭 컨버전이 떨어진다. 데스크탑(1280px) 에서 contentMaxWidth=896 으로 좌우 약 184px 씩 비어있어 우측 사이드바 또는 하단 추천 섹션 둘 중 어디든 공간이 충분하다."
+  proposal: "(1) 같은 server+category 의 매물 6개를 useSimilarListings(serverId, categoryId, excludeId) 훅으로 가져와 하단 ListingGrid 로 노출. (2) 같은 판매자의 다른 매물 섹션 추가(useSellerListings(userId, excludeId, limit=4)). 각 카드는 listings 페이지와 동일 ListingCard 재사용. SSE 또는 React Query staleTime 5분."
+  effort: medium
+  impact: high
+  evidence: "Playwright main 안 h2/h3/h4/role=region 검색: 본문 내 섹션 0개(footer 의 '서비스/정보' 만 검출). desktopUsesRightColumn=false, contentMaxWidth=896, mainWidth=1265. API 응답에 serverId/categoryId/author.userId 모두 존재."
+
+- id: imp-0047
+  found_at_iter: 3
+  area: listing_detail
+  type: ux
+  target: noise_description_unfit_for_share
+  problem: "description 이 'tgewetwewefwef'(14자, 자판 노이즈) 인데 매물 상세 본문 영역의 80% 를 차지하고 og:description 으로도 노출되어, 공유 링크/SEO/사용자 첫인상 모두에서 신뢰가 무너진다. 매물 등록 시 자판 노이즈 검출 / 최소 길이 / 가이드 카피 도움말이 없어 보인다."
+  proposal: "(1) 매물 등록 폼(/create)에 description 최소 20자 + 자판 노이즈 정규식 검증을 추가하고, placeholder 에 '예: +10 도리깨 판매합니다. 거래 시 디스코드로 연락 주세요.' 같은 예시 도움말. (2) 노이즈 description 이 노출된 매물은 admin 모더레이션 큐에 자동 제출. (3) 짧은 description 일 때 itemName/serverName/enhancementLevel 로 자동 fallback 보조 카피 생성."
+  effort: small
+  impact: medium
+  evidence: "Playwright + API: description='tgewetwewefwef'(14자), descriptionInfo.isBoilerplate=true(영문 자판 연속). page.tsx L181-183 description 그대로 출력, og:description='무료 커뮤니티 기반 리니지 클래식 아이템 거래 중개'(글로벌, 매물별 미설정)."
+
+- id: imp-0048
+  found_at_iter: 3
+  area: listing_detail
+  type: performance
+  target: page_meta_per_listing
+  problem: "document.title 이 '기란JT — 리니지 클래식 거래'(글로벌 default) 그대로이고 og:title/og:description/og:image/og:url 도 모두 사이트 전역 값이라 카카오톡/Slack/Twitter 에 매물 링크를 공유하면 똑같은 일반 카드만 노출된다. 매물별 메타데이터가 없어 SEO 인덱스 가치도 0 에 가깝다."
+  proposal: "web/app/listings/[id]/page.tsx 를 server component 로 분리(또는 generateMetadata 함수 추가)해서 listing.title, itemName+가격, og:image=listing.images[0].url 또는 iconUrl 절대화 URL, og:type='product', og:url=canonical 을 동적 주입한다. JSON-LD Product schema(name, image, offers.price, offers.priceCurrency='KRW') 도 함께."
+  effort: medium
+  impact: high
+  evidence: "Playwright: document.title='기란JT — 리니지 클래식 거래' (전 페이지 동일), og:title='기란JT — 리니지 클래식 거래 플랫폼', og:image='http://localhost:3000/images/og-image.png' (잘못됨, imp-0016 과 동일), og:url 미설정, JSON-LD count=0. 코드 page.tsx 'use client' 로 metadata 정적."
+
+- id: imp-0049
+  found_at_iter: 3
+  area: listing_detail
+  type: a11y_mobile
+  target: time_relative_semantic
+  problem: "stats 바의 '1개월 전' 라벨이 단순 <span> 으로 렌더되어 (1) 스크린리더가 정확한 등록 일자를 읽지 못하고, (2) hover 툴팁으로 정확한 일자가 안 보이며, (3) SEO datePublished 가 없다. 또한 '1개월 전' 자체가 매물의 신선도 시그널인데 정확한 일자가 없어 사용자가 노쇠한 매물인지 판단 어렵다."
+  proposal: "page.tsx L117 의 formatTimeAgo 호출을 <time dateTime={l.createdAt} title={fullDateFmt(l.createdAt)}>{formatTimeAgo(l.createdAt)}</time> 로 감싼다. 1개월 이상 된 매물에는 '1개월 전 (활동 없음)' 같은 보조 시그널을 lastActivityAt 기반으로 추가."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: timeInfo={text:'1개월 전', tag:'SPAN', hasTimeTag:false, hasDateTime:null, title:null}. API: createdAt='2026-03-21T01:58:50Z', lastActivityAt='2026-03-21T01:58:50Z'(동일=한 달간 활동 0건)."
+
+- id: imp-0050
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: price_negotiation_signal
+  problem: "API priceType='fixed'/'negotiable' 가 있고 코드 L174-176 에 협상 가능 분기가 존재하나, fixed 인 경우 '정찰가/협의 불가' 같은 명시적 시그널이 없다. 사용자는 클릭 후 채팅 시작해야 협상 가능 여부를 알 수 있다. 또한 negotiable 매물은 입찰/제시가 입력 폼이 없어 결국 모든 협상이 채팅으로만 일어남."
+  proposal: "(1) priceType='fixed' 일 때 가격 옆에 '정찰' 칩, 'negotiable' 일 때 '협의 가능' 칩을 명시적으로 노출. (2) negotiable 인 경우 '제시 가격 입력 → 채팅 자동 생성' 빠른 액션 추가(handleChat 의 createChat mutate 에 initialMessage 옵션). (3) 비슷한 매물의 평균/중앙값 가격 ('이 카테고리 평균 18만원') 표시로 협상 기준 제공."
+  effort: medium
+  impact: medium
+  evidence: "Playwright body 텍스트 검색: '협의|네고|가격 조정|할인 가능|정찰' 0건. API priceType='fixed', priceAmount=200000. 코드 page.tsx L174 negotiable 분기는 있으나 fixed UI 분기 없음."
+
+- id: imp-0051
+  found_at_iter: 3
+  area: listing_detail
+  type: a11y_mobile
+  target: status_badge_size_mobile
+  problem: "375x667 모바일에서 '판매', '판매중' 배지가 font-size 11px / height 20.5px 로 매우 작아 한손 터치 또는 시각 장애 사용자가 식별하기 어렵다. WCAG 2.5.5 권장 44x44, 최소 32x32 모두 미달. 또한 두 배지가 가로 정렬이라 같은 정보 라인을 차지해 시각적 위계가 약하다."
+  proposal: "배지의 padding-y 를 4-6px, font-size 를 13-14px 로 키운다. 모바일에서 '판매중'(상태)는 색상으로만 구분되는 게 아니라 '판매 가능 · 즉시 거래' 같은 문구로 보강하거나 우측에 작은 dot 인디케이터 추가. ui/badge 컴포넌트의 sm/md/lg variant 추가."
+  effort: trivial
+  impact: low
+  evidence: "Playwright 375x667: 판매 배지 36.25x20.5 11px, 판매중 배지 46.375x20.5 11px, 둘 다 padding=2px 8px. WCAG hit-target 추천 32x32 미달."
+
+- id: imp-0052
+  found_at_iter: 3
+  area: listing_detail
+  type: ux
+  target: redundant_trade_method_display
+  problem: "거래 방식 '무관' 이 두 곳에 동시 표시된다: (1) 페이지 헤더 우측 상단(L102-105 작은 회색 텍스트), (2) 거래 정보 dl 카드 첫 행. 같은 정보가 시각적으로 분리된 두 위치에 있어 사용자가 두 번 읽어야 하고, 헤더 우측의 '무관' 은 컨텍스트 없이 떠 있어 의미 파악이 어렵다."
+  proposal: "헤더의 tradeMethod 텍스트(L103) 를 제거하고 거래 정보 카드에 단일화하거나, 반대로 헤더에 라벨 형식('거래: 무관')으로 명확하게 두고 카드에서 제거한다. 두 위치 다 유지하려면 헤더는 우상단 floating chip 으로 격상('🤝 무관')."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: '무관' 텍스트 2회 등장 — (1) 우상단 ml-auto span, color=rgb(163,134,118), 12px (page.tsx L103), (2) dl 첫 행 dt='거래 방식' dd='무관' (page.tsx L189). 시각적으로 같은 화면에 동시 노출."
+
+- id: imp-0053
+  found_at_iter: 3
+  area: listing_detail
+  type: ux
+  target: desktop_layout_wasted_gutter
+  problem: "1280x800 데스크탑에서 main 이 1265px 인데 콘텐츠는 max-w-4xl(896px)로 가운데 정렬되어 좌우 184px+ 씩 비어 있다. 하나뿐인 컬럼을 위에서 아래로 스크롤하는 구조라 데스크탑의 가로 화면 이점을 전혀 활용하지 못하고, 본문 길이도 짧아 페이지 하단까지 스크롤할 동기가 없다."
+  proposal: "lg: 이상에서 2 컬럼 레이아웃으로 전환(왼쪽 60%: 이미지·제목·설명, 오른쪽 40%: 가격·액션·판매자·거래정보 카드, sticky top). lg:grid lg:grid-cols-[1fr_320px] lg:gap-8 패턴. 또는 본문 컬럼은 그대로 두고 우측에 '비슷한 매물' 사이드바(imp-0046 시너지)."
+  effort: medium
+  impact: medium
+  evidence: "Playwright 1280x800: main width=1265, .max-w-4xl=896, 좌우 gutter=(1265-896)/2=184.5px. desktopUsesRightColumn=false (aside 없음, grid-cols 분할 없음). 페이지 scrollHeight=954, viewport 800 → 1.2 화면 분량."
+
+- id: imp-0054
+  found_at_iter: 3
+  area: listing_detail
+  type: content
+  target: empty_optional_fields_no_indication
+  problem: "API 의 preferredMeetingAreaText, availableTimeText, optionsText 가 모두 null 인데 코드(L166-168, L190-194)는 truthy check 후 미렌더하므로 사용자는 '이 매물의 거래 시간/접선 장소/옵션이 없다' 인지 '입력자가 빠뜨렸다' 인지 알 수 없다. 거래 의사결정 시 이런 정보가 거의 핵심이다."
+  proposal: "필수가 아닌 필드라도 비어있으면 '거래 가능 시간 미입력 — 채팅으로 문의' 같은 dim 톤 placeholder 행을 노출하고, '문의' 버튼을 인라인으로 둔다. 또는 InfoRow 에 emptyFallback prop 추가해 ('판매자에게 문의하기' 링크) 일관 처리."
+  effort: small
+  impact: medium
+  evidence: "API 응답: preferredMeetingAreaText=null, availableTimeText=null, optionsText=null. Playwright dl 안 항목 = ['거래 방식','수량'] 2 row 만 표시(다른 4 필드 모두 hidden). 사용자가 누락 여부 판단 불가."
+
+- id: imp-0055
+  found_at_iter: 3
+  area: listing_detail
+  type: a11y_mobile
+  target: report_button_anonymous_unreachable
+  problem: "신고 버튼이 액션 바 안(page.tsx L263)에만 존재하며, 액션 바는 actions.length>0 이어야 렌더된다. 비로그인 사용자가 노이즈/사기성 매물을 발견해도 신고할 진입점이 페이지 어디에도 없어 어뷰즈 모더레이션이 익명 사용자에게는 동작하지 않는다."
+  proposal: "신고 버튼은 인증 게이팅 없이 항상 렌더하고, 신고 모달의 reporter_id 가 null 이면 '신고 사유와 함께 이메일/디스코드 ID 를 남기실 수 있나요?' 익명 신고 폼으로 분기한다. 또는 페이지 우상단(h1 옆)에 ⋯ 메뉴를 두고 '신고' / '공유' 를 분리해 액션 바와 무관하게 항상 접근 가능하게 만든다."
+  effort: small
+  impact: high
+  evidence: "Playwright 비로그인 375x667: '신고' / '차단' 텍스트 button 0개. 코드 page.tsx L263 신고 버튼은 L207 actions.length>0 가드 안에만 위치. 익명 응답 availableActions=null → 액션 바 미렌더."
+
+- id: imp-0056
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: copy_link_share_anonymous
+  problem: "공유 버튼(handleShare)도 액션 바 안에 있어 익명 사용자에게 보이지 않는다. 그러나 navigator.share / navigator.clipboard 동작에 인증이 필요 없어 공유는 익명 사용자에게도 가장 자연스러운 first action 인데 진입점이 없다."
+  proposal: "공유 버튼을 액션 바와 별개로 페이지 헤더(h1 옆 또는 stats 바 우측)에 항상 노출. clipboard 복사 후 toast 'URL 이 복사되었습니다' 노출(이미 구현). 모바일은 navigator.share 우선, 데스크탑은 clipboard fallback."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright 비로그인: button[aria-label=공유] 0개, '공유' 텍스트 0개. 코드 handleShare(L74-94) 는 인증 무관하게 동작 가능하나 L257 트리거 button 이 액션 바 안."
+
+- id: imp-0057
+  found_at_iter: 3
+  area: listing_detail
+  type: ux
+  target: back_to_listings_navigation
+  problem: "매물 상세에서 마켓(목록)으로 돌아가는 명시적 백 버튼/breadcrumb 이 없다. 사용자는 브라우저 백 또는 하단 탭의 '마켓' 아이콘에 의존해야 하며, 둘 다 이전 필터/스크롤 위치를 보존하지 않는다(imp-0029 와 연동)."
+  proposal: "h1 위에 breadcrumb '마켓 > 질리언 > 둔기 > 도리깨 +10' 또는 좌상단 '←' 백 버튼을 router.back() 으로 추가. breadcrumb 의 각 칩은 해당 필터 조건 URL 로 이동(server/category 칩). aria-label='이전 페이지로 돌아가기'."
+  effort: small
+  impact: medium
+  evidence: "Playwright: main [aria-label*=뒤로], a[aria-label*=뒤로], [class*=breadcrumb] 0개. hasBackButton=false. 코드 page.tsx 에 router.back 호출 0건, Breadcrumb 컴포넌트 미존재."
+
+- id: imp-0058
+  found_at_iter: 3
+  area: listing_detail
+  type: performance
+  target: hero_icon_image_priority
+  problem: "본문의 item icon Image(64x64)가 above-the-fold 영역에 있는데 loading='lazy', fetchPriority='auto' 로 설정되어 LCP 후보임에도 브라우저 우선순위가 낮다. 데스크탑/모바일 모두 페이지 진입 직후 시각적 첫 인상에 영향을 준다."
+  proposal: "page.tsx L148-155 의 Image 에 priority prop 또는 fetchPriority='high' loading='eager' 부여. images[0] 갤러리 이미지에도 동일 처리. unoptimized 플래그가 있어도 loading 속성은 적용된다."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: main img(item icon) src=/static/icons/42.png, naturalW=64, loading='lazy', fetchPriority='auto', rect.y=206.5(viewport 667 의 31%). 코드 page.tsx L148-155 Image 에 priority/loading 속성 미설정."
+
+- id: imp-0059
+  found_at_iter: 3
+  area: listing_detail
+  type: feature
+  target: enhancement_level_visual_emphasis
+  problem: "리니지 클래식의 핵심 가치 차원인 강화 +10 이 본문에서 'text-gold font-bold ml-2'(L160) 형식의 작은 인라인 텍스트로만 표시된다. itemName 옆에 살짝 노출되지만 시각 위계상 가격(48px font-display)과 비교하면 거의 보이지 않는다. 같은 도리깨여도 +0 과 +10 은 시장가가 수십 배 차이나는데 지금은 강조가 부족하다."
+  proposal: "강화 레벨을 별도 큰 칩(48x48 원형, 골드 그라디언트, +10 표기)으로 디자인하거나, h1 제목 줄에 '도리깨 [+10]' 처럼 시각적 강조 칩으로 격상. 또는 가격 옆에 '+10 강화 매물' 라벨 추가. enhancementLevel >=7 일 때 골드, >=5 일 때 cream, 0 일 때 dim 색상."
+  effort: small
+  impact: medium
+  evidence: "Playwright: '+10' 텍스트가 main h1 도 main h2 도 아닌 L160 span(text-gold font-bold ml-2 inline) 으로 itemName='도리깨' 우측에 위치. h1='도리깨 +10 판매합니다' 안에는 +10 이 텍스트로 들어가지만 별도 시각 강조 없음."
+
+- id: imp-0060
+  found_at_iter: 3
+  area: listing_detail
+  type: a11y_mobile
+  target: tab_navigation_dead_end
+  problem: "비로그인 사용자가 키보드로 탐색하면 main 영역의 tabbable 요소가 단 1개(판매자 프로필 링크)뿐이라, 본문 정보 어디에서도 키보드 사용자가 행동할 수 없다. 액션 바 미렌더 + 이미지 비클릭 + 신고/공유 버튼 부재가 합쳐진 결과."
+  proposal: "imp-0042/imp-0045/imp-0055/imp-0056 와 함께 해결되어야 하는 메타 이슈. 최소 보장으로 (1) 페이지 진입 시 h1 에 tabIndex='-1' 부여 + skip-to-content 가 main 안 첫 헤딩에 포커스, (2) 액션 바 익명 노출, (3) 이미지 클릭/포커스 가능. WAI-ARIA APG dialog/disclosure 패턴 적용."
+  effort: small
+  impact: medium
+  evidence: "Playwright 비로그인 375x667 main 안 tabbable: [{tag:'A', text:'유유저_da1e387a거래 0회 · newcomer리뷰 보기 ›', tabIndex:0}] 1개. h1 tabIndex=-1 미설정, button 0개, image 비클릭."
+
