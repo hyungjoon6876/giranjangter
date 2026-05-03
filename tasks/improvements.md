@@ -3182,3 +3182,157 @@
   impact: low
   evidence: "코드 web/app/layout.tsx 또는 web/app/globals.css 에 'data-theme\\|prefers-color-scheme' grep 0건(추정). /profile/settings 라우트 부재(imp-0143 미구현). lib/theme/ 디렉토리 부재. tailwind.config.js 다크/라이트 페어 컬러 0건(단일 팔레트)."
 
+- id: imp-0290
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: login_throttle_brute_force_lockout
+  problem: "코드 backend/cmd/server/handlers_auth.go L33-72 handleLogin 은 IP/사용자별 시도 횟수 제한 0건 — 같은 IP 가 1초당 100번 다른 Google 토큰을 보내도 throttle 0건이다. 사기범이 탈취한 Google ID 토큰 후보 N개를 빠른 brute로 시도하거나, 단순 DDoS 로 /auth/login 을 마비시킬 수 있다. backend grep 'rate.?limit\\|throttle\\|limiter' → 0건(미들웨어 없음). 무인 자동화 차단 부재."
+  proposal: "(1) backend/internal/middleware/ratelimit.go 신규 — token bucket 또는 sliding window(github.com/ulule/limiter). (2) /auth/login 에 IP 당 30 req/min, /auth/refresh 에 IP 당 60 req/min 적용. (3) 로그인 실패 5회 누적 시 해당 IP 를 15분 cool-down(409 Too Many Requests). (4) 로그인 성공한 정상 IP 는 화이트리스트 cache(5분), throttle 우회. (5) 응답 헤더 X-RateLimit-Remaining + X-RateLimit-Reset 으로 클라이언트 인지. (6) Redis 가 있다면 분산 카운터, 없으면 in-memory(단일 인스턴스 OK). (7) 정지/탈퇴 계정 관련 logging 도 함께 — 의심 패턴 추적."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_auth.go L33-72 handleLogin 입구에 limiter 0건. backend/internal/middleware/ ls — auth.go 만(ratelimit.go 부재). go.mod grep 'limiter\\|ratelimit' 0건. /auth/login + /auth/refresh + /auth/logout 모두 무제한 호출 가능."
+
+- id: imp-0291
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: new_device_country_login_alert
+  problem: "코드 handlers_auth.go L98-104 기존 사용자 로그인 시 UpdateLastLogin 만 호출 — 이전 로그인 IP/UA 와 비교 0건. 사용자가 한국에서만 쓰던 계정인데 갑자기 미국/중국 IP 에서 로그인되면 — 정상 사용자에게 알림 0건이라 계정 탈취 인지가 늦어진다. Google 자체 알림은 있을 수 있으나 기란JT 의 거래 컨텍스트(매물 N개, 진행중 거래 M건) 손실 위험을 사용자에게 직접 통지 못한다."
+  proposal: "(1) handleLogin 에서 c.ClientIP() + UserAgent → 직전 N(=10)회 로그인 이력과 비교(refresh_tokens 테이블에 컬럼 추가, imp-0160 와 결합). (2) 새 country code(MaxMind GeoLite 무료 DB 또는 Cloudflare CF-IPCountry header) 또는 새 device_label 감지 시 — 알림 1건 자동 생성: '🚨 새 디바이스에서 로그인 — 5월 2일 19:35, Chrome on Windows, 서울'. (3) '내가 아니라면 즉시 모든 디바이스 로그아웃' 액션 버튼 → /me/sessions DELETE-all. (4) 알림 채널 imp-0168 의 email 결합 시 critical 통지 가능. (5) 임계 너무 민감하면 거짓양성 — '한국 4G + Wi-Fi 스위칭' 정도는 같은 country 로 묶어 알림 안 보냄."
+  effort: large
+  impact: high
+  evidence: "코드 handlers_auth.go L98-104 existing-user 분기에 새 디바이스 감지 로직 0건. backend grep 'GeoIP\\|country\\|MaxMind\\|CF-IPCountry' → 0건. last_login_ip 컬럼 0건(migrations grep). 알림 type 카탈로그(EVENT_CATALOG.md)에 'new_device_login' 0건."
+
+- id: imp-0292
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: oauth_scope_minimization_no_email_default
+  problem: "현재 Google OAuth 통합은 사실상 sub/email/name 모두 받는다 — oauth/google.go L11-14 GoogleTokenInfo 가 Email/Name 필드를 가지나 handlers_auth.go L92 CreateUserWithProfile 은 nickname='유저_' + userID[:8] 만 사용해 email/name 을 그냥 버림(데이터 흘러가도 사용 0건). 그러나 ID token 은 'openid email profile' scope 로 발급되어 — 서버는 받지만 안 쓰는 PII 보유 = 개인정보 최소화 원칙 위반. 추후 leak 시 책임 확대."
+  proposal: "(1) login/page.tsx L60-72 initialize 에 'scope' 명시 가능하면 'openid' 만(현재 누락 → 자동 'openid email profile'). Google Sign-In V2 는 scope override 제한이 있어 — 그렇다면 (2) 받은 email/name 즉시 폐기 — handlers_auth.go 에 변수 declare 만 하고 unused 로 처리하지 말고 oauth/google.go L31-32 부터 email/name parse 자체 제거(코드에서 read 안 하도록). (3) 만약 imp-0168 (계정복구 채널)을 위해 email 이 필요하면 — 회원 탈퇴 시 즉시 NULL 처리 가시화 + sha256 해시화로 저장(원문 X). (4) Google 'sub' 만으로도 unique 이므로 충분. (5) Privacy 페이지에 '수집 항목 — Google sub(공개 식별자) 1건' 명시."
+  effort: small
+  impact: medium
+  evidence: "코드 oauth/google.go L13-14 Email + Name 필드 정의. handlers_auth.go L86-97 CreateUserWithProfile signature 에 email/name 미사용 — 받기는 하나 사용 0건. login/page.tsx L60-72 initialize 에 scope 명시 0건(default 'openid email profile'). DB 에 email 저장 0건이지만 서버 메모리는 한 번 통과."
+
+- id: imp-0293
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: passkey_webauthn_support
+  problem: "기란JT 는 Google OAuth 단일 인증으로 — 사용자가 Google 계정에 lock-out 되면(Google 정지, 비밀번호 분실, 2단계 인증 분실) 기란JT 진입 0건이다. 또한 Google OAuth 가 외부 종속이라 Google 장애 시 전 사용자 로그인 불가(SPOF). passkey/WebAuthn 은 OS 통합으로 외부 의존성 0건이며, 한 번 등록 후 비밀번호 없이 즉시 로그인 가능 — 모바일 사용자(주 타겟)에게 마찰 최소."
+  proposal: "(1) backend/internal/oauth/passkey.go 신규 — github.com/go-webauthn/webauthn 라이브러리. (2) 마이그레이션 — passkeys 테이블(id, user_id, credential_id BYTEA, public_key BYTEA, sign_count BIGINT, transports TEXT[], created_at, last_used_at). (3) /auth/passkey/register/options + /verify, /auth/passkey/login/options + /verify 라우트. (4) /profile/security 에 'Passkey 등록' 버튼 — 'iPhone Face ID/Touch ID, Mac Touch ID, Android 지문' 등으로 등록. (5) /login 에 'Passkey 로 로그인' 버튼(이미 등록된 사용자만 표시 — autofill UI). (6) 신뢰 지표 — Google + Passkey 다중 등록 시 trustBadge '2단계 검증' 부여. (7) 후순위로 Passkey-only 가입(Google 의존 없는 신규 가입 동선)."
+  effort: large
+  impact: high
+  evidence: "코드 backend/internal/oauth/ ls 결과 google.go 만(passkey.go 부재). go.mod grep 'webauthn' → 0건. login/page.tsx 의 fallback 인증 0건. /profile/security 라우트 부재(imp-0160 와 결합 시 같은 페이지에 device + passkey 묶기 자연스러움)."
+
+- id: imp-0294
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: magic_link_email_fallback
+  problem: "Google OAuth 가 작동 안 할 때(Google 사이트 차단된 회사망, Google 계정 잠긴 사용자, 부계정 보유자) 기란JT 진입 동선 0건이다. SMS OTP 는 비싸고(Twilio 비용), Magic Link(이메일로 1회용 로그인 링크)는 SMTP 만 있으면 무료 — Google 의존 없는 lightweight fallback. backend 에 SMTP/sendmail 설정 0건(go.mod grep 0)."
+  proposal: "(1) backend/internal/auth/magic_link.go — github.com/wneessen/go-mail 또는 net/smtp + Mailgun 무료 등급. (2) POST /auth/magic-link/request — body { email } → magic_links 테이블(id, email, token_hash, expires_at=NOW+15m, used_at) → email 발송 'https://giranjt.com/auth/magic?token=xxx'. (3) GET /auth/magic?token=xxx → server-side verify → 기존 user(email 매칭) 면 login, 없으면 신규(email 만 가진 user 생성) → set cookie + redirect. (4) login/page.tsx — Google 버튼 아래 'OR' divider + email input + '메일로 로그인 링크 받기' 버튼. (5) imp-0168(email 채널) + imp-0292(scope minimization) 와 묶어 데이터 모델 일관성. (6) Rate limit imp-0290 결합 — IP/email 당 분당 3회. (7) 보안 — token 1회용, 발송 후 5분 내 사용 권고, 다른 디바이스 사용 가능(편의)."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/internal/auth/ 디렉토리 부재(grep 'magic_link\\|MagicLink\\|smtp\\|sendmail' 0건). users 테이블에 email 컬럼 0건(imp-0168 dependency). login/page.tsx 의 alternative auth 0건."
+
+- id: imp-0295
+  found_at_iter: 22
+  area: auth
+  type: ux
+  target: anonymous_session_preview_before_signup
+  problem: "익명 사용자가 '로그인 없이 둘러보기' 클릭 후 매물 / 채팅 / 좋아요 등을 둘러봐도 — 그동안의 행동 기록(찜한 매물, 검색 키워드, 본 매물 list)이 가입 시 0건 carry-over 된다. 사용자가 '아 이거 가입하면 더 좋겠다' 결심해 가입했더니 처음부터 다시 시작 — 동기 손실. localStorage/cookie 에 anonymous_id 부여 + 가입 시 binding 하면 retention 큰 향상."
+  proposal: "(1) web/lib/anonymous-session.ts 신규 — 첫 진입 시 cookie 'anon_id'=uuid, 30일 TTL. (2) 익명 사용자의 favoriteListing/searchHistory/recentlyViewedListings 를 localStorage 에 'anon-session.<anon_id>' 키로 저장. (3) 가입(handleGoogleResponse 직후) → POST /me/migrate-anonymous?anonId=xxx → backend 가 favorites/searches 테이블에 user_id 기입(또는 새 매핑 row 추가). (4) /login 에 작은 hint — '회원가입하시면 둘러본 매물과 찜이 그대로 이어집니다' (anon_id 가 비어있지 않을 때만 표시). (5) Privacy — anonymous 사용자에게도 cookie 동의 alert(GDPR/PIPL) 한 번 표시. (6) 가입 안 하고 30일 지나면 anon_id row purge."
+  effort: medium
+  impact: high
+  evidence: "코드 web/lib/ ls — anonymous-session 부재. apiClient 에 favoriteListing 메서드(L169-175) 있으나 익명 시 사용 불가(JWT 필요). cookie 'anon_id' 발급 0건(grep 'anon_id' web → 0). /me/migrate-anonymous 라우트 0건."
+
+- id: imp-0296
+  found_at_iter: 22
+  area: auth
+  type: ux
+  target: just_in_time_signup_at_trade_action
+  problem: "익명 사용자가 매물 상세에서 '채팅 시작' 누르면 — useAuthGuard.ts L13-25 가 즉시 router.push('/login?redirect=...') 로 페이지 풀 전환 → Google 버튼 클릭 → 로그인 → redirect 의 경로 복귀. 4단계 풀-페이지 전환은 모바일에서 깊은 마찰. 사용자가 '그냥 채팅하고 싶었는데 가입까지?' 라며 이탈. 더 가벼운 흐름(modal 안에서 1탭 로그인 → 즉시 채팅 시작)이 retention 개선."
+  proposal: "(1) components/auth/login-modal.tsx 신규 — Google Sign-In One Tap UI(prompt API)를 modal 안에 띄움. (2) useAuthGuard 의 require Auth 가 router.push 대신 useDialog 로 LoginModal 띄우기 — 본문 컨텍스트 유지. (3) 로그인 성공 시 모달 닫히고 원래 액션(handleStartChat) auto-resume — userId 받자마자 createChat 호출. (4) modal 안에 mini onboarding — '닉네임 즉시 변경' inline input(imp-0162 와 결합, 가입 직후 1탭). (5) modal 닫기('취소')도 자연스러움 — 익명 둘러보기 흐름 회복. (6) 페이지 전환 redirect 가 진짜 필요한 케이스(/profile, /chat 직접 진입) 만 router.push 유지."
+  effort: medium
+  impact: high
+  evidence: "코드 web/lib/hooks/use-auth-guard.ts L13-25 requireAuth 가 router.push 만 — modal 옵션 0건. components/auth/login-modal.tsx 부재. apiClient.login 응답 후 콜백 chain 부재. Google One Tap 'prompt()' API 미사용(login/page.tsx 는 renderButton 만)."
+
+- id: imp-0297
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: google_one_tap_auto_prompt
+  problem: "Google One Tap 은 페이지 진입 즉시 화면 우상단에 '<email> 로 계속하시겠습니까?' 자동 prompt 를 띄워 1탭 로그인을 가능하게 한다. 코드 login/page.tsx L65-72 은 renderButton 만 사용 — google.accounts.id.prompt() 호출 0건이라 자동 prompt 0건. /listings, /listings/[id] 같은 일반 페이지에도 prompt 0건이라 — 익명 사용자가 Google 로 한 번 로그인했어도 다음 방문 시 매번 /login 가야 한다."
+  proposal: "(1) layout.tsx 또는 components/auth/google-one-tap.tsx — useEffect 에서 window.google.accounts.id.initialize + .prompt({notification}). (2) 익명 사용자만 표시(apiClient.isLoggedIn===false). (3) 뷰포트 1280+ 에서만 표시(모바일은 화면 작아 거슬림). (4) cooldown — '취소' 후 24시간 안 띄우기(localStorage 'one-tap-dismissed-at'). (5) FedCM 지원(2024+ Chrome 권장) — use_fedcm_for_prompt: true. (6) 로그인 화면(/login)에서는 prompt 안 보이게(중복) — pathname 체크. (7) 리스트/매물상세에서 prompt → 1탭 로그인 → 페이지 그대로(채팅 시작 버튼 활성)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/login/page.tsx L65-72 google.accounts.id.prompt() 호출 0건. layout.tsx L44 의 google gsi script 는 로드되지만 prompt 발화 0건. components/auth/ 디렉토리 부재. FedCM 'use_fedcm_for_prompt' 옵션 사용 0건."
+
+- id: imp-0298
+  found_at_iter: 22
+  area: auth
+  type: performance
+  target: google_client_id_env_var_not_hardcoded
+  problem: "코드 web/app/login/page.tsx L9-10 GOOGLE_CLIENT_ID 가 소스에 하드코딩(`'1040191360407-...'`). 이는 production 키가 main 브랜치에 영구 노출되어 있다는 것 — 키 회전(rotation) 시 코드 수정+배포 필요, dev/staging/prod 키 분리 불가, 외부 fork 시 그대로 노출. backend 는 cfg.GoogleClientIDs 환경변수로 받아 분리되어 있는데(handlers_auth_test.go L35) 웹 프론트만 하드코드 — 일관성 깨짐."
+  proposal: "(1) web/.env.example 에 NEXT_PUBLIC_GOOGLE_CLIENT_ID=... 추가. (2) login/page.tsx L9-10 → const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID. (3) 빌드 시 누락 검증 — !GOOGLE_CLIENT_ID 면 build error. (4) docker-compose.yml lincle-web 서비스 environment 에 NEXT_PUBLIC_GOOGLE_CLIENT_ID 전달. (5) 키 회전 절차 문서화 — Google Cloud Console 새 client_id 생성 → docker-compose env 변경 → 무중단 rolling 배포 → Old client_id 비활성. (6) backend GoogleClientIDs 도 ',' 로 N개 받게 되어 있어(config.go) 회전 중 dual-validate 가능 — rolling 으로 안전 회전."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/login/page.tsx L9-10 const GOOGLE_CLIENT_ID = '1040191360407-...' 하드코드. .env grep 'NEXT_PUBLIC_GOOGLE' 0건(추정). backend handlers_auth_test.go L35 는 GoogleClientIDs env 사용 — 백엔드 vs 프론트 불일치. docker-compose.yml grep 'GOOGLE_CLIENT' 결과 backend 만(추정)."
+
+- id: imp-0299
+  found_at_iter: 22
+  area: auth
+  type: performance
+  target: csp_header_for_google_gsi
+  problem: "deploy/Caddyfile 11-33 라인에 reverse_proxy 설정만 — Content-Security-Policy 헤더 0건. layout.tsx L44 가 https://accounts.google.com/gsi/client 외부 스크립트를 로드하는데 CSP 미지정 → XSS 시 attacker 가 임의 외부 스크립트 inject 가능. CSP 'default-src self; script-src self https://accounts.google.com; frame-src https://accounts.google.com' 같은 strict 정책으로 1차 방어막 부재."
+  proposal: "(1) deploy/Caddyfile 의 모든 handle 블록에 header Content-Security-Policy 'default-src self; script-src self https://accounts.google.com https://*.gstatic.com; frame-src https://accounts.google.com; img-src self data: https:; connect-src self https://accounts.google.com; font-src self https://fonts.gstatic.com; style-src self unsafe-inline https://fonts.googleapis.com'. (2) 점진 적용 — 먼저 Content-Security-Policy-Report-Only 로 1주 모니터링, 위반 0건 확인 후 enforce. (3) 다른 보안 헤더 동시 추가 — Strict-Transport-Security 'max-age=31536000', X-Content-Type-Options 'nosniff', X-Frame-Options 'DENY', Referrer-Policy 'same-origin', Permissions-Policy 'camera=(), microphone=(), geolocation=()'. (4) backend handlers 가 'unsafe-inline' style 을 안 쓰도록 (Tailwind 만으로 충분 — 가능). (5) report-uri 로 위반 수집(/api/csp-report endpoint)."
+  effort: small
+  impact: high
+  evidence: "코드 deploy/Caddyfile L11-33 grep 'header\\|CSP\\|X-Frame\\|HSTS' → 0건. layout.tsx L44 외부 script src 로드. backend handlers grep 'Content-Security-Policy' → 0건. 보안 헤더 default 0건."
+
+- id: imp-0300
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: jwt_secret_rotation_kid_support
+  problem: "코드 middleware/auth.go L19-31 AuthMiddleware 가 단일 secret 만 보유 — JWT_SECRET 환경변수가 leak 또는 정기 회전 시 모든 활성 access/refresh token 즉시 무효화 → 전 사용자 강제 재로그인. 'kid'(key ID) 헤더 미사용으로 — 새 키와 옛 키를 동시 인정하는 grace period 불가. 무중단 secret 회전 부재."
+  proposal: "(1) config 에 JWT_SECRETS=[<current>,<previous>] (CSV) 형태로 N개 받기. (2) GenerateTokens 는 첫 번째(current) 로만 sign, header 에 'kid'='current' 추가. (3) ParseToken 은 kid 보고 해당 secret 으로 verify — 'previous' 도 인정(grace, 7일). (4) 회전 절차 — 새 secret 추가 [new, old] → 1주 후 [new] 로 단축 → 옛 키로 발급된 token 자연 만료(15m TTL). (5) jwt.Parse 의 keyfunc 가 token.Header['kid'] 활용. (6) 의도적 키 무효화(전체 logout) 도 같은 메커니즘 — old kid 즉시 제거. (7) 운영자에게 'JWT 키 회전' 명령 (deploy script + admin endpoint)."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/internal/middleware/auth.go L19-31 AuthMiddleware struct 에 secret []byte 단일 필드. L40-50, L52-65 generate 시 kid header 0건. L72-83 ParseWithClaims keyfunc 가 단일 a.secret 반환 — 다중 키 지원 0건. config grep 'JWT_SECRETS\\|kid\\|key_id' 0건."
+
+- id: imp-0301
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: jti_revocation_blocklist
+  problem: "코드 middleware/auth.go L37-66 access token 은 stateless JWT — 한 번 발급되면 15분간 어떤 무효화도 불가. 사용자가 '내 토큰이 탈취된 것 같다' 신고해도 — 다른 디바이스에서 logout-all 해도 — 탈취된 access token 은 만료 시간(15m)까지 살아있다. 탈취 윈도우 15분이 핵심 거래 시점에 걸리면 큰 손실."
+  proposal: "(1) GenerateTokens 에서 jwt.RegisteredClaims 에 ID(jti)= uuid 추가. (2) 마이그레이션 — token_blocklist(jti TEXT PRIMARY KEY, user_id TEXT, blocked_at TIMESTAMPTZ, expires_at TIMESTAMPTZ). expires_at 으로 자동 cleanup. (3) ParseToken 안에서 (또는 RequireAuth middleware 에서) repo.IsBlocked(jti) 체크 — true 면 401. (4) 사용자 로그아웃 모든 디바이스 시 — 모든 활성 jti 를 blocklist 에 push(아니면 access 는 그냥 두고 refresh 만 무효화도 정책 가능). (5) 관리자 'force logout user X' 액션 → 해당 user 의 모든 access jti push. (6) 만료 비교 — Redis 또는 DB 인덱스 조회 빠르게(인메모리 cache 30초). (7) imp-0160 의 device sessions 와 결합 — 특정 디바이스만 블록 가능."
+  effort: medium
+  impact: medium
+  evidence: "코드 middleware/auth.go L37-66 jwt.RegisteredClaims 에 ID 필드 미사용(grep 'jti\\|ID:' L37-66 → 0). ParseToken keyfunc 외에 추가 검증 0건(L72-83). token_blocklist 테이블 마이그레이션 부재(grep 'blocklist\\|revoked_token' migrations 0). DeleteRefreshTokensByUser 는 refresh 만 처리, access 는 그대로 살아있음."
+
+- id: imp-0302
+  found_at_iter: 22
+  area: auth
+  type: feature
+  target: account_linking_multiple_providers
+  problem: "코드 handlers_auth.go L78-97 가 (provider, providerKey) 쌍으로 user 를 lookup — 사용자가 Google 로 가입한 뒤 imp-0157 의 카카오 OAuth 로 로그인하면 — 카카오 sub 으로 새 user row 가 생성되어 두 개의 프로필을 가지게 된다(거래 이력/리뷰 분리). '같은 사람의 다중 OAuth' 통합 동선 부재 — provider 가 1개면 lock-in, N개면 분리 인지."
+  proposal: "(1) 마이그레이션 — user_oauth_identities 테이블(user_id, provider, provider_user_key, linked_at) 분리, users 테이블의 (login_provider, login_provider_user_key) 는 deprecate. 기존 row 는 마이그레이션 시 1개 row 로 자동 변환. (2) FindUserByProvider → JOIN user_oauth_identities. (3) /profile/security 에 '연결된 계정' 섹션 — Google ✓ / 카카오 ✗ + '카카오 연결' 버튼 → OAuth flow 후 user_oauth_identities 새 row insert. (4) '연결 해제' — 마지막 1개 provider 는 해제 차단(lock-out 방지). (5) 다른 OAuth 가 같은 email 가지면 — '이미 가입된 계정 발견 — 합치시겠습니까?' modal(우선 잠금 후 사용자 confirm). (6) 합치기 시 거래/리뷰/매물 모두 한 user_id 로 통합."
+  effort: large
+  impact: medium
+  evidence: "코드 handlers_auth.go L78-97 FindUserByProvider 가 (provider, key) 단일 lookup — 다중 identity 모델 0건. backend/db/migrations/ grep 'oauth_identities\\|user_providers' 0건. /profile/security 에 'linked accounts' 섹션 0건. imp-0157 (provider diversity) 와 직접 충돌 가능 — 그쪽 제안만으로는 분리된 계정만 늘어남."
+
+- id: imp-0303
+  found_at_iter: 22
+  area: auth
+  type: ux
+  target: oauth_error_code_specific_recovery
+  problem: "imp-0169 가 generic 에러 분기를 다뤘으나 — Google OAuth 자체가 보내는 구체 에러(idtoken.Validate 실패, expired_token, invalid_token, audience_mismatch) 는 handlers_auth.go L52-58 에서 모두 'Google 인증에 실패했습니다' 단일 메시지로 묶여 클라이언트에 도달. 사용자는 '내 시계가 어긋난건지' '브라우저 캐시 문제인지' '계정 자체 문제인지' 알 수 없다 — recovery 가이드 0건."
+  proposal: "(1) oauth/google.go L25-41 VerifyGoogleIDToken 에러를 wrap — fmt.Errorf('GOOGLE_TOKEN_EXPIRED: %w'), fmt.Errorf('GOOGLE_AUDIENCE_MISMATCH: %w'), fmt.Errorf('GOOGLE_INVALID_SIGNATURE: %w'). (2) handlers_auth.go L53-58 가 errors.Is/As 로 분기 → response code 별도 — 'GOOGLE_TOKEN_EXPIRED'(시계/네트워크 문제, 다시 시도), 'GOOGLE_AUDIENCE_MISMATCH'(앱 client_id 문제, 운영자 알림), 'GOOGLE_INVALID_SIGNATURE'(중간자/캐시, 새로고침 권유). (3) login/page.tsx L48-53 catch — code 별 한국어 메시지: '시계가 어긋났습니다 — 시간을 자동으로 맞추거나 브라우저를 새로고침해주세요' / '앱 설정 문제 — 운영자에게 자동 보고됨' / '인증 토큰 변조 의심 — 시크릿 모드에서 다시 시도'. (4) 'AUDIENCE_MISMATCH' 발생 시 backend 자동 Sentry 에러 보고(임계 alert)."
+  effort: small
+  impact: medium
+  evidence: "코드 oauth/google.go L25-41 idtoken.Validate err 를 그냥 continue 하고 마지막에 generic error 반환(L41 'all client IDs'). errors.Is/As 0건. handlers_auth.go L53-58 단일 'UNAUTHORIZED' code. error code 카탈로그(types.ts grep 'GOOGLE_') 0건."
+
