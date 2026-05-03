@@ -1114,3 +1114,179 @@
   impact: medium
   evidence: "코드 web/components/forms/reservation-modal.tsx L42 <Modal title='예약 제안'> — props 에 aria-labelledby/initialFocus/escapeClose 0건 전달. Modal 컴포넌트 자체 정의(@/components/ui/modal) 미확인이지만 form 변경값 보존 로직은 호출처에 0건. 모바일에서 backdrop tap 시 onClose 직행."
 
+- id: imp-0102
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: reviews_index_route_404
+  problem: "/reviews 경로가 production 에서 404 페이지(영문 'This page could not be found.')를 반환한다. 사이트 메뉴/CTA 어디에도 /reviews 직접 진입은 없지만, 사용자가 거래 신뢰성을 비교하기 위해 '리뷰' 라는 검색/북마크/외부 링크로 진입할 가능성이 있다. 또한 리뷰는 익명 사용자에게 거래 안전성을 보여주는 핵심 신뢰 신호인데 글로벌 진입점 자체가 없어 거래 결정에 활용되지 못한다."
+  proposal: "(1) /reviews 라우트를 신설해 최근 작성된 리뷰 N개(좋았어요/아쉬웠어요 비율, 거래 카테고리, 시간) 를 익명에게 공개해 플랫폼 활성도와 신뢰 분위기를 가시화한다. (2) 또는 /reviews → /profile/me/reviews(로그인) / 404+안내(비로그인) 로 명확하게 redirect. (3) 최소 변경으로는 globally not-found.tsx 를 한국어 + 추천 경로(매물/채팅) 안내로 교체."
+  effort: medium
+  impact: medium
+  evidence: "Playwright GET https://giranjt.com/reviews → status 200 이지만 본문은 '404 / This page could not be found.' (h1='404'). bodyTextLength=60. 영문 잔존 + 사용자 다음 액션 가이드 0건."
+
+- id: imp-0103
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: rating_dimension_binary_only
+  problem: "리뷰 평점이 'positive' / 'negative' 두 단계만 존재한다(backend handlers_review.go L21 binding:oneof=positive negative; ReviewModal '좋았어요' / '아쉬웠어요'). 거래의 핵심 차원 — 약속 시간 준수, 시세 합리성, 의사소통 매너, 매물 상태 일치 — 이 단일 척도에 융합되어 buyer/seller 모두 어디가 좋고 어디가 부족했는지 분리할 수 없다. 5점 척도까지는 아니더라도 차원 분리는 거래 결정에 큰 가치."
+  proposal: "스키마 확장: reviews.dimension_punctuality SMALLINT(0~2), dimension_communication SMALLINT, dimension_item_condition SMALLINT(매물 상태가 적용 가능한 경우만). UI: ReviewModal 에서 각 차원별 👍/👎/N/A 3-way 토글 + 종합 한 줄 코멘트. 프로필 페이지에서 dimension 별 누적 그래프(예: '시간 약속 92%, 응답 88%')를 노출해 신뢰 신호를 풍부하게."
+  effort: large
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_review.go L21 'rating string binding:required,oneof=positive negative'. ReviewModal L41-54 에 두 개 button 외 별도 차원 입력 0건. 프로필 stat 카드(profile/page.tsx L94-97)는 'positiveReviewCount' 단일 숫자만 노출."
+
+- id: imp-0104
+  found_at_iter: 7
+  area: review
+  type: ux
+  target: review_modal_not_wired_into_app
+  problem: "ReviewModal 컴포넌트가 web/components/forms/review-modal.tsx 에 정의되어 있지만, 코드베이스 전체에서 어디에서도 import / mount 되지 않는다(grep ReviewModal: 정의·테스트만, 사용 0건). 즉 거래 완료(deal_completed) 후에도 사용자가 후기를 작성할 수 있는 UI 진입점이 production 에 없다. 백엔드 POST /completions/:id/reviews 와 모달 컴포넌트는 모두 존재하지만 연결이 끊겨 reviewable 거래의 후기 작성률이 0% 에 가까울 가능성이 높다."
+  proposal: "(1) chats/[id] 페이지에서 chatStatus === 'deal_completed' 가 되면 상단에 '거래는 어땠나요? 한 줄 후기 남기기' 배너 + ReviewModal 트리거 추가. (2) /profile/trades 의 '거래 완료' 카드에 '후기 작성' 버튼을 inline 노출(이미 작성한 거래는 '후기 보기' 로 swap). (3) 거래 완료 시점 SSE/notification 으로 후기 작성 모달 자동 prompt(첫 1회만, 사용자가 '나중에' 누르면 24h 후 재안내)."
+  effort: medium
+  impact: high
+  evidence: "Grep 'ReviewModal' across web/app + web/components: 정의 review-modal.tsx, 테스트 review-modal.test.tsx 외 사용 0건. profile/trades/page.tsx 의 '거래 완료' 카드(chatStatusLabel.deal_completed)에 후기 진입 버튼/링크 0개. backend POST /completions/:id/reviews 핸들러는 정의되어 있어 호출만 안 되는 상태."
+
+- id: imp-0105
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: review_aggregate_on_listing_card
+  problem: "매물 카드에 판매자 신뢰 신호로 'trustBadge'(newcomer 등)·'completedTradeCount' 만 노출되며 후기 비율(positive_ratio) 이나 최근 후기 한 줄 인용은 없다. 같은 'newcomer' 라도 거래 5건 평균 100% 좋았어요인 셀러와 거래 5건 평균 60% 인 셀러는 구매자 의사결정에 결정적 차이지만 카드에서 구별할 방법이 없다."
+  proposal: "ListingCard 에 작은 calc 'positiveRatio = positive / (positive + negative)' 배지를 추가(예: '👍 92% (24)'). 데이터 소스는 listings list API 응답에 author.positiveReviewCount + author.negativeReviewCount 추가하거나 캐시 컬럼 review_score_cached 도입. 0 건이면 '아직 후기 없음' 으로 명시(공백 X)."
+  effort: medium
+  impact: high
+  evidence: "API GET /api/v1/listings 응답 author 객체: { nickname, responseBadge, trustBadge, userId } — review 관련 필드 0건. ListingCard 컴포넌트(이전 iter listings 섹션 분석) 도 후기 비율/평균 표시 미존재. trustBadge='newcomer' 가 92% 사용자에 적용되어 변별력 약함."
+
+- id: imp-0106
+  found_at_iter: 7
+  area: review
+  type: ux
+  target: reviews_page_no_seller_context
+  problem: "/profile/[userId]/reviews 페이지가 '받은 리뷰 (N)' 헤더만 보여주고 어떤 셀러의 리뷰인지(닉네임/아바타/배지/거래 수/매물 링크) 어디에도 표시하지 않는다. 외부 공유 링크나 다른 매물에서 '리뷰 보기 ›' 로 진입하면 사용자가 어느 셀러의 페이지에 있는지 즉시 파악 불가. 빈 상태('아직 리뷰가 없습니다') 도 셀러 컨텍스트 없이 일반 카피만 표시."
+  proposal: "페이지 상단에 sticky 헤더로 (아바타·닉네임·trustBadge·거래수·응답뱃지) 카드 + '매물 보기' 버튼을 추가하고, 빈 상태 카피를 '아직 {nickname}님에 대한 리뷰가 없어요. 거래를 시작해 보세요.' 로 변경. /profile/[userId]/reviews 가 SSR/streaming 으로 minimal 메타정보(닉네임)는 즉시 보이게 한다."
+  effort: small
+  impact: medium
+  evidence: "Playwright /profile/da1e387a-fd67-4189-8475-b1a379e9a2a2/reviews — bodyText 60자, sellerName regex 매칭 0건, 셀러 프로필 link 0건, avatar 0건. 페이지 코드 web/app/profile/[userId]/reviews/page.tsx L29-31 헤더는 '받은 리뷰 ({reviews.length})' 만."
+
+- id: imp-0107
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: rating_aggregate_visualization
+  problem: "받은 리뷰 페이지가 개별 리뷰 카드만 timeline 으로 나열한다. 리뷰가 100건 쌓이면 사용자는 좋았어요/아쉬웠어요 비율, 시간대별 추이, 매물 카테고리별 후기 분포를 파악할 수 없다. 신뢰는 개별 한 줄 코멘트가 아니라 누적 통계에서 온다."
+  proposal: "/profile/[userId]/reviews 상단에 (1) 좋았어요 vs 아쉬웠어요 비율 horizontal bar('👍 92% · 👎 8% · 총 24개'), (2) 최근 30일 vs 그 이전 비율 비교(최근 추세 신호), (3) 카테고리별 분포(무기/방어구/소모품) 작은 칩 — 백엔드는 GET /users/{id}/review-stats 신규 엔드포인트로 단일 fetch."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/profile/[userId]/reviews/page.tsx L33-62: 개별 review 만 map render, 집계 영역 0건. backend handlers_review.go handleGetUserReviews 응답도 raw list 만 반환(L73 'data: reviews'), 통계 필드 0건."
+
+- id: imp-0108
+  found_at_iter: 7
+  area: review
+  type: ux
+  target: review_text_length_limit
+  problem: "ReviewModal '한줄 코멘트(선택)' textarea 가 maxLength / minLength / 글자수 카운터 모두 없고 height h-24(약 96px)에 placeholder 만 있다. 사용자는 한 줄을 의도했는데 1000자 장문을 쓰거나, 반대로 빈칸/이모지 한 글자로 노이즈 후기를 만들기 쉽다. 백엔드 binding 도 comment 길이 검증 0건이라 DB · 카드 레이아웃이 깨질 수 있다."
+  proposal: "textarea 에 maxLength={200} 설정, '한 줄 코멘트 (선택, 최대 200자)' label 명시, 우하단 실시간 카운터('45/200'). 너무 짧은(<5자 또는 emoji-only) 입력은 submit 시 inline 경고 'rating 만 제출하시거나 5자 이상의 코멘트를 입력해 주세요'. 백엔드 binding 에 max=200,omitempty 추가."
+  effort: trivial
+  impact: medium
+  evidence: "코드 review-modal.tsx L56-62 <textarea> 에 maxLength/minLength/카운터 0건. backend handlers_review.go L21-23 req.Comment *string 에 binding 검증 0건."
+
+- id: imp-0109
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: review_seller_response
+  problem: "negative 후기를 받은 셀러가 자기 입장을 해명/사과할 수 있는 답글(seller response) 기능이 없다. 거래 분쟁/오해에서 'negative=세입자 사정으로 약속 늦음'·'negative=가격 변경 요구' 같은 컨텍스트가 빠지면 후기는 일방적 선언이 되고, 셀러 입장에서 플랫폼에 대한 신뢰가 떨어진다."
+  proposal: "reviews 테이블에 seller_response_text TEXT, seller_response_at TIMESTAMPTZ 컬럼 추가. POST /reviews/{id}/response 엔드포인트(셀러 본인만, 1회 한, 7일 이내). UI: review 카드 아래 셀러 답글 inline 표시 ('셀러 답변: ...'). negative 후기에만 답글 prompt notification 발송."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_review.go 전체 — POST/PATCH 엔드포인트 1개(handleCreateReview)뿐. db/migrations 검색 시 review reply 컬럼 0건(reviews 스키마는 본 task 에서 직접 미확인 — 추정). UI 측 review 카드(profile/[userId]/reviews/page.tsx L34-62) 에 답글 영역 0건."
+
+- id: imp-0110
+  found_at_iter: 7
+  area: review
+  type: ux
+  target: review_edit_or_delete_own
+  problem: "리뷰 작성 후 작성자가 수정 / 삭제할 방법이 backend handlers_review.go 에 없다(POST createReview + GET listUserReviews 만). 즉 한 번 누른 'positive/negative' 토글이 영구적으로 고정되어 작성 직후 후회/오타/사실관계 정정 시 운영자 개입 외에 정정 불가."
+  proposal: "PATCH /reviews/{id} 와 DELETE /reviews/{id} 추가, 작성자 본인만 가능, 작성 후 7일 이내 윈도우(7일 후엔 분쟁 방지 차원 잠금). UI: 본인이 작성한 리뷰 카드 우측에 '수정 / 삭제' 메뉴(이미 7일 지나면 disabled + 안내 툴팁). 모든 변경은 audit table review_audits 에 before/after 기록."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_review.go: handler 함수 2개 (handleCreateReview, handleGetUserReviews) 만 정의. PATCH/DELETE 핸들러 0건. UI side review 카드(profile/[userId]/reviews/page.tsx L34-62) 에 수정/삭제 버튼 0건."
+
+- id: imp-0111
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: review_report_abuse
+  problem: "리뷰는 신원 일부(닉네임)와 함께 공개되는데 모욕/사칭/허위/욕설 후기를 제3자가 신고할 진입점이 UI 에 없다(리뷰 카드에 신고/오류 신고 버튼 0). 매물·사용자 신고 모달은 존재하지만 'review 단위' 신고는 reportable_type='review' 같은 카테고리로 분리되지 않은 듯하다."
+  proposal: "review 카드에 ⋯ 메뉴 → '이 리뷰 신고' 추가, 사유 옵션(허위·욕설·개인정보·스팸). reports 테이블에 reportable_type='review', reportable_id=review_id 지원. 운영자 대시보드(admin)에서 review_report 큐 확인 → 후기 hide / 삭제 / 작성자 경고. 클라이언트는 신고된 review 카드를 'hidden' 상태로 즉시 회색 처리."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/profile/[userId]/reviews/page.tsx L34-62 리뷰 카드 dom 에 신고 button 0건. 기존 신고 모달은 매물 상세에만 적용(이전 iter listing_detail report_button_anonymous_unreachable 와 별개로 review 단위 신고는 모달 prop type 검토 필요)."
+
+- id: imp-0112
+  found_at_iter: 7
+  area: review
+  type: a11y_mobile
+  target: review_modal_keyboard_and_aria
+  problem: "ReviewModal 의 'positive/negative' 두 버튼은 aria-pressed 만 있고 group 컨테이너에 role='radiogroup' / aria-label 이 없다. 스크린리더 사용자는 '두 개의 토글이 있다'까지만 인지하고 '하나만 선택하는 거래 후기 평가' 라는 의도를 알 수 없다. 또한 모달 자체의 focus 진입 / Escape / submit 비활성 상태(rating==null)는 시각적으로만 표시되어 스크린리더로는 '버튼 disabled' 만 들린다."
+  proposal: "(1) 두 버튼 wrapper 에 role='radiogroup' aria-label='거래 평가' aria-required='true'. (2) 각 button 을 role='radio' 로 변경하거나, 차라리 <input type='radio'> + label 로 네이티브 시맨틱 사용. (3) 모달 open 시 첫 라디오에 자동 focus, ←→ 키로 라디오 이동. (4) submit disabled 상태에 aria-describedby 로 '평가를 먼저 선택해 주세요' 안내 텍스트 연결. (5) 코멘트 textarea 에 aria-describedby 로 글자수 카운터 연결."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/review-modal.tsx L40-55: <button aria-pressed={...}> 두 개를 <div className='flex gap-3'> 으로 감쌈. role='radiogroup'/role='radio' 0건. submit 버튼(L63) disabled 상태에 aria-describedby 0건. 키보드 ←→ 핸들러 0건."
+
+- id: imp-0113
+  found_at_iter: 7
+  area: review
+  type: content
+  target: review_rating_label_neutrality
+  problem: "rating 라벨 '좋았어요' / '아쉬웠어요' 는 친근하지만, 부정 라벨이 '나빴어요' 가 아닌 '아쉬웠어요' 라 실제 사기/약속 미이행 같은 강한 부정 케이스를 흐리게 만든다. 또한 영문 enum 'positive/negative' 와 한국어 라벨 사이 의미 강도가 어긋나 운영 통계('positive 비율 92%')가 실제 사용자 만족과 괴리될 수 있다."
+  proposal: "라벨을 두 단계로 좀 더 구체화: '믿을 만했어요(좋았어요)' / '문제 있었어요(아쉬웠어요)' 로 보조 설명 추가하고, '문제 있었어요' 선택 시 textarea placeholder 가 '예: 약속 시간 30분 늦으셨어요. 그래도 거래는 완료됐습니다.' 같은 구체 가이드로 변경되도록 동적 처리. 또는 영문 enum 을 'satisfied/dissatisfied' 로 정리하고 라벨/문서 일관성 확보."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/forms/review-modal.tsx L52 'r === positive ? \"좋았어요\" : \"아쉬웠어요\"'. backend handlers_review.go L21 oneof=positive negative. profile/[userId]/reviews/page.tsx L51 'r.rating === positive ? \"👍 좋아요\" : \"👎 아쉬워요\"' — 같은 enum 에 라벨이 'modal=좋았어요/아쉬웠어요', 'list=좋아요/아쉬워요' 로 두 가지 버전 혼재."
+
+- id: imp-0114
+  found_at_iter: 7
+  area: review
+  type: ux
+  target: review_link_to_listing_context
+  problem: "받은 리뷰 카드가 (작성자 닉네임, rating, comment, 시간) 만 보여주고 어떤 거래/어떤 매물 에 대한 후기인지 표시하지 않는다. 셀러 입장에서 '동일 닉네임으로 여러 후기가 쌓이면 어느 거래 건이 negative 였는지' 알 수 없고, 잠재 구매자도 '이 셀러는 무기 거래에서 신뢰도가 높다'/'소모품 거래에서 후기 좋다' 같은 카테고리 기반 신뢰 판단이 불가능."
+  proposal: "리뷰 카드에 (소형 매물 아이콘 + 매물 제목 + 거래일 + 가격) 인라인 chip 추가, 클릭 시 매물 상세로 이동. 백엔드 ListUserReviews 응답에 listing_id, listing_title, item_icon_url, completed_at 필드 join 추가. 매물이 삭제됐으면 '삭제된 매물' 로 회색 처리."
+  effort: small
+  impact: medium
+  evidence: "코드 backend handlers_review.go L70-72: 응답에 listingId/itemName 0건. profile/[userId]/reviews/page.tsx L34-62 카드에 매물 정보 영역 0건. UserReviewItem 구조체(repository/interfaces.go L581 부근)에도 매물 메타 필드 없음으로 추정."
+
+- id: imp-0115
+  found_at_iter: 7
+  area: review
+  type: performance
+  target: reviews_pagination_and_caching
+  problem: "GET /users/{id}/reviews 가 단일 SQL 로 전체 리뷰를 한 번에 반환한다(handlers_review.go L62 ListUserReviews). 활발한 셀러가 후기 500건 쌓이면 한 번에 500개 row + reviewerNickname JOIN 결과를 한 응답에 담아 모바일 LCP/메모리/렌더 모두 큰 부담. 클라이언트는 useQuery 로 받지만 페이지네이션도 없고 staleTime/gcTime 설정도 default."
+  proposal: "(1) 백엔드: 쿼리 파라미터 ?cursor=...&limit=20 cursor pagination, 응답에 nextCursor 추가. (2) 프론트: useInfiniteQuery 로 변경, 무한 스크롤 + IntersectionObserver. (3) ETag/Last-Modified 또는 review_score_cached 컬럼으로 셀러 단위 캐시 무효화 신호. (4) staleTime 5분 + 새 리뷰 작성 시 invalidateQueries(['user-reviews', userId])."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend handlers_review.go L62: 'items, err := repo.ListUserReviews(ctx, targetUserID)' — limit/cursor 파라미터 0건. ListUserReviews 시그니처(interfaces.go L442) 'ListUserReviews(ctx, targetUserID string) ([]UserReviewItem, error)' — pagination 인자 없음. web/lib/hooks/use-reviews.ts L4-9 useQuery 만 사용, useInfiniteQuery 0건, staleTime 미설정."
+
+- id: imp-0116
+  found_at_iter: 7
+  area: review
+  type: feature
+  target: review_helpful_vote
+  problem: "쌓인 리뷰 중 '의미 있는' 후기와 '잘 거래했어요(2글자)' 같은 노이즈 후기를 구분하는 시그널이 없다. 결국 새로운 구매자가 가장 최근 후기 N개만 본 뒤 신뢰 판단을 내려야 하는데, 짧은 무내용 후기들이 timeline 을 차지하면 의사결정 비용 증가."
+  proposal: "리뷰 카드에 '👍 도움돼요' 버튼 추가(로그인 사용자만, 자기 후기 제외). reviews_helpful_votes 테이블(review_id, user_id, voted_at, UNIQUE(review_id, user_id)). 정렬 옵션 '도움 순' 추가, helpful_count >= 3 인 후기는 카드 상단에 '추천 후기' 배지. 후기 작성자에게 helpful 받았을 때 알림(작성자 동기 부여)."
+  effort: large
+  impact: low
+  evidence: "코드 backend handlers_review.go: helpful/vote 관련 핸들러 0건. db/migrations: helpful 컬럼/테이블 ripgrep 0건(추정). UI: profile/[userId]/reviews/page.tsx 정렬/필터 0건, '도움돼요' 버튼 0건."
+
+- id: imp-0117
+  found_at_iter: 7
+  area: review
+  type: a11y_mobile
+  target: review_card_emoji_only_indicator
+  problem: "받은 리뷰 카드에서 rating 표시가 '👍 좋아요' / '👎 아쉬워요' 처럼 emoji 가 텍스트 옆에 인라인으로 들어가 있다. 일부 스크린리더는 emoji 를 '엄지 위로 손' 같은 음성으로 읽고 사용자에 따라 비활성화하기도 해서 의미 전달이 일관적이지 않다. 또한 색상(green-400 vs danger) 만으로 긍정/부정 구분되는 경우 색맹 사용자에게 불리하다."
+  proposal: "(1) 텍스트 prefix 를 '긍정 평가 — 좋아요' / '부정 평가 — 아쉬워요' 로 명시. (2) emoji 를 <span aria-hidden='true'> 로 감싸 스크린리더 중복 발화 방지. (3) 카드 배경 색상에 더해 좌측 4px border-l-* (green/red) 추가로 색상 외 시각 단서 강화. (4) 카드 자체에 aria-label='유저X 의 긍정 평가, N일 전, 코멘트: ...' 합성 문구 부여."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/profile/[userId]/reviews/page.tsx L51: '{r.rating === positive ? \"👍 좋아요\" : \"👎 아쉬워요\"}' — emoji 가 텍스트 노드에 직접 포함되어 aria-hidden 격리 없음. 카드(L37) 'border border-border' 만으로 색상 외 시각 단서 0건."
+

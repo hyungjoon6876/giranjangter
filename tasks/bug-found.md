@@ -23,7 +23,8 @@
   viewport: 1280x800
   evidence: "axe-core color-contrast: 판매중 status badge (color #059669 on tinted bg rgba(5,150,105,0.1) over page bg #17131A) computed contrast 4.41:1 (need 4.5:1)."
   source_root_cause: "web/lib/utils.ts — STATUS_COLORS.available = '#059669' (foreground darker than needed for tinted bg)"
-  status: open
+  status: fixed
+  fixed_at_iter: 7
 
 - id: bug-0003
   found_at_iter: 1

@@ -47,3 +47,12 @@
   files_touched: ["web/app/login/page.tsx"]
   verification: "localhost:3000/login 375x667 재탐지: button 103x18 → 132x44 확인. 244 vitest pass, eslint clean. 사전존재 type 에러는 변경 무관 (test fixture 타입)."
   squash_commit: "65bff90"
+
+- id: bug-0002
+  fixed_at_iter: 7
+  page: /
+  rule_id: B-4-color-contrast
+  fix_summary: "web/lib/utils.ts — STATUS_COLORS.available '#059669' → '#10B981' (Tailwind emerald-500). 판매중 status badge contrast 4.41:1 → 6.31:1 on #17131A (7.06:1 on #08080C). WCAG AA 4.5:1 충족."
+  files_touched: ["web/lib/utils.ts", "web/__tests__/lib/utils.test.ts"]
+  verification: "localhost:3000/ axe color-contrast 0 violations. synthetic badge axe.run 결과 'sufficient color contrast of 7.06'. 244 vitest pass (utils 11/11), eslint clean. 사전존재 type 에러는 변경 무관 (test fixture 타입)."
+  squash_commit: "1f6e76f"

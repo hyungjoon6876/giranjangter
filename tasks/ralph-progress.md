@@ -9,3 +9,4 @@ iter 3 | bugs +2/-3=1 | improvs +19=60 | merged auto/bug-3-0005 (shared/design-t
 iter 4 | bugs +1/-1=1 | improvs +15=75 | merged auto/bug-4-0007 (web/app/login/page.tsx '로그인 없이 둘러보기' 18→44px tap target)
 iter 5 | bugs +0/-0=1 | improvs +15=90 | /profile clean (cons_no_new=1); prod stale text-dim contrast = bug-0005 root cause (deploy pending); chat: redirect param drop + anon-invisible chat CTA + image attach missing
 iter 6 | bugs +0/-0=1 | improvs +11=101 | /chats anon→login redirect, all clean (cons_no_new=2); page queue 1바퀴 완료 6/6; reservation: confirm/cancel UI 부재, /reservations 404, KST→UTC timezone bug
+iter 7 | bugs +0/-1=0 | improvs +16=117 | merged auto/bug-7-0002 (web/lib/utils.ts STATUS_COLORS.available #059669→#10B981 contrast 4.41→7.06); 🎉 BUG LOOP DONE (cons=3, pages=6/6, 0 open); review: ReviewModal dead code, rating binary only, /reviews 404, no edit/delete/report
