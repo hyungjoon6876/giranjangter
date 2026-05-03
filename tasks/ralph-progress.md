@@ -14,3 +14,4 @@ iter 8 | bugs SKIPPED (loop done) | improvs +12=129 | report: imp-0118 chat repo
 iter 9 | bugs SKIPPED | improvs +8=137 | notification: imp-0130 TS Notification type 불일치 (silent broken render) + imp-0131 backend INSERT 0건 (feature 사실상 dead code) + 인앱 채널만 (no web push/email)
 iter 10 | bugs SKIPPED | improvs +18=155 | profile: /profile/<userId> 인덱스 404 (only /reviews), trustBadge raw 렌더, logout 확인 없음, blocked-list/settings/characters 화면 부재
 iter 11 | bugs SKIPPED | improvs +15=170 | auth: oauth provider 다양화, 계정 삭제 self-serve, device session mgmt, multi-tab logout sync, T&C consent tracking; 🎯 areas 11/11 완주
+iter 12 | bugs SKIPPED | improvs +18=188 | home round2: filter URL state 부재, twitter:image localhost, 계정 카테고리 ToS 위반 위험, Korean 만/억 가격 포맷, line-clamp/preconnect/manifest service-worker

@@ -1873,3 +1873,201 @@
   impact: low
   evidence: "Playwright snapshot ref=e44 iframe(Google Sign-In) — outer page 에서 ESC handler 0건(login/page.tsx grep 'onKeyDown\\|ESC\\|Escape' → 0). iframe 외 키보드 진입 가능 요소 4종(헤더 로그인, body skip-link, 본문 둘러보기, 하단 nav 4개) 만."
 
+- id: imp-0171
+  found_at_iter: 12
+  area: home
+  type: a11y_mobile
+  target: bottom_nav_safe_area_inset
+  problem: "하단 고정 네비게이션(nav[aria-label='하단 메뉴'])의 padding-bottom이 0px이라 iPhone X+ 노치/홈 인디케이터 영역과 탭 항목이 겹친다. position:fixed; bottom:0; height:55.5px이며 safe-area-inset-bottom 를 반영하지 않는다."
+  proposal: "하단 네비에 padding-bottom: env(safe-area-inset-bottom)를 추가하고 동시에 viewport meta에 viewport-fit=cover를 더한다. 본문 그리드의 마지막 카드가 가려지지 않도록 main에 padding-bottom: calc(56px + env(safe-area-inset-bottom)) 도 함께 부여."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright getComputedStyle: nav[aria-label='하단 메뉴'] { position:fixed, bottom:0, padding-bottom:0px, height:55.5px, bottomFromViewport:0 }. iOS 홈 인디케이터(약 34px)가 탭 영역과 충돌."
+
+- id: imp-0172
+  found_at_iter: 12
+  area: home
+  type: performance
+  target: cdn_preconnect_missing
+  problem: "매물 카드 아이템 아이콘은 /static/icons/{id}.png 로 노출되며(원본 assets.playnccdn.com), production 페이지의 link[rel=preconnect/dns-prefetch] 헤더에는 fonts.googleapis/gstatic 만 등록되어 있다. 첫 카드 그리드 렌더 시 같은 origin 내라도 Next 이미지 변환 origin과 CDN 사이 추가 RTT 발생."
+  proposal: "<head>에 <link rel='preconnect' href='https://assets.playnccdn.com' crossorigin>와 <link rel='dns-prefetch' href='//assets.playnccdn.com'>를 추가한다. Next.js metadata.other 또는 app/layout.tsx의 head 컴포넌트로 주입."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: link[rel=preconnect] = ['fonts.googleapis.com','fonts.gstatic.com']만, link[rel=dns-prefetch] = 0개. 카드 아이콘 src 패턴 https://giranjt.com/static/icons/42.png (CDN 원본은 assets.playnccdn.com)."
+
+- id: imp-0173
+  found_at_iter: 12
+  area: home
+  type: feature
+  target: filter_url_state_persistence
+  problem: "서버 필터 '데포로쥬' 클릭 후 location.href, location.search 가 그대로 'https://giranjt.com/' 로 유지되어 URL에 어떠한 쿼리 파라미터도 반영되지 않는다. 결과적으로 '데포로쥬 + 무기' 같은 조합 화면을 친구에게 공유할 수 없고, 새로고침/뒤로가기 시 필터가 사라지며 SEO 인덱싱도 단일 URL로 묶인다."
+  proposal: "필터 상태를 useSearchParams + replace 로 URL 쿼리에 직렬화한다(?server=depro&category=weapon&min=10000). Next.js App Router의 router.replace를 사용해 history flood 없이 동기화. 서버 컴포넌트에서 searchParams를 받아 SSR 응답에 반영하면 SEO/공유 양쪽 해결."
+  effort: medium
+  impact: high
+  evidence: "Playwright: 데포로쥬 칩 click 후 location.href='https://giranjt.com/' (변화 없음), location.search='', history.length 변화 없음, localStorage/sessionStorage 키 0개. 필터는 클라이언트 상태로만 보존."
+
+- id: imp-0174
+  found_at_iter: 12
+  area: home
+  type: content
+  target: meta_description_length
+  problem: "meta[name=description].content 가 '리니지 클래식 아이템 거래 중개 플랫폼' (21자)로 Google 권장 50-160자 미달이다. SERP 스니펫이 잘려서 표시되거나 본문에서 자동 발췌되어 키워드 매칭률이 떨어진다."
+  proposal: "Next.js metadata.description 을 130-150자로 확장: '리니지 클래식 서버별 무기·방어구·재화·계정 거래를 안전하고 무료로 중개합니다. 데포로쥬·켄라우헬·질리언 서버 매물을 실시간으로 둘러보고 채팅으로 거래하세요.' (검색 키워드 '리니지 클래식 거래', '서버별', '아이템 거래' 포함)."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: meta[name=description].content.length = 21, 내용 = '리니지 클래식 아이템 거래 중개 플랫폼'. Google 권장 length 50-160."
+
+- id: imp-0175
+  found_at_iter: 12
+  area: home
+  type: content
+  target: twitter_image_localhost_url
+  problem: "meta[name='twitter:image'].content 가 'http://localhost:3000/images/og-image.png'로 노출되어 Twitter/X 카드 미리보기가 깨진다. og:image와 동일한 패턴이지만 dedup상 다른 target."
+  proposal: "Next.js metadata.openGraph.images 와 metadata.twitter.images 를 NEXT_PUBLIC_SITE_URL 기반 절대 URL로 통일한다. 빌드 환경별 검증을 위해 lint 단계에 'localhost:3000' 문자열이 build 결과에 들어있지 않은지 검사."
+  effort: trivial
+  impact: high
+  evidence: "Playwright: meta[name='twitter:image'].content = 'http://localhost:3000/images/og-image.png' (production https://giranjt.com 에서). meta[name='twitter:card'] = 'summary_large_image' 이므로 이미지가 깨지면 카드 노출 자체가 실패."
+
+- id: imp-0176
+  found_at_iter: 12
+  area: home
+  type: content
+  target: relative_time_semantic_markup
+  problem: "매물 카드의 '1개월 전' 등록 시각이 plain text로 출력되며 <time datetime> 마크업이 없다. 스크린리더는 '일개월전'으로 한 단어처럼 읽고, 정확한 등록일자(YYYY-MM-DD HH:mm)는 호버 툴팁이나 상세 페이지 진입 후에야 알 수 있다."
+  proposal: "<time datetime='2026-04-02T13:24:00Z' title='2026년 4월 2일'> 1개월 전 </time> 형태로 마크업한다. 검색엔진의 freshness 시그널, 스크린리더 정확성, hover 툴팁(절대 시각) 세 가지가 동시에 개선됨."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: querySelectorAll('time').length = 0, 카드 본문 텍스트에 '1개월 전' 4건 모두 일반 span 으로 추정(time 태그 부재)."
+
+- id: imp-0177
+  found_at_iter: 12
+  area: home
+  type: a11y_mobile
+  target: filter_chip_keyboard_roving_tabindex
+  problem: "서버 필터 [aria-label='서버 필터'][role='group'] 의 28개 button 모두 tabindex=null(기본 0)이라 Tab 한 번에 28개 stop을 통과해야 다음 섹션(카테고리)으로 갈 수 있다. role='group' 까지는 있지만 toolbar/radiogroup 패턴 없이 키보드 사용자에게 단조로운 탭 지옥."
+  proposal: "role='radiogroup' (단일 선택 의미) 또는 role='toolbar' 로 변경하고 roving tabindex 패턴 적용 — 활성 칩만 tabindex=0, 나머지 -1, ArrowLeft/ArrowRight로 이동. WAI-ARIA Authoring Practices toolbar/radiogroup 예시 따라 구현."
+  effort: small
+  impact: medium
+  evidence: "Playwright: [aria-label='서버 필터'] role='group', 안의 button 5개 sample 모두 tabindex=null. 28+11=39개 칩 모두 Tab stop이라 키보드 사용자가 매물 그리드 도달까지 39+ Tab 입력 필요."
+
+- id: imp-0178
+  found_at_iter: 12
+  area: home
+  type: a11y_mobile
+  target: filter_button_aria_pressed_vs_radio
+  problem: "서버 필터에서 '전체' 클릭 시 다른 서버는 자동 해제되는 단일 선택(라디오) 의미인데, button[aria-pressed='true|false'] 토글 의미를 사용한다. 스크린리더는 '버튼, 눌림' 으로 읽어 '체크됨' 보다 의미 전달이 약하고 라디오 그룹의 'X / Y 선택됨' 같은 위치 컨텍스트가 없다."
+  proposal: "(1) role='radio' + aria-checked + 부모 role='radiogroup' + aria-label='서버 선택' 으로 변경. (2) 또는 단일 select(custom listbox)로 패턴 자체를 통일 — '서버 ▾ 데포로쥬' 드롭다운. 카테고리 칩은 다중 선택일 가능성이 높으므로 aria-pressed 유지 가능."
+  effort: small
+  impact: medium
+  evidence: "Playwright: 서버 필터 button 28개 모두 aria-pressed 사용 ('전체'=true, 나머지=false). 카테고리 11개도 동일 패턴이지만, 클릭 동작 분석상 서버는 단일선택(라디오), 카테고리도 단일선택으로 보여 '하나만 활성' 의미면 라디오가 더 적합."
+
+- id: imp-0179
+  found_at_iter: 12
+  area: home
+  type: a11y_mobile
+  target: sort_select_native_height
+  problem: "정렬 드롭다운 select 가 height 28px / width 92px 로 노출되며 appearance:auto(브라우저 기본 chevron 사용). 모바일 375px 뷰포트에서 28px 높이는 WCAG 2.5.5 권장 44x44, 최소 32x32 모두 미달이며 한 손 엄지 탭 시 빗나가기 쉽다."
+  proposal: "정렬 select 의 min-height 를 44px 로 키우고 padding 을 늘린다. 디자인 통일을 위해 custom dropdown(Radix Select 등) 으로 교체하면 chevron/포커스 링/스타일 일관성도 함께 개선."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright getBoundingClientRect: select height=28, width=92, computed appearance='auto'. 동일 페이지 카테고리 칩 31px, 서버 칩 30px과 함께 탭 타깃 부족 라인업."
+
+- id: imp-0180
+  found_at_iter: 12
+  area: home
+  type: feature
+  target: theme_color_scheme_toggle
+  problem: "documentElement.style.colorScheme=='', getComputedStyle().colorScheme=='normal' 로 다크 테마가 강제되며 사용자/시스템 라이트 모드 사용자는 어두운 배경(#08080C)을 선택할 수 없다. 야외/주간 사용 시 가독성 저하."
+  proposal: "Tailwind 의 darkMode='class' + system + 사용자 토글(헤더 우측)을 도입한다. CSS 변수로 색상 토큰을 정의해 라이트/다크 두 팔레트 모두 지원. localStorage 키 'theme' 에 'system|light|dark' 저장."
+  effort: medium
+  impact: medium
+  evidence: "Playwright: getComputedStyle(html).colorScheme='normal', html.style.colorScheme='', [aria-label*='테마|라이트|다크']=0개, [data-testid*='theme']=0. 모든 사용자에게 강제 다크."
+
+- id: imp-0181
+  found_at_iter: 12
+  area: home
+  type: feature
+  target: search_input_no_form_wrapper
+  problem: "헤더와 hero 두 곳의 input[type=search] 모두 form 태그로 감싸이지 않아(i.form === false) Enter 입력 시 'submit' 이벤트가 발생하지 않는다. JS hydration 실패 시 검색이 완전히 동작하지 않으며, GET ?q= URL 공유도 불가."
+  proposal: "input 을 <form action='/search' method='get'> 으로 감싸고 input.name='q' 를 부여한다. 클라이언트는 onSubmit 으로 router.push 처리, JS 실패 시에도 native submit 으로 /search?q=... 페이지 진입. 동시에 imp-0010 의 enterkeyhint='search' 와 결합."
+  effort: small
+  impact: medium
+  evidence: "Playwright: input[type=search] 2개 모두 i.form===false, name='', form 미부착. /search 페이지 라우트 존재 여부 미확인이지만 어떤 경우든 progressive enhancement 부재."
+
+- id: imp-0182
+  found_at_iter: 12
+  area: home
+  type: content
+  target: category_account_legal_clarity
+  problem: "카테고리 필터에 '계정' 항목이 노출되며 [aria-label='카테고리 필터'] 안에 button text='계정' 이 존재한다. MMORPG 운영사 약관(NCSOFT 리니지 ToS)은 일반적으로 계정 양도/판매를 금지하며, 마켓플레이스가 이를 적극 노출하면 운영사 분쟁/계정 회수 리스크가 거래 양 당사자에게 발생한다."
+  proposal: "(1) '계정' 항목을 제거하고 대체 카테고리(예: '커뮤니티 거래')만 남긴다. 또는 (2) '계정' 칩 클릭 시 약관 안내 모달 — '운영사 약관상 계정 거래는 회수/제재 위험이 있습니다' 노출 후 본인 책임 동의 시에만 진행. 동시에 매물 등록 폼도 동일 가드."
+  effort: small
+  impact: high
+  evidence: "Playwright: [aria-label='카테고리 필터'] 안 button 11개 라벨 = ['전체','무기','방어구','장신구','소모품','재료','재화','주문서','펫/소환수','기타','계정']."
+
+- id: imp-0183
+  found_at_iter: 12
+  area: home
+  type: content
+  target: filter_label_all_collision
+  problem: "서버 필터와 카테고리 필터 모두 '전체' 라는 동일 라벨의 칩을 보유한다. 스크린리더가 '전체 버튼 눌림 / 전체 버튼' 식으로 두 번 읽어 어느 그룹의 '전체' 인지 사용자가 헷갈린다. 시각 사용자도 처음에는 두 그룹의 차이를 인지하기 어렵다."
+  proposal: "두 '전체' 칩에 aria-label 로 컨텍스트를 명시 — 서버 그룹은 aria-label='모든 서버', 카테고리는 aria-label='모든 카테고리'. 시각 라벨은 '전체' 유지하되 SR 만 읽는 라벨을 다르게."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: 서버 그룹 '전체' button 1개(aria-pressed=true), 카테고리 그룹도 '전체' 1개(aria-pressed=true). 동일 가시 텍스트, group aria-label 만 다름('서버 필터' vs '카테고리 필터')."
+
+- id: imp-0184
+  found_at_iter: 12
+  area: home
+  type: performance
+  target: pwa_service_worker_offline
+  problem: "<link rel='manifest'> 는 존재(manifest=true) 하지만 navigator.serviceWorker.controller 가 null 이라 PWA 설치는 가능해도 오프라인/저사양 네트워크 시 페이지가 깨진다. 매물 카드 메타데이터 캐시도 없다."
+  proposal: "Workbox 또는 next-pwa 로 service worker 도입 — (1) precache: HTML shell + 핵심 JS/CSS, (2) runtime cache: /api/v1/listings 30s SWR, /static/icons 30일 cache-first, /_next/image 7일 cache-first. 오프라인 시 마지막 캐시된 리스트 노출 + '오프라인 — 마지막 갱신 N분 전' 배너."
+  effort: medium
+  impact: medium
+  evidence: "Playwright: !!document.querySelector('link[rel=manifest]')===true, navigator.serviceWorker.controller===null. PWA 절반만 구현."
+
+- id: imp-0185
+  found_at_iter: 12
+  area: home
+  type: ux
+  target: overscroll_pull_to_refresh
+  problem: "body/html 모두 overscroll-behavior:auto 라 모바일에서 위로 당기면 브라우저의 새로고침 제스처가 그대로 트리거된다. 매물 그리드 위쪽에서 의도치 않게 페이지 전체가 새로고침되어 적용한 필터(URL에도 안 남음, imp-0173 참조)도 함께 사라지는 이중 손실."
+  proposal: "(1) body { overscroll-behavior-y: contain } 로 새로고침 차단, (2) 그리드 상단에 명시적 'Pull to refresh' 인디케이터 도입 또는 '새로고침' 버튼 + 자동 SSE 갱신. 의도된 새로고침은 명확한 제스처/버튼으로만."
+  effort: small
+  impact: medium
+  evidence: "Playwright getComputedStyle: html.overscrollBehavior='auto', body.overscrollBehavior='auto'. 모바일 Chrome/Safari 기본 pull-to-refresh 활성."
+
+- id: imp-0186
+  found_at_iter: 12
+  area: home
+  type: a11y_mobile
+  target: results_live_region_atomic_phrasing
+  problem: "결과 섹션에 [aria-live='polite'] '4개 매물' 텍스트가 존재하나 aria-atomic 미설정이고 phrasing 이 무미건조하다. 필터 변경 시 SR 사용자에게 '4개 매물' 만 다시 읽혀 '데포로쥬 서버에서 0개를 찾았습니다' 같은 컨텍스트가 빠진다."
+  proposal: "(1) aria-atomic='true' 추가 — 부분 변경이 아닌 전체 메시지로 읽음. (2) live region 텍스트를 '검색 결과: {N}건 ({server} 서버, {category} 카테고리)' 같이 컨텍스트 포함. (3) 0건일 땐 '결과가 없습니다. 필터를 변경해 보세요.' 로 더 친절."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: [aria-live='polite'] 1개, text='4개 매물', aria-atomic=null. 필터 적용 후에도 라이브리전 phrasing 변화 미관찰."
+
+- id: imp-0187
+  found_at_iter: 12
+  area: home
+  type: ux
+  target: long_item_title_truncation
+  problem: "매물 카드 제목 '도리깨 +10 판매합니다' / 'ㅇㄴㄹ2ㅈ +3' 등은 짧지만, 사용자가 '데포로쥬 서버 풀강 +10 도리깨 급매 판매합니다 (네고가능)' 같이 60자+ 제목을 입력하면 카드 폭(328px) 안에서 어떻게 잘리는지 시각적 처리가 검증되지 않았다. 현재 카드 마크업에 line-clamp 또는 text-overflow:ellipsis 가 보이지 않는다."
+  proposal: "h3 카드 제목에 line-clamp-2 또는 line-clamp-1 + text-overflow:ellipsis 적용. 카드 높이를 일정하게 유지해 그리드 흐트러짐 방지. 모바일 1열, 태블릿 2열, 데스크톱 4열 모두에서 검증."
+  effort: trivial
+  impact: low
+  evidence: "Playwright 카드 텍스트 분석: 제목 '도리깨 +10 판매합니다' 11자, '111233/1234 +1' 등 짧음. line-clamp 클래스명 카드 outerHTML(800자 chunk)에서 미관찰. 매우 긴 제목 입력 케이스 미테스트."
+
+- id: imp-0188
+  found_at_iter: 12
+  area: home
+  type: ux
+  target: price_display_compact_format
+  problem: "최고가 매물 '43,680,742원' 이 카드에 7자리 그대로 노출되어 가독성이 떨어진다. 한국 사용자에게는 '4,368만원' 또는 '약 4368만원' 같은 만 단위 축약이 즉각 인지되지만 현재는 풀 자리수만 출력."
+  proposal: "Intl.NumberFormat('ko-KR', { notation:'compact', maximumFractionDigits:1 }) → '4368.1만' 또는 자체 한국식 만/억 단위 포매터로 변환. hover 툴팁/aria-label 에는 정확한 원 단위(43,680,742원) 보존. 1만원 미만은 그대로 표시."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: 노출 가격 ['200,000원','43,680,742원','1원','10원']. Intl.compact 테스트 결과 '4368.1만'. 7자리 천 단위 콤마는 인지에 약 1.5x 시간 더 걸림(인지 부하 연구)."
+

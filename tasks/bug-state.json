@@ -1,5 +1,5 @@
 {
-  "iteration": 11,
+  "iteration": 12,
   "consecutive_no_new": 3,
   "last_page_index": 0,
   "page_queue": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chats"],
