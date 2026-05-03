@@ -1510,3 +1510,201 @@
   impact: medium
   evidence: "코드 web/components/layout/header.tsx L18 'unreadCount' 변수 계산은 하지만 L72-73 렌더는 'w-2 h-2 bg-red-500 rounded-full' 점 1개 — 숫자 사용 0건. web/components/layout/bottom-nav.tsx L16-29 TABS 5개 중 notifications 0건. Playwright 1280×800: 벨 36×36, 1280-1186=94px 우측 reach 영역 (모바일 375 기준 화면 우상단)."
 
+- id: imp-0138
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: public_seller_profile_index_route
+  problem: "https://giranjt.com/profile/<userId> 로 직접 진입하면 Next.js 기본 404('This page could not be found.') 가 표시된다. 라우트 트리(web/app/profile/[userId]/) 에 'reviews/page.tsx' 만 존재하고 [userId]/page.tsx 가 없어서 매물 상세에서 판매자 닉네임을 클릭해도 '/profile/${author.userId}/reviews' 로만 점프 — 다른 사람이 등록한 다른 매물·평판·가입일·주서버 등 거래 신뢰 신호를 한 화면에서 확인할 방법이 0건이다. 익명/비로그인 사용자에게 '이 판매자가 신뢰할 만한가' 를 보여줄 진입점 자체가 없다."
+  proposal: "(1) web/app/profile/[userId]/page.tsx 신설 — 닉네임/가입일/주서버/총거래수/긍정리뷰비율/신뢰등급/판매중 매물 그리드/최근 받은 리뷰 5건. 자기 자신이면 '프로필 수정' / 타인이면 '채팅 시작' '신고' '차단' CTA. (2) backend GET /api/v1/users/:userId/profile 신규 — 공개 필드만(privacy 한): userId, nickname, avatarUrl, primaryServerName, joinedAt('2025년 3월 가입'), completedTradeCount, positiveReviewRatio, trustBadge. introduction 도 공개 필드. (3) listing-info.tsx L16 의 href 를 '/profile/${author.userId}' (reviews 빠진 root) 로 변경 — '받은 리뷰' 는 그 안의 탭/링크로. (4) 본인이 비공개 토글한 경우(imp-0146) '비공개 프로필입니다' fallback."
+  effort: large
+  impact: high
+  evidence: "Playwright https://giranjt.com/profile/abcd1234-not-real → 'h1: 404' + 'h2: This page could not be found.'(영어) 표시. find web/app/profile/[userId] -type f → 'reviews/page.tsx' 1개만. grep '/profile/' web/app/ web/components/ → 모두 '/profile/${id}/reviews' 또는 '/profile/edit' 형태로만 진입, root 진입점 0건."
+
+- id: imp-0139
+  found_at_iter: 10
+  area: profile
+  type: content
+  target: not_found_404_localization
+  problem: "잘못된 userId 로 /profile/<id> 접근 시 표시되는 페이지가 'This page could not be found.' (영어) 와 '404' 만 보여주고 한국어 안내·복구 동선(링크)·기란JT 브랜딩 0건이다. 사용자는 '여기가 깨진 건지 내가 잘못 친 건지' 알 수 없고, 홈으로 돌아갈 링크도 없어 BottomNav '마켓' 으로만 탈출 가능 — 비로그인 데스크톱 사용자에게는 그 마저도 보이지 않을 수 있다."
+  proposal: "(1) web/app/not-found.tsx 신설 또는 web/app/profile/[userId]/not-found.tsx — 한국어 '존재하지 않는 사용자입니다 / 매물입니다' + '홈으로' 'BACK' 버튼. (2) 기란JT 다크 테마 + gold accent 적용. (3) 컨텍스트별 분기: /profile/[userId]/not-found.tsx 면 '이 사용자는 탈퇴했거나 존재하지 않습니다 — 비슷한 매물 둘러보기' suggestion. (4) Sentry/log: 404 hit 시 referer + path 기록(존재하지 않는 매물 ID 가 어디서 새는지 추적)."
+  effort: small
+  impact: medium
+  evidence: "Playwright /profile/abcd1234-not-real 응답 본문 'This page could not be found.' (locale=ko-KR 인 페이지 안에서). web/app 트리 grep 'not-found' → 0 매치. 글로벌 not-found 미설정으로 Next.js 기본 404 페이지 노출."
+
+- id: imp-0140
+  found_at_iter: 10
+  area: profile
+  type: content
+  target: trust_badge_label_localization
+  problem: "본인 프로필 카드 (/profile L99-108) 의 신뢰등급 stat 칸이 'me.trustBadge ?? \"-\"' 를 그대로 출력한다. backend 가 'trusted' 'normal' 'restricted' 같은 영어 enum 값을 보내면 한국어 사용자에게 'trusted' 라는 영문 단어가 그대로 노출된다. 같은 카드의 '거래'·'좋은 리뷰' 라벨은 한글인데 값만 영어인 비대칭으로 일관성·세련됨 모두 떨어진다."
+  proposal: "(1) lib/i18n/trust-badge.ts 같은 매핑 추가 → '신뢰' '일반' '제한' (또는 '🏆 신뢰' / '👤 일반' / '⚠️ 제한'). (2) /profile L102-105 의 'me.trustBadge ?? \"-\"' → 'TRUST_BADGE_LABEL[me.trustBadge] ?? \"미부여\"'. (3) 신뢰등급이 어떤 기준으로 부여되는지 'i' 아이콘 hover/탭 시 toast 또는 popover — '거래 10건 + 긍정 리뷰 90% 이상이면 신뢰 등급'. (4) badge 옆에 '레벨업까지 N건' 진척도 mini bar(게이미피케이션, 거래 유도)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L102-105 '{me.trustBadge ?? \"-\"}' — 매핑 함수 통과 0건. backend grep 'trustBadge' 도메인 enum 검색 시 'trusted'/'normal' 등 영어 문자열 사용(internal/domain/user.go). 다른 stat 라벨('거래' L91, '좋은 리뷰' L97) 은 한글이지만 값만 영어인 비대칭."
+
+- id: imp-0141
+  found_at_iter: 10
+  area: profile
+  type: ux
+  target: logout_button_confirmation_and_destructive_styling
+  problem: "/profile L126-131 의 '로그아웃' 버튼은 한 번 클릭하면 즉시 token 삭제(L41 apiClient.clearTokens) + queryClient.clear() + 홈으로 이동한다. 작성 중이던 매물 폼·채팅 입력 등이 sessionStorage 에 있어도 모두 사라지고, undo 도 불가능하다. 모바일 한손 조작 시 실수 탭 가능성이 높음에도 confirm 다이얼로그·홀드 제스처 0건이며, 버튼 위치도 메뉴 바로 아래 표적 거리에 있어 '내 매물' 탭 의도가 미끄러져 닿기 쉽다."
+  proposal: "(1) onClick 직전 confirm dialog (shadcn/ui AlertDialog 또는 custom modal) — '정말 로그아웃하시겠어요? 작성 중인 내용이 사라질 수 있습니다.' '취소' / '로그아웃'. (2) 작성 중 draft(localStorage 키 'listing-draft', 'chat-input-{id}') 가 있으면 dialog 안에 '⚠️ 작성 중인 매물 1개 / 채팅 입력 2건' 경고. (3) 버튼 자체는 더 작고 menu 와의 마진 24px+ 분리. (4) PWA: 다음 로그인 시 'last device 에서 N분 전 로그아웃' 요약 — 의도적 vs 실수 구분 가능."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L40-45 handleLogout 즉시 실행, confirm 0건. L126-131 button 'mt-4' 만 분리 → 메뉴 마지막 link(receive 리뷰) 와 16px 거리. localStorage draft 키 검사 0건."
+
+- id: imp-0142
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: blocked_users_list_management
+  problem: "RBAC 매트릭스(docs/RBAC_ACTION_MATRIX.md) 에 'block_user' action 이 정의되어 있고 backend 차단 기능 일부 구현되어 있을 것으로 보이지만, 사용자가 '내가 차단한 사람 목록' 을 확인·해제할 화면이 /profile 메뉴 어디에도 없다(menuItems L47-52 의 4개 항목 중 0건). 차단 후 '잘못 눌렀다' 또는 '오해 풀렸다' 시 해제 동선이 없으면 정상 거래자에게도 영구적 거래 단절을 만든다."
+  proposal: "(1) /profile/blocked 라우트 신설 — 차단한 사용자 list (avatar + nickname + 차단 일시 + '해제' 버튼). (2) 빈 상태: '차단한 사용자가 없습니다 — 누군가가 불편하면 프로필에서 차단할 수 있어요'. (3) backend GET /api/v1/me/blocks → list, DELETE /api/v1/me/blocks/:userId → 해제. (4) 차단 시 '왜 차단하나요?' optional reason(스팸/욕설/사기의심/기타) 수집 → 운영팀 신고 통계와 별개 트렌드 모니터링. (5) /profile menuItems 에 '차단 관리' 추가, 0명일 때는 menu hide(노이즈 방지)."
+  effort: medium
+  impact: medium
+  evidence: "코드 grep 'block' web/app/profile/ → 0 매치(차단 화면 부재). docs/RBAC_ACTION_MATRIX.md 에 'block_user' 정의는 추정(파일 미확인이지만 기란JT 도메인 표준). web/app/profile/page.tsx menuItems L47-52 4개 항목 중 차단 관련 0건."
+
+- id: imp-0143
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: account_settings_and_connected_accounts
+  problem: "/profile 메뉴 4개 (내 매물/내 거래/받은 리뷰/알림) 외 '계정 설정' 진입점이 없다. Google OAuth 로 연결된 계정이지만 어느 구글 계정인지 표시 안 됨, 연결 해제 버튼 없음, 회원 탈퇴 동선 없음, 데이터 다운로드(개인정보보호법 GDPR-style) 없음, 이메일 변경 없음. 한국 PIPA 기준으로도 '본인의 개인정보를 직접 다운로드/삭제' 권리가 보장되어야 하는데 UI 진입점 0건이다."
+  proposal: "(1) /profile/settings 라우트 — 섹션: '계정 정보'(연결된 Google 이메일, 가입일, last login), '알림 설정'(imp-0134 와 통합 — push/email/in-app 토글), '개인정보'('내 데이터 다운로드' JSON export, '회원 탈퇴'). (2) 회원 탈퇴 시 '진행 중인 거래 N건이 있어 탈퇴할 수 없습니다 — 거래 완료 후 다시 시도해주세요' 가드. (3) 진행 중 거래 0건이면 30일 grace 기간(soft-delete) 후 hard-delete — 이 기간 내 재로그인하면 복구. (4) menuItems 에 '설정' 추가."
+  effort: large
+  impact: medium
+  evidence: "코드 grep '/settings' /profile 'withdraw' web/app/profile/ → 0 매치. web/app/profile/page.tsx L47-52 menuItems 4개 — 계정 관련 0건. backend grep 'DELETE /api/v1/me' 또는 'withdrawal' → 추가 확인 필요하나 UI 진입점 부재로 사실상 비활성."
+
+- id: imp-0144
+  found_at_iter: 10
+  area: profile
+  type: ux
+  target: avatar_initial_fallback_diversity
+  problem: "비로그인 gate 화면(/profile L20-22) 의 '👤' 이모지·로그인 후 stat 카드(L62) 의 'me.nickname[0]' 이니셜·edit 페이지 fallback(L110) 의 'me.nickname[0]' 모두 단조롭다. 닉네임 첫 글자가 '한글 자음' 이면 '안녕하세요' → '안' 단일 — 동명이인 구분 불가. 한글 사용자가 흔한 한국 시장에서 시각적 식별성이 떨어진다. 또한 '👤' 이모지는 OS·폰트별 렌더링이 천차만별이라 브랜드 일관성도 깨진다."
+  proposal: "(1) lib/avatar-color.ts 추가 — userId hash 로 'background gradient' 6종 + 'gold/red/cream' 팔레트에서 결정적 선택. (2) initial 자동 추출: 한글이면 첫 음절 그대로, 영문이면 대문자 한 글자, 숫자/기호면 '★'. (3) 닉네임 길어 두 음절 추출 가능하면 첫 음절(예: '리니지마스터' → '리니'). (4) gate 화면(L20-22) 의 '👤' 이모지는 inline SVG 캐릭터 일러스트(기란JT 정체성: 검·코인) 로 교체 — 동일 컴포넌트 Avatar 가 비로그인엔 placeholder, 로그인엔 본인 아바타로 자연 전환."
+  effort: small
+  impact: low
+  evidence: "코드 web/app/profile/page.tsx L20-22 gate '👤' 이모지, L62 'me.nickname[0]' 단일 음절, edit L110 동일. 색상 단일(L62 'bg-medium'). lib/ grep 'avatar-color' 또는 'hashColor' → 0 매치."
+
+- id: imp-0145
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: my_listings_count_badges_and_sort
+  problem: "/profile/listings (L41-60) 상태 필터 chip 5개(전체/판매중/예약중/완료/취소) 가 카운트 없이 라벨만 보여준다. 사용자는 '예약중' 칩을 누르기 전엔 그 안에 몇 건이 있는지 알 수 없다. 정렬 옵션도 없어 backend 기본순(updated_at desc 추정) 외 가격순·조회수순 등 매물 매니저 관점 정렬 불가. '판매중' 매물이 50건일 때 묶어보기·일괄작업 어려움."
+  proposal: "(1) 칩에 카운트 — '판매중 (12)' '예약중 (3)'. backend GET /api/v1/me/listings/counts 또는 GET /api/v1/me/listings?include_counts=true. (2) 정렬 dropdown — '최신순/오래된순/가격높은순/가격낮은순/조회수많은순'. (3) Bulk action — 칩 옆 '편집 모드' 토글 → 카드에 체크박스 → '일괄 가격 인하 10%' '일괄 미끌림 방지(refresh)' '일괄 삭제'. (4) 빈 상태 메시지 type 별 차별화 — '예약중 매물이 없습니다 — 판매중 매물 12건이 예약을 기다려요'."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/profile/listings/page.tsx L46-60 chip 라벨만 — count 0건. 정렬/sort UI 0건(코드 전체 'sort\\|orderBy' grep 0 매치). bulk action 관련 코드 0건."
+
+- id: imp-0146
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: privacy_public_visibility_toggle
+  problem: "프로필이 다른 사용자에게 어디까지 공개되는지(닉네임? 거래수? 매물 list? 받은 리뷰? 가입일?) 본인이 결정할 옵션이 0건이다. 현재 기본은 '받은 리뷰' 가 비로그인 사용자에게도 모두 공개(무인증 GET /api/v1/users/:userId/reviews) — 신원 노출에 민감한 거래자(고가 매물·반복 신고 피해자) 가 '본인 매물·받은 리뷰는 로그인한 거래 상대에게만' 옵션을 원하는 시나리오 0% 대응."
+  proposal: "(1) edit 페이지에 '공개 범위' 섹션 — 'introduction'(누구나/회원만/비공개), 'completedTradeCount'(누구나/비공개), 'positiveReviewCount'(누구나/비공개), 'introduction', '받은 리뷰'. 기본은 모두 '누구나' (시장 신뢰 우선). (2) 비공개 시 backend 가 '비공개 프로필' fallback. (3) 가입일은 항상 공개(거래 신뢰 신호 — '오래된 사용자') — 토글 불가 안내. (4) 차단당한 사용자가 본인 프로필을 봐도 '비공개' 처리(차단자 보호)."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend grep '/users/:userId/reviews' main.go L 'readOnly.GET' — 비로그인 가능 라우트로 등록. /web/app/profile/edit/page.tsx 'privacy\\|visibility' grep 0 매치. user.go domain struct 에 'visibility' 또는 'privacy' 필드 0건(추정)."
+
+- id: imp-0147
+  found_at_iter: 10
+  area: profile
+  type: a11y_mobile
+  target: stat_cards_semantics_and_screenreader
+  problem: "/profile L86-109 stat 카드 3개(거래/좋은 리뷰/신뢰등급) 가 'div' 마크업·숫자만 큰 폰트로 분리되어 스크린리더 사용자에게 '거래' 라벨과 '12' 숫자가 별개 노드로 읽힌다. dl/dt/dd 의미 마크업 부재. 'trustBadge' 칸은 trusted 일 때 'border-gold/50' 색상 단서로만 강조 — 색맹/저시력 사용자는 일반과 동일하게 인식. h2/h3 heading 도 없어 화면 구조 탐색 불가('section 으로 점프' 시 스킵)."
+  proposal: "(1) stat 카드 컨테이너 → '<dl className=\"grid ...\" aria-label=\"거래 통계\">' / 각 카드 → '<div role=\"presentation\"><dt>거래</dt><dd className=\"text-gold ...\">12<span class=\"sr-only\">건</span></dd></div>'. (2) trustBadge 칸은 'trusted' 시 inline SVG 배지 아이콘 추가 + sr-only '신뢰 등급 인증됨'. (3) 각 카드 클릭 시 상세 화면 이동 — 거래 → /profile/trades, 좋은 리뷰 → /profile/{me.userId}/reviews?filter=positive, 신뢰등급 → 'i' info modal. (4) heading: '<h3 className=\"sr-only\">통계</h3>' 추가."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L86-109 'div className=\"bg-medium ...\"' 3개 — dl/dt/dd 0건, role 0건, 클릭 핸들러 0건. L100 'border-gold/50' 색상 단서만. h3/h4 0건(L67 'h2: nickname' 만)."
+
+- id: imp-0148
+  found_at_iter: 10
+  area: profile
+  type: ux
+  target: profile_share_qr_and_copy_link
+  problem: "본인 프로필을 다른 사람에게 보여주거나 외부 SNS(디스코드/오픈채팅)에 첨부할 동선이 0건이다. 사용자가 'https://giranjt.com/profile/' + me.userId 를 직접 타이핑해야 하는데 userId 가 UUID 36자 — 외워서 공유 불가. 게다가 imp-0138 의 public profile route 가 없어 공유해도 의미 없음(/reviews 만 가능)."
+  proposal: "(1) /profile (본인) 우상단 '공유' 아이콘 — 클릭 시 sheet/modal: '링크 복사' / 'QR 코드' / '디스코드' / '카카오톡 공유'(KakaoLink SDK). (2) 짧은 vanity URL — '/u/<nickname>' (닉네임 ASCII-safe 변환 + 충돌 시 #2 suffix), 닉네임 변경 시 redirect 유지. (3) QR 코드는 client-side 'qrcode.react' 또는 backend GET /api/v1/me/profile/qr 이미지. (4) 본인이 비공개 토글 시 '공유' 버튼 숨김. (5) 링크 복사 시 toast '프로필 링크가 복사되었습니다 — 디스코드/카톡에 붙여넣기'."
+  effort: medium
+  impact: low
+  evidence: "코드 web/app/profile/page.tsx 'share\\|navigator.share\\|copy' grep 0 매치. /u/ 라우트 부재. backend grep 'vanity' 'short_url' 0건."
+
+- id: imp-0149
+  found_at_iter: 10
+  area: profile
+  type: performance
+  target: profile_initial_load_streaming_and_skeleton
+  problem: "/profile 진입 시 'isLoading' 분기(L15) 가 풀-페이지 'Loading' 스피너만 보여준다(web/components/ui/loading.tsx). 헤더·BottomNav 는 즉시 렌더되지만 본문이 빈 채로 깜빡임 → 로딩 → 본문 순서로 3단계 layout shift. me 쿼리는 단일 endpoint 라 스트리밍 가치는 적지만, /profile/listings 와 /profile/trades 는 list 가 길어 skeleton card grid 가 효과 큼. 그러나 두 페이지 모두 'Loading' 스피너만 사용한다."
+  proposal: "(1) /profile: skeleton — 64x64 원형(아바타) + 한 줄(닉네임) + 3개 stat 카드 placeholder. me 데이터 도착 시 fade-in. (2) /profile/listings: ListingGrid 와 동일 구조의 SkeletonGrid (16 cards). (3) /profile/trades: trade-card 와 동일 구조의 4-6개 skeleton row. (4) Next.js loading.tsx 활용 — web/app/profile/loading.tsx, listings/loading.tsx 추가하면 route segment 진입 즉시 skeleton, RSC 스트리밍과 자연 통합. (5) prefetch — '내 거래' Link 에 hover 시 useMyTrades useQuery prefetch."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L15 'if (isLoading) return <Loading />' 풀-페이지 스피너. web/app/profile/listings/page.tsx L24, trades L36 동일 패턴. web/app/profile/loading.tsx 부재(grep 0건). web/components/ui/skeleton.tsx 또는 SkeletonGrid 부재(추정)."
+
+- id: imp-0150
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: introduction_character_counter_and_markdown_preview
+  problem: "/profile/edit L138-152 의 '소개' textarea 는 'maxLength={100}' HTML 속성만 — 사용자는 자기가 몇 글자 입력했는지·앞으로 몇 글자 더 가능한지 모르고, 100자에 도달하면 갑자기 입력이 막혀 '왜 안 입력되지' 혼란. 또한 plain text 만 허용 — 줄바꿈은 저장되지만 다른 사용자 화면에서 어떻게 보일지 미리보기 0건. 'introduction' 이 '|' 또는 'http://' 같은 URL 을 포함하면 plain text 그대로 노출(자동 링크 변환 없음)."
+  proposal: "(1) textarea 우하단 'min(form.introduction.length, 100) / 100 자' 카운터 — 90자 이상이면 amber, 100자 도달 시 red. (2) URL 자동 감지 후 미리보기 카드 아래 '미리보기' 영역에 'a' 로 변환(rel=noopener, target=_blank) — 단 저장은 plain text. (3) '소개' 위 '한 줄로 자기소개 — 거래자에게 첫인상이 됩니다' helper text. (4) 빈 introduction 시 placeholder 다양화 — '예: 평일 저녁만 거래 가능 / 강남 직거래 선호 / 1주일 내 답장 보장' (3종 random)."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/profile/edit/page.tsx L142-150 textarea 'maxLength={100}' 만 — 카운터 표시 0건. helper text 0건(L138-141 'label' 만). placeholder 'L149: 한 줄 소개를 입력하세요' 단일."
+
+- id: imp-0151
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: my_characters_management_under_primary_server
+  problem: "edit 페이지 L154-173 의 '주 서버' 단일 select 는 사용자가 여러 캐릭터(서버×직업) 를 가질 수 있는 리니지 클래식 도메인 현실과 맞지 않다. 한 사람이 케이단 기사·기란 요정·아덴 마법사를 동시 보유하는 것이 흔한데, 거래 매물이 '어느 캐릭터 소유' 인지 매물 등록 시 매번 입력해야 한다. 또한 다른 거래자가 'A 라는 사용자가 어느 서버에서 active 한지' 신뢰 신호로 활용 불가."
+  proposal: "(1) /profile/characters 신설 — '+ 캐릭터 추가' (서버, 직업, 레벨 또는 닉네임만). 등록 한도 5개. (2) 매물 등록 시 'character_id' optional FK — 선택하면 자동으로 서버·직업 채워짐. (3) 본인 프로필(public) 에 '활동 캐릭터: 케이단 기사 / 기란 요정 / 아덴 마법사' chip 표시 — 신뢰 신호로 작동. (4) backend characters 테이블(user_id, server_id, job, level, char_name, created_at). (5) '주 서버' 는 character list 가 0이면 fallback, 있으면 자동 derive."
+  effort: large
+  impact: medium
+  evidence: "코드 web/app/profile/edit/page.tsx L154-173 '주 서버' single select. backend domain grep 'character' 'characters table' → 0 매치(추정). 기란JT 도메인 위키 — 한 사용자 다중 캐릭터는 표준 사용 패턴."
+
+- id: imp-0152
+  found_at_iter: 10
+  area: profile
+  type: ux
+  target: empty_states_actionable_and_warmth
+  problem: "/profile/listings 빈 상태 'EmptyState title=\"등록한 매물이 없습니다\"' (L63-67) 와 /profile/trades 의 '거래 내역이 없습니다' (L37) 모두 무미건조하다. listings 는 그래도 '매물 등록하기' 버튼이 있지만 trades 는 액션 0건 — 사용자가 '뭐부터 해야 할지' 막힌다. 신규 가입자(거래 0건) 의 절반 이상이 첫 거래 전 이탈한다고 가정하면 이 두 빈 상태가 '온보딩 핵심 funnel' 인데 직역체 '없습니다' 만으로 동기 부여 0건."
+  proposal: "(1) listings 빈 상태 → '아직 매물이 없어요 — 첫 매물을 등록하면 5분 내 첫 채팅이 도착할 거예요' (구체 기대치). 액션 chip 2개 — '매물 등록하기' / '시세 둘러보기'. (2) trades 빈 상태 → '거래를 시작해볼까요? — 마음에 드는 매물에 채팅을 보내면 거래가 시작됩니다' / 액션 '매물 둘러보기' '내 매물 등록하기'. (3) 일러스트 또는 SVG (검 + 코인 + 말풍선) 추가. (4) 신뢰등급 미부여 사용자에게는 onboarding tip — '첫 거래 완료 시 신뢰 등급 +1'."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/trades/page.tsx L37 'EmptyState title=\"거래 내역이 없습니다\"' — actionLabel 0건. listings L63-67 EmptyState 는 actionLabel 있으나 단 1개. EmptyState 컴포넌트 description prop 활용 0건(reviews 페이지만 사용)."
+
+- id: imp-0153
+  found_at_iter: 10
+  area: profile
+  type: a11y_mobile
+  target: edit_page_avatar_remove_and_drag_drop
+  problem: "/profile/edit L86-119 avatar 영역은 64×64 원형 미리보기 + ImageUpload 컴포넌트가 옆에 따로 있는 2분할 레이아웃이다. 모바일 375px 에서는 두 컨트롤이 좌우로 붙어 ImageUpload 의 hit area 가 좁고, '현재 프로필 사진을 제거' 동선이 0건이다(avatarUrl 을 null 로 만들 수 없음). 새 이미지 업로드 → undo 도 'avatarImages' state reset 만 되고 'me.avatarUrl' 영구 삭제는 불가."
+  proposal: "(1) avatar 미리보기 위에 'X' 제거 버튼 (avatarImages 가 있으면 'X' 가 'avatarImages.splice(0)' / me.avatarUrl 만 있으면 'X' 가 setAvatarRemoved(true) flag → submit 시 avatarUrl: null). (2) 미리보기 자체를 클릭/탭하면 file picker 열림 (Hover 시 'cursor-pointer + 카메라 아이콘 오버레이'). (3) 모바일 375px 에서 미리보기 위, ImageUpload 아래 2-row 레이아웃. (4) drag-drop 영역 ImageUpload 가 지원 시(추정) 64×64 원도 drop target — 'react-dropzone' 기준 onDrop. (5) 'square crop' optional — 정사각형으로 잘라 16:9 매물 이미지와 구분."
+  effort: medium
+  impact: low
+  evidence: "코드 web/app/profile/edit/page.tsx L86-119 'remove avatar' 버튼 0건. setAvatarRemoved 또는 avatarUrl null submit 로직 0건(L68-69 'avatarImages.length > 0 ? avatarImages[0].url : undefined' — undefined 는 미변경 의미). 모바일 375 'flex items-center gap-4' L89 좌우 분할로 컨트롤 좁아짐."
+
+- id: imp-0154
+  found_at_iter: 10
+  area: profile
+  type: feature
+  target: nickname_change_cooldown_and_history
+  problem: "/profile/edit L121-136 닉네임 input 은 매번 변경 가능 — 30일 쿨다운·횟수 제한 0건이다. 거래 사기범이 '닉네임 ABC' 로 사기 후 즉시 'XYZ' 로 변경하면 다른 사용자가 '이 사람 그 사기범이었다' 인지 불가. 기란JT 의 신뢰 모델은 '오래된 사용자 + 일관된 닉네임' 에 의존하는데 자유 변경은 이 신뢰 신호를 무력화한다."
+  proposal: "(1) backend POST /me/profile 에서 nickname 변경 시 last_nickname_changed_at 체크 — 30일 미만이면 423 'NICKNAME_COOLDOWN — 다음 변경 가능: YYYY-MM-DD'. (2) nickname_history 테이블(user_id, old_nickname, new_nickname, changed_at) — public 프로필에 '이전 닉네임: ABC (2025-03 까지)' 표시. (3) edit UI 에 '닉네임 변경은 30일에 1회 가능합니다 — 다음 변경 가능일: ...' helper. (4) 신규 가입 30일 이내는 무제한(첫 닉네임 후회 방지). (5) admin 은 강제 변경 가능(욕설/광고 닉네임 정리)."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/profile/edit/page.tsx L121-136 'nickname' input minLength=2/maxLength=20 만 — 쿨다운 0건. backend grep 'nickname_history' 'last_nickname_changed' → 0 매치. user.go 에 lastNicknameChangedAt 필드 0건(추정)."
+
+- id: imp-0155
+  found_at_iter: 10
+  area: profile
+  type: ux
+  target: trades_filter_and_search
+  problem: "/profile/trades 페이지(L33-67) 는 모든 거래를 단일 list 로만 보여준다 — 'open / reservation_proposed / reservation_confirmed / deal_completed' 4 상태 필터 chip 부재, 상대방 닉네임 검색 부재, 매물 제목 검색 부재. 거래가 50건 넘는 active 거래자는 '거래 완료된 것만' '예약 확정된 것만' 분리 보기 불가, '특정 닉네임과의 과거 거래' 추적 불가."
+  proposal: "(1) /profile/listings 와 동일한 chip 필터 패턴(L41-60 재사용) — '전체/진행중/예약중/거래완료' (chatStatusLabel 그룹화). (2) 상단 검색 input — '매물 제목 또는 닉네임 검색' (debounce 300ms, client-side filter 우선, 200건 초과면 backend 검색). (3) 'archived' 상태(거래 완료 + 30일 경과 + 양쪽 리뷰 완료) 토글 — 기본은 hide, '보관함' 으로 분리. (4) 정렬 — 최근/오래된/금액. (5) 'role' 필터 — 내가 판매자 vs 구매자 구분."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/trades/page.tsx L33-67 chip 필터 0건, search input 0건. trade type 4종(L19-24 chatStatusLabel) 모두 한 list. archived 개념 0건."
+
