@@ -1,9 +1,9 @@
 {
-  "iteration": 8,
+  "iteration": 9,
   "consecutive_no_new": 0,
-  "last_area_index": 7,
+  "last_area_index": 8,
   "area_queue": ["home", "listings", "listing_detail", "listing_create", "chat", "reservation", "review", "report", "notification", "profile", "auth"],
-  "areas_visited": ["home", "listings", "listing_detail", "listing_create", "chat", "reservation", "review", "report"],
-  "areas_visited_count": 8,
-  "total_unique_suggestions": 129
+  "areas_visited": ["home", "listings", "listing_detail", "listing_create", "chat", "reservation", "review", "report", "notification"],
+  "areas_visited_count": 9,
+  "total_unique_suggestions": 137
 }

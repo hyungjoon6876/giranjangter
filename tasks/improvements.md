@@ -1422,3 +1422,91 @@
   impact: low
   evidence: "코드 backend/internal/repository/postgres_reservation.go L339 'SELECT ... FROM reports WHERE reporter_user_id = $1 ORDER BY created_at DESC LIMIT 50' — cursor/limit param 0건. handlers_report.go L57-58 응답에 description 필드 0건. web 측 useMyReports hook 자체 부재(앞 imp-0120 와 별개로 백엔드 페이지네이션도 미구현)."
 
+- id: imp-0130
+  found_at_iter: 9
+  area: notification
+  type: ux
+  target: notification_contract_field_mismatch_blank_rows
+  problem: "백엔드 GET /notifications 응답은 {title, body, isRead, createdAt, deepLink, referenceType, referenceId} 를 보내지만(handlers_notification.go L26-30) 프런트 Notification 타입은 {notificationId, message, readAt, createdAt} 만 정의되어 있고 (web/lib/types.ts L117-122), 알림 페이지(L72)는 'n.message' 를 'readAt' 으로 unread 판정한다. 결과적으로 (a) 모든 row 의 본문이 undefined → 빈 줄로 렌더, (b) 'readAt' 키가 응답에 없어 모든 알림이 영구 unread 로 표시 → 헤더 벨 빨간 점이 영구 켜진 상태가 된다. 더불어 deepLink/referenceType 정보가 버려져 알림을 클릭해도 해당 채팅/매물로 이동하지 못하고 그냥 /notifications 안에서 멈춘다."
+  proposal: "(1) types.ts Notification 인터페이스를 백엔드 실제 응답에 맞게 재정의: { notificationId, type: 'chat_message'|'reservation_proposed'|...|'system', title, body, isRead, deepLink?, referenceType?, referenceId?, createdAt }. (2) /notifications page L44-46 unread 판정을 '!n.isRead' 로 교체, L72 본문을 '<p>{n.title}</p><p className=text-text-dim>{n.body}</p>' 두 줄로. (3) 각 row 를 <Link href={n.deepLink ?? '/'}> 로 감싸 클릭 시 deep link 이동 + 클릭 시 해당 id 만 markRead. (4) header.tsx L18 unreadCount 도 '!n.isRead' 로 교체. (5) 백엔드/프런트 계약 회귀 방지를 위해 OpenAPI/타입 자동 생성(zod 또는 ts-rest) 도입을 추후 별도 제안."
+  effort: small
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_notification.go L26-30 응답 키 'title','body','isRead','deepLink' vs web/lib/types.ts L117-122 'message','readAt' — 키 5개 불일치. web/app/notifications/page.tsx L72 '{n.message}' (undefined 렌더), L45 '!n.readAt' (영구 truthy). web/components/layout/header.tsx L18 동일 패턴. Playwright 익명 진입 시 본문이 비어 검증 어려우나 로그인 후엔 모든 row 가 빈 줄."
+
+- id: imp-0131
+  found_at_iter: 9
+  area: notification
+  type: feature
+  target: server_side_notification_creation_missing
+  problem: "notifications 테이블이 존재하고(migrations/001_initial.sql L252) 7일 자동 정리 goroutine 도 동작하나(commit ccb3d94), 백엔드 어떤 핸들러도 INSERT INTO notifications 를 호출하지 않는다(grep 'INSERT INTO notifications' 0건, handlers_chat/listing/reservation/review/report 어디에도 없음). 즉 알림 페이지·헤더 벨·30초 polling 모두 항상 빈 결과를 가져오므로 기능 자체가 dead code 상태. 사용자 입장에선 '왜 알림이 안 와요?' 가 가장 큰 미스터리이고, 지원/CS 비용이 발생한다."
+  proposal: "(1) 도메인 이벤트별 INSERT 추가: 새 채팅 메시지 도착(상대방 한정), 예약 제안(seller), 예약 확정(buyer), 거래 완료(양쪽 → 후기 작성 prompt), 후기 작성됨(피평가자), 신고 처리 완료(reporter), 매물 sold(seller). (2) backend/internal/repository/notification.go 에 NotificationRepo 인터페이스 + Insert(ctx, userID, type, title, body, refType, refID, deepLink) 구현. (3) 각 handler 의 트랜잭션 안에서 호출 — 실패해도 메인 작업 롤백하지 않게 'best effort'. (4) backend/internal/event/broker.go 에 'notification' 채널 추가, INSERT 직후 BroadcastTo(userID, NotificationEvent) 로 SSE push. (5) 카탈로그는 docs/EVENT_CATALOG.md 에 정의."
+  effort: large
+  impact: high
+  evidence: "grep 'INSERT INTO notifications' /backend/ 0건. backend/cmd/server/main.go L55-76 cleanup 만 존재, 생성 코드 없음. backend/internal/repository/interfaces.go L450-454 ListNotifications/MarkNotificationsRead 만, Insert 시그니처 부재. handlers_chat.go·handlers_reservation.go grep 'notif' 0건."
+
+- id: imp-0132
+  found_at_iter: 9
+  area: notification
+  type: feature
+  target: filter_by_type_and_group_by_entity
+  problem: "/notifications page L66-78 은 '최근 50건 단순 시간순 평면 리스트' 만 제공한다. 채팅 메시지·예약·후기·시스템·신고처리·매물 sold 가 한 통으로 섞여 있어 사용자가 '오늘 받은 예약 제안만 보고 싶다' 같은 일반적 작업이 불가능하고, 같은 채팅방에서 5번 메시지가 오면 5건이 별도 row 로 쌓여 인박스가 순식간에 불필요하게 길어진다. type 필드가 백엔드에 이미 있으나 UI 에서 무시한다."
+  proposal: "(1) 상단에 type chip 필터 (전체/채팅/예약/후기/매물/시스템) 추가, useState 로 관리, '전체'='all'. (2) 같은 (referenceType, referenceId) 항목을 한 카드로 그룹: 채팅 5개 → '닉네임B 와의 채팅 — 5개의 새 메시지'. group 펼치기/접기. (3) 그룹 카드 클릭 시 deepLink 로 이동(가장 최신 항목 기준) + 그룹 내 모든 id 를 markRead. (4) 빈 필터 결과는 'XX 알림이 없습니다' inline 메시지. (5) URL query param ?type=chat 로 바깥(채팅 빈 상태 'CTA → 알림 보기' 등) 에서 deep link 가능."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/notifications/page.tsx L31 'data?.data ?? []' 단일 array, filter UI 0건. backend handler L26-30 응답에 type/referenceType/referenceId 가 이미 포함됨에도 프런트는 message/createdAt 만 사용. /notifications URL 에 query param 핸들링 0건."
+
+- id: imp-0133
+  found_at_iter: 9
+  area: notification
+  type: feature
+  target: realtime_sse_push_replace_30s_poll
+  problem: "useNotifications hook 은 'refetchInterval: 30_000'(use-profile.ts L33) 으로 항상 30초마다 GET /notifications 를 polling 하지만 (a) 30초 지연으로 새 메시지가 와도 헤더 벨이 즉시 안 켜진다, (b) 사용자가 페이지를 보지 않을 때(visibilityState='hidden') 도 polling 해 모바일 데이터/배터리를 낭비한다, (c) 백엔드 SSE broker 는 이미 동작하지만(/sse/connect, broker.go) 'notification' 이벤트 채널이 없어 활용되지 않는다."
+  proposal: "(1) backend/internal/event/broker.go 에 BroadcastToUser(userID, eventType, payload) 추가. (2) handlers_notification 또는 각 도메인 핸들러에서 INSERT 직후 broker.BroadcastToUser(targetUser, 'notification:new', notif) 호출. (3) 프런트는 SSEContext 에서 'notification:new' 이벤트 수신 시 queryClient.setQueryData(['notifications'], ...) 로 cache 에 prepend + invalidateQueries 한 번 호출(짧은 throttle). (4) refetchInterval 은 60s 로 늘리고(연결 끊김 fallback) refetchOnWindowFocus: true 추가. (5) document.visibilityState 가 hidden 이면 polling 일시 정지(refetchIntervalInBackground: false)."
+  effort: medium
+  impact: high
+  evidence: "코드 web/lib/hooks/use-profile.ts L33 'refetchInterval: 30_000', visibility 처리 0건. backend/internal/event/broker.go grep 'notification' 0건 — SSE 채널 미정의. /sse/connect handler 는 main.go L138 에서 마운트되지만 notification 페이로드 publish 부재."
+
+- id: imp-0134
+  found_at_iter: 9
+  area: notification
+  type: feature
+  target: per_channel_preferences_and_dnd
+  problem: "사용자가 '예약 제안만 알림 받고 싶다', '밤 11시 ~ 아침 8시는 알림 끄고 싶다', '특정 채팅방은 mute' 같은 표준 알림 제어를 전혀 할 수 없다. 알림은 설정 페이지(/profile 등) 에 도달하지도 못하고, 사용자가 알림이 시끄러우면 결국 알림 자체를 무시하게 되어 시스템 신뢰도가 추락한다. notification preferences 테이블 자체가 부재."
+  proposal: "(1) DB 마이그레이션: notification_preferences (user_id, type, in_app, email, push, dnd_start_minute, dnd_end_minute, muted_until_at). (2) 채팅별 mute: chat_mutes (user_id, chat_id, muted_until_at). (3) /profile/settings/notifications 페이지: type 별 토글 6개(채팅/예약/후기/시스템/매물 sold/신고 처리), DND 시간대 슬라이더, '7일간 모두 음소거' 빠른 버튼. (4) 채팅 헤더에 'mute' 메뉴(1시간/8시간/7일/영구). (5) backend Insert 시점에 preferences·dnd·mute 체크 후 in_app/sse/email 채널 분기. (6) MVP: in_app + sse 만, push/email 은 후속(imp-0136 참조)."
+  effort: large
+  impact: medium
+  evidence: "코드 backend grep 'notification_preferences\\|chat_mutes' 0건. /profile 라우트 트리에 settings/notifications 0건. handlers_notification.go L13-34 PreferenceCheck 코드 0건 — type 무관 단순 SELECT all."
+
+- id: imp-0135
+  found_at_iter: 9
+  area: notification
+  type: a11y_mobile
+  target: clickable_row_keyboard_and_focus_semantics
+  problem: "/notifications page L67-77 의 알림 row 는 '<div className=...>' 로 마크업되어 있어 키보드 사용자(Tab)·스크린리더 사용자에게 '클릭 가능한 항목' 으로 인식되지 않는다. 또한 row 자체에 클릭 핸들러도 없어 deepLink 이동 자체가 막혀있다(imp-0130 의 contract 수정 후 더 시급). 게다가 unread row 는 'border-l-4 border-l-gold' 색상 단서로만 unread 표시 — color-blind 사용자는 구분 불가."
+  proposal: "(1) row 를 <Link href={n.deepLink ?? '#'} role='link' className='block px-5 py-4 ... focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-inset' onClick={() => markRead.mutate([n.notificationId])}> 로 변경. (2) unread 표시에 'border-l + 작은 dot 아이콘 + sr-only 새 알림' 텍스트 결합 (3중 단서). (3) 'aria-label' 동적: '읽지 않은 새 채팅 — 닉네임B 가 메시지를 보냈습니다 — 3분 전'. (4) 'h1' 추가('알림' 제목을 h1 으로 승격, 현재 L51 h1 이긴 하지만 gate 화면에 h1 없음 — gate EmptyState 의 'h2'→'h1' 승격). (5) 모바일 row 최소 높이 56px, 터치 영역 확보."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/notifications/page.tsx L67 '<div key=...>' — Link/button 없음, role 0건. L70 'border-l-4 border-l-gold' 색상 단서만. L51 본 페이지엔 'h1: 알림' 존재하나 gate 분기(L20-29) EmptyState 는 'h2' 만 — Playwright 결과 h1 0건 확인. 모든 row 키보드 Tab 진입 불가."
+
+- id: imp-0136
+  found_at_iter: 9
+  area: notification
+  type: feature
+  target: web_push_and_email_digest_channels
+  problem: "현재 알림은 in-app(헤더 벨 + /notifications 페이지) 채널 1종뿐이다. 사용자가 탭을 닫고 나가면 새 메시지·예약 제안을 즉시 알 수 없고, 30초 polling 도 페이지가 열려 있을 때만 동작한다. 일주일 사용 안 하다가 다시 들어오면 이미 7일 자동 정리(imp-cleanup goroutine) 로 알림이 사라져 거래 기회 자체를 놓친다. PWA(manifest + service worker) 인프라가 일부 있으나 push subscription 코드는 0건이다."
+  proposal: "(1) Web Push: backend POST /notifications/web-push/subscribe(p256dh, auth, endpoint) → notification_subscriptions(user_id, endpoint, p256dh_key, auth_key, ua, created_at). web/app 에 service-worker.ts + Push 수신 시 self.registration.showNotification(title, {body, icon, data: deepLink}). 'showNotification' click 시 client.focus + navigate(deepLink). (2) Email digest: 평일 오전 9시, 미읽음 알림 N건 요약 메일 발송(SES 또는 SendGrid). 사용자가 '12시간 이내 한 번도 in-app 안 봤을 때' 만 발송(스팸 방지). (3) /profile/settings/notifications (imp-0134) 에서 채널별 토글. (4) MVP: 채팅·예약·거래완료 3 type 만 web push, 나머지는 email digest only."
+  effort: large
+  impact: high
+  evidence: "코드 grep 'VAPID\\|webpush\\|service-worker\\|web-push' /web/ /backend/ 0건. notification_subscriptions 테이블 부재. /profile/settings/notifications 라우트 부재. tasks/IMPLEMENTATION_PLAN.md L576 'FCM 푸시' 만 plan 단계로 명시."
+
+- id: imp-0137
+  found_at_iter: 9
+  area: notification
+  type: ux
+  target: bell_badge_count_and_mobile_tab
+  problem: "헤더 벨(header.tsx L62-74) 은 unread 개수와 무관하게 항상 '빨간 점 1개' 만 표시한다 — 1건이든 50건이든 동일해서 사용자는 '얼마나 밀려 있는지' 우선순위 판단 불가. 더불어 모바일 BottomNav(bottom-nav.tsx L16-29) 에는 '/notifications' 탭이 아예 없어 모바일 사용자(추정 사용자 70% 이상) 는 헤더 벨 1탭만 의존하는데, 이 벨은 36×36 px 우측 상단에 있어 한손 사용 시 reach zone 밖이다. 채팅 탭은 unreadCount 숫자 배지가 있는데(L36-38, L67) 알림은 점 표시인 비대칭도 사용자 학습을 방해한다."
+  proposal: "(1) header.tsx L72-73 빨간 점 → 'min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] rounded-full' 숫자 배지(99+ 처리), aria-label 도 '알림 N건' 으로. (2) BottomNav TABS 에 'notifications' 추가 또는 채팅과 묶은 'inbox' 탭(채팅+알림 unreadCount 합산) 신설. 5탭이 빡빡하면 '등록' 을 FAB(우하단 '+' 플로팅) 로 분리. (3) 알림 페이지 진입 시 자동으로 markAllRead(사용자가 진입 = 본 것으로 간주) — 또는 진입 5초 후 자동 mark. (4) 동일 type 만 모은 빠른 jump('새 메시지 3개 보기' chip)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/layout/header.tsx L18 'unreadCount' 변수 계산은 하지만 L72-73 렌더는 'w-2 h-2 bg-red-500 rounded-full' 점 1개 — 숫자 사용 0건. web/components/layout/bottom-nav.tsx L16-29 TABS 5개 중 notifications 0건. Playwright 1280×800: 벨 36×36, 1280-1186=94px 우측 reach 영역 (모바일 375 기준 화면 우상단)."
+
