@@ -278,3 +278,179 @@
   impact: medium
   evidence: "Playwright snapshot: 카드 구조 [판매 | 판매중 | 서버명] 한 행, h3 제목, 아이템 행, '200,000원' (heading 아래 별도 작은 행), 통계 행 (조회/찜/채팅), 사용자 행. 가격이 시각적 위계 3-4단계 아래."
 
+- id: imp-0026
+  found_at_iter: 2
+  area: listings
+  type: ux
+  target: listings_index_route_404
+  problem: "매물 목록의 자연스러운 URL인 https://giranjt.com/listings 가 404를 반환한다. /api/v1/listings, /listings/<id>, footer 'a[href=/]' 등 다른 모든 곳이 'listings'를 마켓 목록 개념으로 쓰는데 정작 /listings 자체가 페이지를 가지지 않아 사용자가 추측한 URL, 외부 공유 링크, SEO 인덱싱 모두 깨진다."
+  proposal: "web/app/listings/page.tsx 를 추가해 홈 페이지의 매물 그리드 섹션을 그대로 또는 hero 없이 노출하거나, next.config.ts redirects 로 /listings → / (또는 /#listings) 로 308 리다이렉트시킨다. 동시에 헤더 '마켓' 링크의 href 도 /listings 로 통일."
+  effort: small
+  impact: high
+  evidence: "Playwright: GET https://giranjt.com/listings → Next.js 404 페이지 (h1='404', h2='This page could not be found.', body 텍스트 187자). web/app/listings/ 디렉토리에는 [id]/page.tsx 만 존재, page.tsx 인덱스 라우트 없음."
+
+- id: imp-0027
+  found_at_iter: 2
+  area: listings
+  type: ux
+  target: filter_url_state_sync
+  problem: "서버 칩, 카테고리 칩, 정렬 select, 검색어가 모두 useState 로컬 상태로만 관리되어 (1) 필터 적용 후 URL 이 변하지 않아 공유 불가, (2) 사용자가 ?server=zillian 같은 URL 을 직접 만들어도 무시되고 '전체'/recent 로 초기화, (3) 카드 클릭 후 뒤로가기 시 필터가 사라진다."
+  proposal: "Next.js useSearchParams + router.replace 패턴(혹은 nuqs 라이브러리)으로 server/category/q/sort 4개 상태를 URL 쿼리에 양방향 동기화한다. 초기 마운트 시 URL → state 복원, state 변경 시 history.replaceState 로 URL 갱신."
+  effort: medium
+  impact: high
+  evidence: "Playwright 클릭 테스트: 질리언 칩 클릭 후 location.href 'https://giranjt.com/' 그대로(filterChangedURL=false). 정렬 'price_asc' 변경 후 URL 동일(sortChangedURL=false). 직접 입력 https://giranjt.com/?server=zillian&sort=price_asc 진입 시 activeChips=['전체','전체'], sortValue='recent' 로 무시됨. 코드 web/app/page.tsx L18-21: serverId/categoryId/search/sort 모두 useState."
+
+- id: imp-0028
+  found_at_iter: 2
+  area: listings
+  type: ux
+  target: header_search_input_no_action
+  problem: "헤더의 '매물 검색' input(input[aria-label=매물 검색], 모바일/데스크탑 2개)에 텍스트 입력 후 Enter 를 눌러도 아무 일도 일어나지 않는다. URL 도 카드 결과도 바뀌지 않고 form 으로 감싸여 있지도 않아 사용자는 검색이 동작하지 않는다고 느낀다."
+  proposal: "헤더 input 을 form 으로 감싸 onSubmit 시 router.push(`/?q=${encoded}`) 로 라우팅하고, 홈 페이지 mount 시 useSearchParams().get('q') 를 search state 초기값으로 사용한다. 동시에 input 에 enterkeyhint='search', form action='/' 부여."
+  effort: small
+  impact: high
+  evidence: "Playwright: input[aria-label=매물 검색] 에 '도리깨' 입력 후 keydown Enter 디스패치 → location.href 미변경, cardsAfterSearch=4(필터 안 됨), search.form=null(form 미감쌈)."
+
+- id: imp-0029
+  found_at_iter: 2
+  area: listings
+  type: ux
+  target: scroll_restore_back_navigation
+  problem: "홈 매물 그리드에서 카드 클릭 → /listings/<id> 진입 → 뒤로가기 시 필터/정렬/검색/스크롤 위치가 모두 초기화되어, 매물 비교 탐색이 불가능하다. 실제 거래 탐색 패턴은 '여러 매물 미리보기 → 뒤로 → 다음 매물' 반복."
+  proposal: "(1) 필터/정렬/검색을 URL 쿼리로 옮긴다(imp-0027 의존). (2) Next.js Link scroll prop 과 history scrollRestoration='manual' + sessionStorage 로 스크롤 위치 저장·복원. (3) 카드를 modal/route intercepting (parallel routes) 로 띄워 BFCache 활용도 가능."
+  effort: medium
+  impact: high
+  evidence: "Playwright: 필터 적용 후 카드 클릭 시뮬 → 뒤로가기 시 URL 에 필터 정보 없음. 페이지가 'use client' + useState 로만 상태 관리하므로 뒤로가기 = 컴포넌트 재마운트 = 상태 초기화."
+
+- id: imp-0030
+  found_at_iter: 2
+  area: listings
+  type: feature
+  target: listing_card_image_placeholder
+  problem: "현재 매물 4개 중 3개가 iconUrl=null 이라 카드에 이미지 영역이 아예 그려지지 않는다(<a> 안 <img>=0). 시각 비교가 불가능하고 카드 높이도 168px ~ 190px 으로 불균일해져 그리드가 들쭉날쭉한다."
+  proposal: "카드 상단에 고정 비율 영역(예: aspect-square 64x64 또는 cover 4:3) 을 두고 iconUrl 이 null 일 때 기본 placeholder(아이템 카테고리 SVG, 또는 아이템명 첫 글자 monogram)를 렌더한다. lib/static-icons.ts 에 카테고리별 fallback 매핑."
+  effort: small
+  impact: medium
+  evidence: "Playwright: a[href^=/listings/] 4개 중 1개만 img 보유(도리깨 64x64), 나머지 3개 placeholderRects=[null,null,null]. cardHeights=[190,168,168,168] (도리깨만 아이콘 행 추가로 +22px)."
+
+- id: imp-0031
+  found_at_iter: 2
+  area: listings
+  type: feature
+  target: listing_count_total
+  problem: "결과 영역에 '4개 매물'이라는 현재 페이지에 '로드된' 개수만 표시될 뿐, 필터 조건의 전체 개수, 또는 '24시간 내 신규 N건' 같은 활동성 시그널이 없다. 사용자는 작은 마켓이 활성인지 죽었는지 판단 불가."
+  proposal: "API 응답에 total/last24h 카운트 추가하고, 헤더 영역에 '활성 매물 N건 · 오늘 +M' 라벨을 노출한다. 0건일 때는 '오늘은 신규 등록이 없어요. 알림 받기' CTA 로 전환."
+  effort: medium
+  impact: medium
+  evidence: "Playwright: 결과 라벨 '4개 매물'(data.length 그대로). API 응답 cursor.hasMore=false, next=null 만 존재, total/lastActivity 집계 필드 없음. 카드의 createdAt 모두 2026-03-17~21 (한 달 전)."
+
+- id: imp-0032
+  found_at_iter: 2
+  area: listings
+  type: feature
+  target: keyword_filter_match_highlight
+  problem: "검색을 하더라도(파라미터로 잘 전달되었다고 가정해도) 카드 제목/아이템명에서 매칭된 키워드가 강조되지 않아 사용자가 왜 이 결과가 나왔는지 추측해야 한다."
+  proposal: "검색어가 있을 때 카드 title/itemName 의 일치 부분을 <mark> 또는 text-gold 로 하이라이트한다. ListingCard 컴포넌트에서 search 컨텍스트를 받고 String.prototype.split + map 으로 단순 구현."
+  effort: small
+  impact: low
+  evidence: "Playwright: 검색 input 에 도리깨 입력해도 카드 텍스트 그대로 '도리깨 +10 판매합니다', mark/em/strong 없음. 검색 매칭 시각화 0개."
+
+- id: imp-0033
+  found_at_iter: 2
+  area: listings
+  type: feature
+  target: card_relative_time_semantic
+  problem: "카드 푸터의 '1개월 전' 라벨이 일반 <span> 으로 렌더되어 (1) <time datetime> 시맨틱이 빠져 스크린리더가 정확한 날짜를 읽지 못하고, (2) hover 로 정확한 등록일 툴팁을 보여주지 못하며, (3) SEO 의 'datePublished' 신호도 없다."
+  proposal: "ListingCard 의 시간 표시를 <time dateTime={createdAt} title={fullDateStr}>{relative}</time> 로 변경. format은 lib/date-utils 의 toRelative + toISO 헬퍼로 통일."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: document.querySelectorAll('time').length=0, 모든 카드의 '1개월 전'이 div/span 텍스트. monthEls 4개 모두 단순 텍스트 노드 부모."
+
+- id: imp-0034
+  found_at_iter: 2
+  area: listings
+  type: performance
+  target: above_fold_image_eager
+  problem: "1280px 데스크탑에서 첫 번째 매물 카드 아이콘 이미지(loading='lazy', fetchPriority='auto')가 above-the-fold 임에도 lazy 로 표시되어 브라우저 우선순위 큐에서 늦게 로드된다."
+  proposal: "ListingGrid 또는 ListingCard 컴포넌트에서 index < 4(또는 viewport 안에 들어올 갯수) 카드의 next/image 에 priority 또는 loading='eager' + fetchPriority='high' 부여. 모바일은 첫 1-2개만."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: 첫 카드 img loading='lazy', fetchPriority='auto'. 하지만 모바일 375px 에서 첫 카드 y=791.5(scroll 필요), 데스크탑 1280px 에서는 첫 카드 above-fold 가능."
+
+- id: imp-0035
+  found_at_iter: 2
+  area: listings
+  type: performance
+  target: listing_grid_pagination
+  problem: "API /api/v1/listings?limit=20 응답에 cursor.hasMore=false, next=null 로 페이지네이션 메타가 있는데, 프론트엔드에는 useListings 훅이 1회만 호출되고 후속 페이지/cursor 추적이 없다. 매물이 50건이 넘어가면 첫 20개만 보이고 나머지는 영영 도달 불가."
+  proposal: "useListings 훅을 useInfiniteQuery 로 전환해 next cursor 를 사용하고, ListingGrid 끝에 IntersectionObserver sentinel + '더 보기' 폴백 버튼을 둔다. ?page= 또는 ?cursor= 쿼리도 함께 지원해 SEO/뒤로가기와 호환."
+  effort: medium
+  impact: high
+  evidence: "Playwright network: /api/v1/listings?limit=20 1회만 호출, scroll 끝(scrollY=935, scrollHeight=1602)에 도달해도 후속 listings 호출 없음. 응답 JSON 의 cursor 필드는 존재(hasMore=false 지만 구조상 페이지네이션 가능)."
+
+- id: imp-0036
+  found_at_iter: 2
+  area: listings
+  type: performance
+  target: listings_seo_metadata
+  problem: "/listings 가 404 라 인덱싱 자체가 불가능하고, 매물 카드 href 는 UUID(/listings/b155f6a7-a80b-4db5-ac3f-a080b3ad656d)로 사람도 검색엔진도 의미를 읽을 수 없다. document.title 도 모든 페이지가 '기란JT — 리니지 클래식 거래' 로 동일."
+  proposal: "(1) /listings 라우트 추가(imp-0026). (2) 카드 href 를 /listings/<slug>-<short_id> 형식(예: dorigae-plus10-zillian-b155f6)으로 변경, generateMetadata 에서 listing.title 을 title 로 사용. (3) /listings 에 ItemList JSON-LD."
+  effort: medium
+  impact: medium
+  evidence: "Playwright: card hrefs 4개 모두 /listings/<UUID> 형식, 슬러그 없음. /listings 페이지 title='기란JT — 리니지 클래식 거래'(글로벌 default), description='리니지 클래식 아이템 거래 중개 플랫폼'(전체 사이트 공통)."
+
+- id: imp-0037
+  found_at_iter: 2
+  area: listings
+  type: content
+  target: empty_state_active_filters_summary
+  problem: "검색이나 필터 조합으로 결과가 0건일 때 EmptyState 가 어떤 조건이 적용됐는지(서버=질리언 + 카테고리=무기 + 검색=도리깨)를 한 줄로 요약해주지 않는다. 사용자는 결과 0건의 원인을 추측해야 한다."
+  proposal: "EmptyState description 을 동적으로 'X 서버 · Y 카테고리 · \"Z\" 검색에 해당하는 매물이 없습니다' 로 구성하고, 그 아래 '필터 초기화' 보조 버튼을 둔다(actionLabel='필터 초기화', secondaryAction='매물 등록')."
+  effort: small
+  impact: medium
+  evidence: "Code web/app/page.tsx L116-122: serverId 일 때 description='다른 서버를 선택하거나 첫 매물을 등록해보세요!' 고정 문자열, 적용된 필터값 미인용. EmptyState 컴포넌트에 actionLabel 1개만 받음."
+
+- id: imp-0038
+  found_at_iter: 2
+  area: listings
+  type: content
+  target: noise_listings_first_page
+  problem: "비로그인 첫 방문자가 보는 4개 매물 중 3개가 '111233', '123ㄱ1ㄱㅈㄷㄹ', 'ㅇㄴㄹ2ㅈ +3' 같은 자판 노이즈이고 createdAt 이 2026-03-17~21로 6주째 정체된 매물이다. 신뢰도가 무너진다."
+  proposal: "(1) 정렬 기본값을 'popular' 또는 'recent_active' 로 두고 viewCount<5 + favoriteCount=0 + chatCount=0 + age>30d 인 매물은 첫 페이지에서 demote. (2) 자판 노이즈 정규식 휴리스틱으로 admin 모더레이션 큐 자동 제출."
+  effort: small
+  impact: high
+  evidence: "Playwright: 카드 4개 텍스트 '도리깨 +10 판매합니다', '팔로우/머꼬', '123ㄱ1ㄱㅈㄷㄹ/ㅇㄴㄹ2ㅈ +3', '111233/1234'. 시간 라벨 모두 '1개월 전'. /api/v1/listings 응답: 4매물 중 3매물의 viewCount<=4, favoriteCount=0~1, chatCount=0~1."
+
+- id: imp-0039
+  found_at_iter: 2
+  area: listings
+  type: a11y_mobile
+  target: filter_section_above_fold
+  problem: "375x667 모바일에서 첫 매물 카드의 y=791.5px(viewport 의 119%)에서 시작한다. hero(보이는 사용자 미인증) + 28개 서버 칩 + 11개 카테고리 칩 + 결과 헤더가 모두 그리드 위에 배치되어 매물 한 개를 보려면 1.2 화면 분량 스크롤이 강제된다."
+  proposal: "(1) 모바일에서 필터 영역을 collapsed by default '필터 ▾' 버튼으로 접고 활성 필터 칩 요약만 노출. (2) hero 를 1줄(매물 둘러보기 CTA)로 축소. (3) sticky '필터/정렬' 바로 스크롤해도 항상 접근 가능."
+  effort: medium
+  impact: high
+  evidence: "Playwright 375x667: filterRect.bottom=564, sortRect.y=755.5, firstCard y=791.5, 결과 첫 카드의 viewport 비율 119%. scrollHeight=1602(viewport 의 2.4 배)."
+
+- id: imp-0040
+  found_at_iter: 2
+  area: listings
+  type: a11y_mobile
+  target: sort_select_filter_keyboard
+  problem: "정렬 select 가 결과 헤더 안 우측에 있고, 모든 필터 칩이 button[aria-pressed] 패턴인데 키보드 사용자가 '정렬 우선' 흐름을 따르려면 28개 서버 칩 + 11개 카테고리 칩을 거쳐야 도달한다. 또한 select 대신 칩 그룹과 일관된 단일 패턴이 더 학습 효율적이다."
+  proposal: "(1) 정렬 select 를 결과 영역 위로 이동시키고 페이지 본문 첫 인터랙션이 되게 한다. 또는 (2) 정렬을 [최신순 | 가격 ↑ | 가격 ↓ | 인기순] segmented control(button[role=radio] group)으로 바꿔 칩 패턴과 통일."
+  effort: small
+  impact: low
+  evidence: "Playwright 375x667: 정렬 select 위치 (236, 755.5) 92x28, 화면 우측 끝. 같은 페이지에 button[aria-pressed] 칩 39개와 select 1개가 혼재(인터랙션 패턴 비일관)."
+
+- id: imp-0041
+  found_at_iter: 2
+  area: listings
+  type: a11y_mobile
+  target: card_aria_label_punctuation
+  problem: "카드 aria-label='도리깨 +10, 200,000원, 질리언' 형식이 가격을 가운데 두어 스크린리더가 '아이템→가격→서버' 순으로 읽는데, 한국어 사용자에겐 '서버→아이템→가격' 순 정보 우선순위가 자연스럽다. 또한 status('판매중')와 listingType('판매')가 라벨에 빠져 매수/매도 구분 불가."
+  proposal: "aria-label 를 '[질리언] 도리깨 +10 판매중, 200,000원' 또는 '판매: 도리깨 +10 (질리언) - 200,000원' 형식으로 재구성하고, 컴포넌트 prop 에 listingType/status 가 노출되도록 한다."
+  effort: trivial
+  impact: low
+  evidence: "Playwright: 카드 4개 aria-label 모두 '<itemName>[ +<level>], <price>원, <serverName>' 패턴. listingType('판매') status('판매중') 누락."
+

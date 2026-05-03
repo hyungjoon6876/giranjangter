@@ -33,3 +33,14 @@
   source_root_cause: "web/components/listing/listing-filters.tsx:29 — chipBase 'py-1.5' produces 30px height"
   status: fixed
   fixed_at_iter: 1
+
+- id: bug-0004
+  found_at_iter: 2
+  page: /listings
+  rule_id: A-2-http-error
+  normalized_selector: "document"
+  viewport: 1280x800
+  evidence: "GET https://giranjt.com/listings returns HTTP/2 404 (verified via curl, x-nextjs-cache: HIT). Page renders Next.js default '404 — This page could not be found.' UI. /listings has no page.tsx; only /listings/[id] subdirectory exists. Users following '/listings' (canonical browse URL, expected from /listings/[id] hierarchy) hit a dead end."
+  source_root_cause: "web/app/listings/ has no page.tsx — listings browse is rendered by app/page.tsx (root /), so /listings is unrouted"
+  status: fixed
+  fixed_at_iter: 2
