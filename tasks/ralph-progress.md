@@ -23,3 +23,4 @@ iter 17 | bugs SKIPPED | improvs +10=251 | reservation round2: imp-0242/0243 con
 iter 18 | bugs SKIPPED | improvs +8=259 | review round2: ⚠️ imp-0252 권한 체크 누락 (3rd party 후기 작성), imp-0254 LIMIT 50 silent 누락, verified-purchase 배지 부재, 후기 모더레이션 0건; 16→8 saturation 시작
 iter 19 | bugs SKIPPED | improvs +12=271 | report round2: ⚠️ imp-0268 action code visibility 미변경, auto-hide threshold, false-report 페널티, appeal flow, transparency 대시보드, withdraw endpoint
 iter 20 | bugs SKIPPED | improvs +8=279 | notification round2: ⚠️ imp-0275 정보통신망법 §50 위반 risk (마케팅 동의 컬럼 부재 + unsubscribe deeplink), cursor pagination, dedup 인덱스, block-list 통합, 관리자 broadcast, 인앱 toast bridge, snooze, A/B 변형 분석
+iter 21 | bugs SKIPPED | improvs +10=289 | profile round2: alignmentScore 미시각화, responseBadge 미사용, lastActiveAt online dot, achievement 시스템, social_links anti-fraud, theme prefs

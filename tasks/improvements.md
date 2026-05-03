@@ -3072,3 +3072,113 @@
   impact: low
   evidence: "코드 backend/db/migrations/001_initial.sql L252-263 notifications 컬럼에 opened_at/clicked_at/variant_key 0건. handlers_notification.go grep 'opened\\|clicked\\|seen' 0건. /admin/notifications/stats 라우트 부재. audit_logs L270 grep 'notification' 0건 — 알림 관련 감사 이벤트 미정의."
 
+- id: imp-0280
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: alignment_grade_score_visualization
+  problem: "backend domain/models.go L196-197 의 UserProfile 에 'alignmentScore int' 와 'alignmentGrade AlignmentGrade' 필드가 정의되어 있고 GET /me 응답에도 직렬화될 가능성이 높지만(json:\"alignmentScore\"/\"alignmentGrade\"), web/lib/types.ts L1-15 User 타입에는 두 필드가 0건이고 web/app/profile/page.tsx 의 stat 카드 3개(거래/좋은 리뷰/신뢰등급)에도 표시 0건이다. 리니지 클래식의 핵심 신뢰 신호인 '성향(law/chaos/neutral)' 등급이 계산은 되지만 UI 노출 0건 — 사용자가 'X 라는 사람의 성향 점수' 를 한눈에 알 방법이 없고, alignment_score 가 변했어도 본인조차 인지 불가."
+  proposal: "(1) web/lib/types.ts User interface 에 'alignmentScore?: number' 'alignmentGrade?: \"law\"|\"chaos\"|\"neutral\"' 추가. (2) /profile stat 카드를 3개에서 4개(또는 carousel)로 늘려 '성향' 카드 추가 — '⚖️ Law +120' / '☠️ Chaos -340' / '⚪ Neutral 0', 색상 차등(gold/red/cream). (3) public profile(/profile/[userId], imp-0138 후속)에도 동일 표시 — 거래자 신뢰 판단에 활용. (4) lib/i18n/alignment.ts: 'law'→'정의', 'chaos'→'무법', 'neutral'→'중립' 한국어 매핑. (5) 점수 변동 트리거(거래완료/리뷰/신고) 발생 시 SSE 'alignment:changed' 이벤트로 toast '⚖️ 성향 점수 +5' 즉시 피드백. (6) /profile 카드 클릭 시 modal — '성향 점수 산정 기준: 거래완료 +10, 긍정 리뷰 +5, 신고 누적 -50, 30일 비활동 ±0' 설명."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/internal/domain/models.go L196-197 'AlignmentScore int' 'AlignmentGrade AlignmentGrade' 필드 정의 + json 태그 직렬화 활성. web/lib/types.ts L1-15 User interface alignment 필드 0건. web/app/profile/page.tsx L86-109 stat 카드 3개에 alignment 0건. backend/internal/alignment/ 디렉토리 존재(CLAUDE.md L40)이나 UI 노출 진입점 0건."
+
+- id: imp-0281
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: response_badge_display_and_hours_chart
+  problem: "web/lib/types.ts L11 User 에 'responseBadge?: string' 필드가 있고 backend domain/models.go L194 'ResponseBadge string' 으로 노출되지만, /profile/page.tsx 어디에도 표시 0건이고 매물 카드 작성자 hover preview 에도 미표시(추정). 응답 속도/비율은 거래 결정의 핵심 신호('5분 내 답장' vs '하루에 한 번') 인데 backend 가 계산해도 UI 가 사용 안 함. 결과: 거래자가 '이 판매자에게 채팅 보내면 답장 올까?' 판단 못 하고, 응답률 좋은 사용자도 보상받지 못함."
+  proposal: "(1) /profile stat 카드 영역에 responseBadge chip — '⚡ 5분내 답장' / '🐢 하루 이상' (badge 값 한국어 매핑 lib/i18n/response-badge.ts). (2) public profile(/profile/[userId])에도 동일 표시. (3) 매물 카드(/listings) 의 author 영역에 작은 chip — '⚡' 아이콘 단독(공간 절약). (4) 응답 시간 분포 mini chart(최근 30일) — sparkline '평균 12분, 최장 4시간'. (5) backend 가 채팅 메시지 발신 시 '나(seller)→상대(buyer) 첫 답장 지연 시간' 을 collect 하여 user_response_stats(user_id, p50_minutes, p90_minutes, sample_count) 집계 cron(매 시간). (6) 본인 프로필에는 '응답 빠르게 유지하면 거래 성공률 +30%' 동기 부여 카피."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/internal/domain/models.go L194 'ResponseBadge string' 정의. web/lib/types.ts L11 'responseBadge?: string'. web/app/profile/page.tsx grep 'responseBadge' 0건 — 표시 부재. web/components/listing/ 카드 컴포넌트 grep 'responseBadge' 추정 0건. user_response_stats 같은 집계 테이블 backend/db/migrations 부재."
+
+- id: imp-0282
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: last_active_at_presence_indicator
+  problem: "web/lib/types.ts L13 User.lastActiveAt: string 와 backend UserProfile.LastActiveAt 모두 있지만, /profile 본인 화면·public profile·매물 카드·채팅 헤더 어디에도 '최근 접속' 표시 0건이다. 거래자가 '이 사람 1주일 전 마지막 접속 — 답장 기대 안 됨' vs '5분 전 활동 — 지금 답장 가능' 같은 즉각 판단을 못 한다. presence indicator(녹/노/회색 dot)도 부재 — 디스코드/카톡 같은 표준 메신저 패턴 미적용."
+  proposal: "(1) avatar 우하단에 색 dot — 5분 이내: green(online), 1시간 이내: yellow(idle), 24시간 이내: gray(recent), 그 이상: hidden. (2) /profile 본인 화면 닉네임 옆 'lastActiveAt' formatTimeAgo — '방금 접속'. (3) public profile(/profile/[userId])과 매물 카드 author 영역에 dot 노출. (4) 채팅방 헤더에 상대방 dot — 'online: 답장 빠를 거예요'. (5) backend lastActiveAt 갱신 정책 — 모든 인증 요청 미들웨어에서 UPDATE users SET last_active_at = NOW() WHERE id = $1 (rate-limit: 1분당 최대 1회 갱신, redis lock 또는 LAST_UPDATED_AT 비교). (6) privacy 옵션(imp-0146 후속)에 'last active 비공개' 토글 — 비활성 시 dot/시간 모두 hide."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/lib/types.ts L13 lastActiveAt 타입 존재, web/app/profile/page.tsx 'lastActiveAt' grep 0건. components/listing/ author hover preview 에 lastActiveAt 표시 0건(추정). 채팅 헤더 web/app/chats/[chatId]/ presence dot 마크업 0건. backend middleware/auth.go 에 last_active_at UPDATE 코드 0건(추정)."
+
+- id: imp-0283
+  found_at_iter: 21
+  area: profile
+  type: ux
+  target: profile_completeness_nudge_and_progress
+  problem: "신규 가입 사용자가 /profile 진입 시 '닉네임/아바타/소개/주서버' 4 필드 중 일부만 채운 상태에서도 마치 '완료된 프로필' 처럼 보인다. 현재 코드(L77-81)는 introduction 이 있을 때만 '<p>' 표시 — 없으면 그냥 비어있고 '왜 비어있나' '채우면 뭐가 좋나' 단서 0건. 매물 등록·채팅 시작 직전에 '아바타 없으면 신뢰 -10%' 같은 통계도 0건이라 사용자가 채울 동기가 약하다. 결과: 50%+ 사용자가 default state 로 거래에 진입해 신뢰 신호 빈약."
+  proposal: "(1) /profile 카드 상단에 '프로필 완성도 75% — 1단계 남음' progress bar (avatarUrl/introduction/primaryServerId 채워졌는지 client-side 계산, nickname 은 가입시 필수). (2) 미완성 필드별 chip — '📷 사진 추가' '✍️ 소개 작성' '🌍 주 서버 선택' (클릭 → /profile/edit#field). (3) 100% 완성 시 '🏆 프로필 완성 — 신뢰 거래자!' 1회 toast 축하 + alignmentScore +5 보상(이펙트). (4) 가입 30일 이내 사용자에게는 헤더 banner '거래 첫 5건은 프로필 완성도 50% 이상이면 평균 30% 더 빠른 매칭' 안내. (5) 닫기 버튼 — 1회 dismiss 후 7일간 다시 표시 안 함(localStorage 'completeness-banner-dismissed-at')."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L77-81 introduction 없으면 단순 hide — 채우라는 prompt 0건. progress bar UI 0건(grep 'completeness\\|progress' 0건). 가입일 기반 분기(createdAt) 가공 0건. localStorage 'completeness' 키 0건."
+
+- id: imp-0284
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: achievement_badges_milestones
+  problem: "기란JT 의 신뢰 모델은 '거래 횟수' 와 '긍정 리뷰' 단순 카운트만 보여주고(/profile L86-98) 점진적 마일스톤 달성을 시각화하지 않는다. 거래 1번/10번/100번/1000번, 긍정 리뷰 90% 유지, 첫 채팅 응답 5분 내 등 게임화 가능한 마일스톤을 메달로 발급하면 retention·engagement 동기가 생긴다. 현재 trustBadge enum 단일 값만 있고 다중 메달/배지 시스템 0건이다. 리니지 클래식 도메인은 RPG-기반 사용자가 '수집 욕구' 에 강하게 반응하는 시장임에도 미활용."
+  proposal: "(1) DB 마이그레이션 user_achievements(user_id, achievement_key, earned_at, progress_value) — first_trade/10_trades/100_trades/1000_trades/positive_streak_5/positive_streak_30/responder_5min/early_bird(가입 100명)/community_helper(신고 처리 협조)/anniversary_1y. (2) backend cron(매일 새벽) 또는 이벤트 트리거(거래 완료 시) 에서 조건 평가 → 신규 row INSERT + SSE 'achievement:earned' 이벤트. (3) /profile 본인 화면 메뉴에 '내 메달' 추가 — grid 6×N, 잠긴 것은 회색·진행도 표시('27/100 거래'). (4) public profile 에도 'highlighted 3개' 표시(본인이 선택). (5) 첫 메달 획득 시 modal 축하 + share to discord 동선. (6) 알림 카탈로그에 'achievement.earned' 추가."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/db/migrations/ 'user_achievements' 또는 'badges' 테이블 0건(추정). domain/models.go grep 'Achievement\\|Badge' enum/struct 0건(trustBadge 는 단일 enum). web/app/profile/ 메달/그리드 마크업 0건. SSE 이벤트 카탈로그 docs/EVENT_CATALOG.md grep 'achievement' 추정 0건."
+
+- id: imp-0285
+  found_at_iter: 21
+  area: profile
+  type: ux
+  target: joined_date_seniority_label
+  problem: "User 타입에 'createdAt: string'(L14)이 노출되지만 /profile 본인 카드·public profile 모두 표시 0건이다. 가입일은 거래 신뢰의 1차 신호(오래된 사용자=낮은 사기 확률)인데 시각화 0건이다. 또한 '회원기간' 동안 milestone 도 표시 안 됨 — 1주년/2주년/100일 같은 의미있는 시점이 사라진다. createdAt 만 있고 fingerprint 없는 사용자는 그저 'UUID' 일 뿐 '커뮤니티 일원' 으로 인식되지 않는다."
+  proposal: "(1) /profile 닉네임 옆 회원기간 chip — '🏛 6개월차' / '🌟 1년 회원' (createdAt 으로부터 monthDiff 계산). (2) 1주년·6개월·100일 도달 시 자동 toast 축하('가입 6개월! ⚡') + 'shareto kakao' 동선. (3) 가입일 기반 vintage tier — 'Founder'(가입 1000명 이내, 영구 표시), 'Early'(첫 1만명), 'Member'(나머지). FE 에서 createdAt + tier-cutoff 로 자체 산출. (4) public profile 도 동일 chip — '6개월차 회원' 보고 거래자가 신뢰 판단. (5) 가입일 정확 날짜는 mouse-hover 시 tooltip(2025년 3월 14일)."
+  effort: small
+  impact: low
+  evidence: "코드 web/lib/types.ts L14 'createdAt: string'. web/app/profile/page.tsx grep 'createdAt' 0건 — 표시 부재. monthDiff/vintage tier 산출 함수 0건(lib/utils.ts grep). 회원기간 chip 마크업 부재."
+
+- id: imp-0286
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: favorites_wishlist_quick_access
+  problem: "사용자가 마음에 드는 매물을 찜(즐겨찾기)할 가능성이 있으나 — 그래서 매물 상세에 ❤️ 또는 '찜' 버튼이 있다면 — /profile 메뉴 4개(L47-52) 중 '찜한 매물' 진입점 0건이다. 결과: 사용자가 어제 본 매물을 다시 찾을 동선 부재, 가격 떨어졌을 때 알림 받을 동선 부재(price-drop notification 의 source-of-truth 부재). 의도적 retention 메커니즘인 wishlist 가 비활성."
+  proposal: "(1) /profile menuItems 에 '찜한 매물' 추가 (L47-52). (2) /profile/favorites 라우트 신설 — favorites 테이블(user_id, listing_id, created_at) 조회 grid. (3) backend POST/DELETE /api/v1/me/favorites/:listingId, GET /api/v1/me/favorites. (4) 매물 상세에 ❤️ toggle 버튼(이미 있다면 활용). (5) price drop notification — 찜한 매물의 priceAmount 가 낮아지면 자동 알림 push(imp-0136 의 web push 채널 활용). (6) /profile/favorites 빈 상태: '찜한 매물이 없습니다 — 매물 상세에서 ❤️ 를 눌러 저장하세요'. (7) 카운트 badge — '내 매물(N) 찜(M)' menu item label."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L47-52 menuItems 4개 — '찜' 0건. backend grep 'favorites\\|wishlist' table/route 추정 0건. web/app/listings/[id]/page.tsx 의 ❤️ 버튼 존재 추정 — 그러나 profile 진입점 부재로 사용자 동선 끊김. price drop SSE 이벤트 EVENT_CATALOG.md grep 0건."
+
+- id: imp-0287
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: contact_links_discord_kakao_external
+  problem: "리니지 클래식 거래는 in-app 채팅 외에 디스코드/카카오 오픈채팅으로 연속되는 경우가 많다. 거래자가 '디스코드 ID 알려줘' 를 채팅 안에서 plain text 로 주고받는데 — 이는 (a) 사기범이 외부로 빼돌리는 핵심 동선이고 (b) 본인이 명시 등록하면 신뢰 신호가 된다. 현재 /profile/edit 에 'discord/kakao/twitter/youtube' 링크 등록 필드 0건. UserProfile struct 에도 social_links 필드 0건. 결과: 신뢰 거래자가 자기 외부 신원을 검증 가능하게 노출할 수단 부재."
+  proposal: "(1) DB 마이그레이션 users 에 'social_links JSONB' 컬럼 — { discord, kakao_id, twitter, youtube } 4종 white-list. (2) /profile/edit 에 '연결된 계정' 섹션 — 4 input + 'discord 연동 인증' optional(OAuth 추가 단계). (3) public profile 에 chip — 'Discord: hyungjoon#1234' (verified 시 ✅, 미인증 시 ⚠️). (4) backend 가 외부 platform 으로 verify 가능한 type(discord OAuth)만 ✅ 부여 — kakao/twitter 는 self-claim 으로 ⚠️. (5) 사기 신고 시 discord_id 도 함께 admin 에 노출되어 cross-platform 추적 가능. (6) 사용자가 본인 채팅 안에서 'discord:' 텍스트 감지 시 '프로필에 등록하면 더 신뢰받습니다' 가벼운 인라인 nudge."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/internal/domain/models.go L186-199 UserProfile struct grep 'discord\\|kakao\\|social' 0건. /profile/edit/page.tsx L121-173 4 input(nickname/intro/avatar/server) 만 — social link 입력 0건. social_links JSONB 컬럼 backend/db/migrations/ 0건."
+
+- id: imp-0288
+  found_at_iter: 21
+  area: profile
+  type: feature
+  target: trade_history_chart_recent_30d
+  problem: "/profile 의 stat 카드는 누적 카운트(거래 N건, 좋은 리뷰 M건)만 보여주고, 시간축 데이터(최근 30일/주별 추세)가 0건이다. 본인이 '이번 달 거래량이 줄었나' 자가 인지 불가, 거래 상대방 입장에서도 '최근 활성 거래자' vs '6개월 전엔 활발했지만 지금은 휴면' 구분 불가. 신뢰 평가는 누적 + 최근 활동의 결합인데 후자가 시각화 안 됨."
+  proposal: "(1) /profile 본인 화면에 mini sparkline(width 280, height 60) — 최근 30일 일별 거래 완료 건수. recharts/Visx 가벼운 라이브러리. (2) public profile 에도 동일(privacy 옵션으로 hide 가능, imp-0146 후속). (3) backend GET /api/v1/users/:userId/stats?range=30d → daily_trade_count[], daily_review_count[]. (4) hover 시 tooltip — '5월 12일 거래 3건'. (5) 0 데이터 일자도 0 으로 표시(연속성 보장). (6) sparkline 위 'Trend ↑ 23%' 또는 'Trend ↓ 5%' (전월 대비 % 변화) — 본인 motivation 또는 거래자 신호. (7) 6개월 휴면(거래 0) 사용자에게 '최근 활동이 적어요' 회색 dim 처리."
+  effort: medium
+  impact: low
+  evidence: "코드 web/app/profile/page.tsx 'sparkline\\|chart\\|recharts' grep 0건. backend handlers_user.go grep '/stats' '/trade-history' 라우트 0건. domain/models.go UserProfile 에 시계열 데이터 필드 0건."
+
+- id: imp-0289
+  found_at_iter: 21
+  area: profile
+  type: ux
+  target: theme_density_preference_per_user
+  problem: "기란JT 는 단일 다크 테마(AppColors.gold/blue 변수, CLAUDE.md L13-14)만 제공하여 (a) 라이트 환경(직장/공공장소)에서 어색, (b) 시각 피로 사용자가 라이트로 전환 불가, (c) 정보 밀도 선호(저시력 사용자는 큰 폰트, 파워 거래자는 콤팩트) 모두 단일 강제. /profile/settings(imp-0143 후속) 도 알림 토글만 다루지 시각 환경 옵션 0건이다. 시스템 prefers-color-scheme 도 따르지 않아(추정) 다크 강제."
+  proposal: "(1) /profile/settings 에 '화면 설정' 섹션 — '테마: 다크/라이트/시스템 따름', '폰트 크기: 작게/보통/크게', '정보 밀도: 콤팩트/보통/넉넉'. (2) localStorage 'theme-pref' / 'font-size-pref' / 'density-pref' 저장 + Tailwind data-attr 토글 (data-theme=light/dark, data-density=compact). (3) tailwind.config.js 다크/라이트 변수 페어 추가 — Cream/Taupe 는 라이트에서도 동일, Background 만 light=#F5F2EE 추가. (4) 시스템 따름 시 prefers-color-scheme 미디어 쿼리 monitor → 자동 전환. (5) 첫 진입 시 시스템 prefs 자동 감지 prompt — '시스템이 라이트 모드입니다 — 라이트 테마를 사용할까요?' 1회. (6) 모든 컴포넌트가 Tailwind class 기반이라 작업량 작음(직접 hex 사용 0건 가정)."
+  effort: large
+  impact: low
+  evidence: "코드 web/app/layout.tsx 또는 web/app/globals.css 에 'data-theme\\|prefers-color-scheme' grep 0건(추정). /profile/settings 라우트 부재(imp-0143 미구현). lib/theme/ 디렉토리 부재. tailwind.config.js 다크/라이트 페어 컬러 0건(단일 팔레트)."
+
