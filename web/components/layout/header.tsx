@@ -81,7 +81,10 @@ export function Header() {
             </svg>
           </Link>
         ) : (
-          <Link href="/login" className="text-sm font-medium text-gold hover:text-gold/80 transition-colors px-3 py-1.5">
+          <Link
+            href="/login"
+            className="text-sm font-medium text-gold hover:text-gold/80 transition-colors px-3 py-2 min-h-[32px] inline-flex items-center"
+          >
             로그인
           </Link>
         )}
