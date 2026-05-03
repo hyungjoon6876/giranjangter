@@ -1290,3 +1290,135 @@
   impact: low
   evidence: "코드 web/app/profile/[userId]/reviews/page.tsx L51: '{r.rating === positive ? \"👍 좋아요\" : \"👎 아쉬워요\"}' — emoji 가 텍스트 노드에 직접 포함되어 aria-hidden 격리 없음. 카드(L37) 'border border-border' 만으로 색상 외 시각 단서 0건."
 
+- id: imp-0118
+  found_at_iter: 8
+  area: report
+  type: bug
+  target: chat_report_target_type_mismatch
+  problem: "채팅 화면에서 '신고' 버튼을 누르면 ReportModal 이 targetType='chat_room' 으로 POST /reports 를 호출하지만, 백엔드 binding 은 oneof=user listing message 만 허용하므로 모든 채팅 신고가 400 VALIDATION_ERROR 로 즉시 실패한다. 사용자에게는 '신고 접수에 실패했습니다' toast 만 노출되고 운영자는 채팅 단위 신고 데이터를 한 건도 수신할 수 없는 사일런트 결손 상태."
+  proposal: "백엔드 oneof 에 chat_room 추가(또는 message 단위로 받게 클라이언트 수정). 추가로 reports.target_type 에 CHECK 제약 또는 enum 도메인 적용해 DB 차원에서 일관성 강제. validation 실패 시 응답 body 의 message 를 toast 에 직접 노출(현재는 generic 'INTERNAL_ERROR' 형태로 디버깅 정보 손실)."
+  effort: trivial
+  impact: high
+  evidence: "코드 web/app/chats/[id]/page.tsx L182-187 <ReportModal targetType=\"chat_room\" />. backend/cmd/server/handlers_report.go L18 binding:\"required,oneof=user listing message\" — chat_room 미포함. Flutter 쪽 frontend/lib/features/report/report_form_sheet.dart L7 주석 'listing, user, chat_room, message, review' 도 백엔드와 불일치(review/chat_room 검증 실패)."
+
+- id: imp-0119
+  found_at_iter: 8
+  area: report
+  type: ux
+  target: report_button_anonymous_unreachable
+  problem: "비로그인 사용자가 매물 상세에 접속하면 액션 툴바 자체가 availableActions 가 비어 있어 sticky bottom toolbar 가 렌더되지 않고, 그 결과 '신고' 버튼도 함께 사라진다. 즉 사기성 매물을 본 익명 방문자가 신고할 진입점이 0건. (Playwright /listings/b155f6a7… 익명 접속, document.body.innerText 에 '신고' 단어 0회 발견.)"
+  proposal: "신고 버튼은 actions.length 분기와 별개로 모든 사용자에게 항상 노출하고, 클릭 시 비로그인 사용자에게는 requireAuth('신고') 로 로그인 모달을 띄운 후 복귀 redirect. 또는 신고는 비로그인 신고도 허용(IP+ja3 fingerprint+캡차)해 진입 장벽을 낮춘다. 추가로 listing-card 에도 우상단 ⋯ 메뉴로 '신고' 항목 노출."
+  effort: small
+  impact: high
+  evidence: "Playwright https://giranjt.com/listings/b155f6a7-a80b-4db5-ac3f-a080b3ad656d 익명 접속 후 querySelectorAll('button').filter(.textContent.includes('신고')).length === 0. 코드 web/app/listings/[id]/page.tsx L207 '{actions.length > 0 && (' 가드로 toolbar 자체가 비로그인 시 0건 렌더, 신고 버튼은 그 안 L263 위치."
+
+- id: imp-0120
+  found_at_iter: 8
+  area: report
+  type: feature
+  target: my_reports_history_page
+  problem: "백엔드는 GET /me/reports 를 이미 노출(handlers_report.go L45 handleMyReports)하지만, web 프론트에는 이 엔드포인트를 부르는 페이지·hook·UI 가 0건이다. 따라서 사용자는 자기가 어떤 신고를 냈는지·처리 상태(submitted/assigned/resolved)·운영자 회신 여부를 확인할 방법이 전혀 없고, 신고 후 즉시 잊어버리거나 '내 신고가 묻혔다'는 불신만 쌓인다."
+  proposal: "/profile/reports 또는 /me/reports 페이지 신설. useMyReports() hook 으로 데이터 fetch, status 별 탭(접수됨/처리중/완료/반려), 각 행에 (대상 타입+ID, 신고 사유, 신고일, 현재 상태, 운영자 회신 메모, '추가 자료 제출' 버튼). 프로필 메뉴에 '내 신고 내역' 링크 추가."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/cmd/server/main.go L137 'readOnly.GET(\"/me/reports\", handleMyReports(reservationRepo))' 등록됨. ripgrep web/lib/hooks/use-reports* 0건, web/app/me/reports/* 또는 web/app/profile/reports/* 0건. /me/reports API 는 backend 만 살아 있고 web UI 미연결."
+
+- id: imp-0121
+  found_at_iter: 8
+  area: report
+  type: bug
+  target: report_reason_options_subset_of_backend
+  problem: "ReportModal 의 REPORT_REASONS 배열은 6개(scam_suspicion, fake_listing, harassment, spam, no_show, other)만 노출하지만 백엔드는 8개(prohibited_item, privacy_exposure 추가)를 허용한다. 결과적으로 '금지 품목(현금화 게임머니 등)'이나 '개인정보 노출(폰번호 캡쳐 유포 등)' 같은 핵심 시나리오가 web 사용자에게는 'other' 라는 분류 불가 상태로 묻혀 운영자 큐에서 자동 분류·SLA 적용이 어려워진다."
+  proposal: "REPORT_REASONS 에 {value: 'prohibited_item', label: '금지 품목/현금화'}, {value: 'privacy_exposure', label: '개인정보 노출'} 두 항목 추가. 사유별 placeholder 가이드(예: 사기 의심 → '입금 후 잠수, 차단 등 구체 정황을 적어주세요') 동적 노출. Flutter 와 web 의 라벨/icon/순서를 단일 source(shared/report-reasons.json)로 통일."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/components/forms/report-modal.tsx L8-15 REPORT_REASONS 6 entries. backend/cmd/server/handlers_report.go L20 'oneof=fake_listing scam_suspicion no_show harassment spam prohibited_item privacy_exposure other' 8 entries. frontend/lib/features/report/report_form_sheet.dart L21-30 _reportTypes 8 entries(label/icon 보유) — 모바일은 노출하는데 web 은 누락된 비대칭."
+
+- id: imp-0122
+  found_at_iter: 8
+  area: report
+  type: feature
+  target: evidence_attachment_screenshot_link
+  problem: "신고 폼이 reportType + free-text description(최대 2000자)만 받고 스크린샷·외부 채팅 캡쳐·거래 인증샷 등 evidence 첨부 채널이 0건이다. 운영자가 사기 의심 신고를 받아도 '카카오톡에서 잠수했어요' 같은 텍스트만 보고 진위를 판정해야 해 false positive/negative 가 늘어난다. 또한 reports 테이블에 evidence_files JSON 컬럼이 없어 사후 추가 자료도 못 받음."
+  proposal: "(1) reports 테이블에 evidence_files JSONB(파일 키 배열), evidence_links TEXT[] 컬럼 추가 마이그레이션. (2) ReportModal 에 '증거 자료(스크린샷·링크)' 섹션 추가, 최대 5장까지 이미지 업로드(presigned URL 패턴 재사용 — listing 이미지 업로드와 동일 스택), URL 입력 필드. (3) admin/app/reports/page.tsx 상세 패널에 evidence 갤러리 표시. (4) 1차 신고 후 24시간 이내 추가 자료 첨부 PATCH /me/reports/{id}/evidence 허용."
+  effort: large
+  impact: high
+  evidence: "코드 web/components/forms/report-modal.tsx L46-66 form 안에 file input/url input 0건. backend handlers_report.go L17-22 req struct 에 evidence 필드 0건. db/migrations/001_initial.sql L223-235 reports 스키마에 evidence_* 컬럼 0건. admin/app/reports/page.tsx L164-197 상세 패널에 첨부 표시 영역 0건."
+
+- id: imp-0123
+  found_at_iter: 8
+  area: report
+  type: feature
+  target: reporter_resolution_notification
+  problem: "운영자가 admin/reports 에서 '완료 처리' 또는 '조치 실행' 을 누르면 reports.status 가 resolved 로 변하고 moderation_actions 에 행이 추가되지만, 신고를 낸 사용자(reporter) 에게 결과를 알려주는 notification 이 0건이다. 사용자는 자기 신고가 받아들여졌는지 반려됐는지·어떤 조치가 취해졌는지 알 수 없어 '신고는 보내봤자 무의미하다'는 학습된 무관심을 만들고 신고 자체가 줄어든다."
+  proposal: "handleAdminReportAction / handleAdminUpdateReportStatus 안에서 status 가 resolved 또는 rejected 로 바뀔 때 notifications 테이블에 reporter_user_id 대상 row INSERT (type='report_resolved', body='귀하의 신고가 처리되었습니다: 경고 조치 완료', deep_link='/me/reports/{id}'). 추가로 운영자가 reject 시 사유 선택(증거 부족·중복 신고·정책 외) 후 reporter 에게 안내. SSE 알림 채널로 즉시 푸시."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_admin.go L80-110 handleAdminReportAction 트랜잭션 안에 INSERT INTO notifications 0건. L91 'UPDATE reports SET status = resolved' 직후 reporter notification 디스패치 없음. backend/internal/event/* 에 'report_resolved' 이벤트 정의 0건(grep)."
+
+- id: imp-0124
+  found_at_iter: 8
+  area: report
+  type: bug
+  target: self_report_and_duplicate_guard_missing
+  problem: "handleCreateReport 에 (1) 자기 자신을 신고하지 못하게 하는 로직, (2) 동일 (reporter_user_id, target_type, target_id) 쌍의 신고를 24시간 이내 중복 차단하는 로직, (3) 일정 시간당 신고 횟수 rate limit 가 모두 0건이다. 결과적으로 누군가 한 사용자/매물을 spam-신고로 폭격해 운영자 큐를 어지럽히거나, 자기 매물 신고로 노이즈 생성이 가능. reports 테이블에도 UNIQUE (reporter_user_id, target_type, target_id) 인덱스 0건이라 같은 reporter 가 같은 대상으로 100건 row 를 만들 수 있다."
+  proposal: "(1) handleCreateReport 시작부에 target_type==='user' && target_id===userID → 400 'CANNOT_REPORT_SELF'. listing/chat 의 경우 owner 검증 후 동일하게 차단. (2) reports 테이블에 partial UNIQUE INDEX (reporter_user_id, target_type, target_id) WHERE created_at > NOW() - INTERVAL '24 hours' 또는 INSERT 전 SELECT count check. (3) middleware 로 사용자당 분당 5건/일 30건 신고 rate limit. (4) 어뷰저 식별(같은 reporter 가 동일 사용자에 대한 신고 5회 이상 false positive 누적)에 alignment penalty."
+  effort: small
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_report.go L14-43 handleCreateReport: self-check, duplicate-check, rate-limit 0건. db/migrations/001_initial.sql L223-235 reports 스키마에 UNIQUE 인덱스 0건. handlers_listing.go·repository 에서도 reporter==target.owner 검증 grep 0건."
+
+- id: imp-0125
+  found_at_iter: 8
+  area: report
+  type: ux
+  target: post_submit_no_eta_or_contact_channel
+  problem: "신고 제출 후 사용자가 보는 피드백은 toast '신고가 접수되었습니다' 한 줄뿐이다. 처리 예상 기간(SLA), 운영팀 연락 채널, 추가 자료 제출 안내, 신고 ID(추후 문의 시 식별용) 등이 0건이라 '받았다는 거지 처리한다는 보장은 없는' 인상으로 끝난다. ReportModal handleSubmit L36-37 onClose() 후 즉시 닫혀 reportId 참조 불가."
+  proposal: "신고 제출 성공 시 modal 을 즉시 닫지 말고 success 단계로 전환: (1) 신고 ID 표시(복사 버튼) (2) '평균 처리 기간 24-48시간' SLA 안내 (3) '추가 자료가 있으면 giranjt@gmail.com 으로 신고 ID 와 함께 보내주세요' (4) '내 신고 내역에서 진행 상황을 확인하세요 →' /me/reports 링크 CTA. 사용자가 직접 X 또는 '확인' 눌러야 닫힘."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/report-modal.tsx L37 'onClose(); addToast(\"success\", \"신고가 접수되었습니다\");' — 응답으로 받은 reportId(API 가 반환하는 값) 미사용. Modal 내부에 success state 분기 0건. SLA 안내 / contact 텍스트 / /me/reports 링크 0건."
+
+- id: imp-0126
+  found_at_iter: 8
+  area: report
+  type: a11y_mobile
+  target: report_modal_missing_radiogroup_semantics
+  problem: "REPORT_REASONS 6개 옵션이 <label><input type='radio'></label> 로 되어 있지만 wrapper(div.space-y-2) 에 role='radiogroup' / aria-required='true' / aria-labelledby(제목 링크) 가 없어 스크린리더 사용자는 라디오 6개의 그룹 의미와 '필수 선택' 사실을 모른다. 또한 description textarea 에도 글자수 카운터·max=2000 hint·실시간 글자수가 노출되지 않아 백엔드 binding(min=1,max=2000) 위반으로 400 응답을 받아도 사용자에게는 'INTERNAL_ERROR' 로 표시된다."
+  proposal: "(1) <fieldset role='radiogroup' aria-labelledby='report-modal-title' aria-required='true'><legend className='sr-only'>신고 사유</legend>...</fieldset> 구조로 감싸기. (2) textarea 옆에 글자수 카운터 '0/2000' 라이브 업데이트, aria-describedby 로 카운터 연결. (3) submit 버튼 disabled 상태에 aria-describedby='report-form-hint' '사유를 선택해 주세요' sr-only 메시지 연결. (4) 에러 toast 대신 modal 내부 inline error region(role='alert') 으로 백엔드 message 그대로 표시."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/report-modal.tsx L48 '<div className=\"space-y-2\">' radio wrapper 에 role='radiogroup' 0건. L56-62 textarea 에 maxLength/카운터/aria-describedby 0건. L63 submit button disabled 에 aria-describedby 0건. L37-39 catch 블록은 toast 만 호출, modal 안 inline error 0건."
+
+- id: imp-0127
+  found_at_iter: 8
+  area: report
+  type: ux
+  target: forced_description_silent_default
+  problem: "ReportModal handleSubmit L35 '|| \"신고합니다\"' 로 description 이 비어 있으면 클라이언트가 강제로 '신고합니다' 를 채워 보낸다. 백엔드 binding 이 min=1,max=2000 이라 빈 본문을 막으려는 우회지만, 사용자가 의도하지 않은 본문이 운영자 큐에 들어가 분류·검색·중복 식별을 어렵게 만든다. 운영자 admin 화면에서 'description: 신고합니다' 만 있는 무의미 row 가 다수 발생할 위험."
+  proposal: "(1) description 을 백엔드에서 진짜 optional 로 바꾸고(omitempty,max=2000) 빈 description 은 NULL 저장. (2) 클라이언트 fallback '신고합니다' 제거. (3) 사유 별 권장 본문 길이(예: '기타' 선택 시 description 50자 이상 강제, 그 외 reasons 는 선택) 차등 검증. (4) 너무 짧거나 의미 없는(반복 문자/이모지 only) 본문은 submit 시 inline 경고."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/components/forms/report-modal.tsx L35 'description: description || \"신고합니다\"'. backend handlers_report.go L21 binding:\"required,min=1,max=2000\" — required 라서 클라이언트가 fallback 강제 송신. db/migrations/001_initial.sql L229 'description TEXT NOT NULL DEFAULT '''' — NULL 저장 불가."
+
+- id: imp-0128
+  found_at_iter: 8
+  area: report
+  type: feature
+  target: admin_queue_priority_sla_auto_classify
+  problem: "admin/app/reports/page.tsx 의 운영자 큐는 단순히 created_at DESC LIMIT 50 으로 신고 50건을 한 페이지에 나열한다. (1) 신고 사유별 자동 우선순위(scam_suspicion·privacy_exposure 는 high, spam 은 low) 0건, (2) SLA(접수 후 N시간 미처리 → '지연' 배지) 0건, (3) 동일 대상 다중 신고 자동 클러스터링(같은 listingId 에 5건 신고 → 카드 1개로 묶고 '5건 신고' 카운트) 0건, (4) 자동 모더레이션 후보(같은 reporter 가 동일 대상 5회 이상 → 자기 어뷰즈 의심 표시) 0건. 결과적으로 운영자 1명 체제에서 큐가 쌓이면 critical 신고가 묻힌다."
+  proposal: "(1) reports 응답에 priority(높음/중간/낮음, reason 매핑) + sla_due_at 필드 추가. (2) admin 큐 컬럼에 우선순위·잔여 SLA 시계(빨강 ≤ 4h, 주황 ≤ 24h, 회색 > 24h) 표시. (3) 동일 (target_type, target_id) cluster_count 표시, 클릭 시 묶음 펼치기. (4) MVP 자동 분류기: spam keyword 매칭(전화번호 노출, 욕설사전) 으로 prohibited_item·privacy_exposure 자동 태깅 + reviewer 검수 단계 1회 추가. (5) 신고 사유별 LIMIT/페이지네이션."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_admin.go L18 'SELECT ... FROM reports ORDER BY created_at DESC LIMIT 50' — priority/sla/cluster 컬럼 0건. admin/app/reports/page.tsx L33-83 columns 에 priority/sla 표시 0건. 자동 분류 코드 backend/internal/* grep 'classify\\|priority\\|sla' 0건."
+
+- id: imp-0129
+  found_at_iter: 8
+  area: report
+  type: performance
+  target: my_reports_endpoint_no_pagination_or_cache
+  problem: "GET /me/reports 가 LIMIT 50 hard-coded 로 단일 페이지만 반환한다(repository L339). 신고를 자주 하는 사용자(전문 모니터링 사용자) 는 50건 이후 자기 신고 이력을 영영 못 보고, 클라이언트 useQuery 측 staleTime/cache 설정도 0건이라 페이지 진입마다 재호출. 또한 응답에 description 필드가 빠져 있어 사용자가 자기 신고 본문을 다시 보려면 불가."
+  proposal: "(1) backend ListMyReports(ctx, userID, cursor, limit) 시그니처 변경, cursor pagination 응답에 nextCursor. (2) 응답 row 에 description, evidence_count, last_admin_response_at 추가. (3) web hook useMyReports() 는 useInfiniteQuery + IntersectionObserver. (4) staleTime 60s, on submit 시 invalidateQueries(['my-reports']). (5) 신고 본문 250자 이상이면 'show more' 토글로 truncate."
+  effort: medium
+  impact: low
+  evidence: "코드 backend/internal/repository/postgres_reservation.go L339 'SELECT ... FROM reports WHERE reporter_user_id = $1 ORDER BY created_at DESC LIMIT 50' — cursor/limit param 0건. handlers_report.go L57-58 응답에 description 필드 0건. web 측 useMyReports hook 자체 부재(앞 imp-0120 와 별개로 백엔드 페이지네이션도 미구현)."
+

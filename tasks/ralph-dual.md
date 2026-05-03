@@ -8,13 +8,19 @@
 1. tasks/bug-state.json, tasks/improve-state.json 읽기
 2. tasks/bug-found.md, tasks/improvements.md 읽기 (Dedup용)
 3. 종료 조건 검사 (§5)
-   • 충족: <promise>DUAL_LOOP_COMPLETE</promise> 출력하고 종료
+   • 둘 다 충족: <promise>DUAL_LOOP_COMPLETE</promise> 출력하고 종료
    • 미충족: 다음 단계
-4. 두 subagent를 병렬 dispatch (§3, §4) — Agent tool 두 번을 같은 메시지에서 호출
-5. 두 subagent 결과 받아서 §6 절차로 state 갱신
+4. Subagent dispatch:
+   • bug_done && imp_done: 도달 불가 (step 3에서 종료됨)
+   • bug_done만: improve-suggest만 dispatch (bug-detect-fix skip)
+   • imp_done만: bug-detect-fix만 dispatch (improve-suggest skip)
+   • 둘 다 미done: 두 subagent 병렬 dispatch (Agent tool 2개 동시 호출)
+5. subagent 결과(들) 받아서 §6 절차로 state 갱신
 6. tasks/ralph-progress.md에 한 줄 추가
 7. 메시지 종료 (Ralph가 stop hook 통해 다음 iter 진입)
 ```
+
+종료된 loop를 skip하는 이유: 검사·제안에 비용(~3분)이 들고, 한 번 종료 조건 충족한 loop는 추가 작업이 거의 의미 없다. 단, bug_done 후에도 improve의 제안이 코드를 건드리지는 않으므로 새 버그가 생길 수 없다.
 
 ## 1. 사용 도구 / Subagent
 
