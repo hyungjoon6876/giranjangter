@@ -3336,3 +3336,25 @@
   impact: medium
   evidence: "코드 oauth/google.go L25-41 idtoken.Validate err 를 그냥 continue 하고 마지막에 generic error 반환(L41 'all client IDs'). errors.Is/As 0건. handlers_auth.go L53-58 단일 'UNAUTHORIZED' code. error code 카탈로그(types.ts grep 'GOOGLE_') 0건."
 
+- id: imp-0304
+  found_at_iter: 23
+  area: home
+  type: content
+  target: legal_footer_privacy_terms_links
+  problem: "footer에 '매물 보기 / 매물 등록' 두 링크만 있고 '개인정보 처리방침'(PIPA 30조 의무) 과 '이용약관' 링크가 0건이다. 채팅에서 사용자 간 닉네임/거래 정보가 오가고 OAuth로 Google 계정 정보를 수집하는 서비스인데도 처리방침 자체가 사이트 어디에도 노출되지 않는다. 한국 개인정보 보호법은 정보처리자에게 처리방침을 '수집하는 서비스 화면에 항시 접근 가능'하게 게시할 의무를 부과한다. 위반 시 과태료(최대 1천만원)와 분쟁 시 가입자가 동의한 적 없는 처리로 간주될 위험."
+  proposal: "(1) /privacy 와 /terms 정적 페이지 신설(Next.js app/privacy/page.tsx, app/terms/page.tsx) — 처리방침은 수집 항목(이메일·닉네임·OAuth sub), 보유기간, 제3자 제공 여부(없음), 위탁 처리(Cloudflare/Google), 만 14세 미만 보호 정책, 권리(열람/정정/삭제), 분쟁 책임자 연락처(giranjt@gmail.com)를 포함. 이용약관은 무료 중개 서비스의 책임 한계, 분쟁 조정 절차, 운영사 약관 위반(계정 거래 등) 면책 조항 명시. (2) footer '정보' 그룹에 '개인정보 처리방침'·'이용약관' 링크 추가. (3) /login 화면(OAuth 동의 직전)과 /create(매물 등록 — 닉네임 노출 동의)에 두 링크 inline 노출. (4) 마이그레이션 — terms_version, accepted_at 컬럼을 user 에 추가해 약관 변경 시 재동의 필수."
+  effort: medium
+  impact: high
+  evidence: "Playwright: footer.querySelectorAll('a') = 2개 ['매물 보기'(/), '매물 등록'(/create)]. 전 페이지 a[href*='privacy'] = 0, a[href*='terms'] = 0, body.innerText 검색 '개인정보|약관' 0건. 푸터 텍스트 '© 2026 기란JT. 이 서비스는 리니지 클래식의 공식 서비스가 아닙니다.' 만 노출. PIPA 30조 처리방침 공개 의무 위반 노출."
+
+- id: imp-0305
+  found_at_iter: 23
+  area: home
+  type: performance
+  target: canonical_link_missing
+  problem: "<link rel='canonical'> 가 home(/) 응답에 0건이다. imp-0173 (filter URL state) 가 구현되면 ?server=depro / ?category=weapon / ?sort=price_asc 등 N×M×K 조합의 동일 컨텐츠 URL 이 생기고, /, /?ref=*, ngrok/cloudflare 미들웨어가 추가하는 추적 쿼리도 모두 별도 페이지로 인덱싱되어 SEO 캐노니컬라이제이션이 깨진다. 또한 OG 공유 시 ?utm_source=kakao 등 트래킹 파라미터가 붙은 URL 이 1차 캐시되어 애널리틱스도 분산."
+  proposal: "(1) Next.js metadata.alternates.canonical 을 NEXT_PUBLIC_SITE_URL 기반 절대 URL 로 설정 — app/layout.tsx 또는 app/page.tsx 의 generateMetadata 에서 canonical: 'https://giranjt.com/'. (2) 필터 적용 페이지(예: /?server=depro)는 canonical 을 정규화된 정렬 순서로 다시 계산해 재구성하거나, 단순 케이스에서는 /(루트)로 self-canonical. (3) /listings/[id] 도 동일 패턴(절대 URL canonical) 적용. (4) lint 단계에 'all html responses must contain <link rel=canonical>' 정규식 검사 추가."
+  effort: trivial
+  impact: high
+  evidence: "Playwright: document.querySelector('link[rel=canonical]') = null. metadata.alternates 미설정 추정(SSR 응답 head 에 link[rel=canonical] 0건). imp-0173 의 URL filter state 도입 시 카노니컬 부재로 N개 중복 페이지 위험."
+

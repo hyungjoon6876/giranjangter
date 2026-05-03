@@ -25,3 +25,4 @@ iter 19 | bugs SKIPPED | improvs +12=271 | report round2: ⚠️ imp-0268 action
 iter 20 | bugs SKIPPED | improvs +8=279 | notification round2: ⚠️ imp-0275 정보통신망법 §50 위반 risk (마케팅 동의 컬럼 부재 + unsubscribe deeplink), cursor pagination, dedup 인덱스, block-list 통합, 관리자 broadcast, 인앱 toast bridge, snooze, A/B 변형 분석
 iter 21 | bugs SKIPPED | improvs +10=289 | profile round2: alignmentScore 미시각화, responseBadge 미사용, lastActiveAt online dot, achievement 시스템, social_links anti-fraud, theme prefs
 iter 22 | bugs SKIPPED | improvs +14=303 | auth round2: login throttling, suspicious-IP, new-country alert, passkey/WebAuthn, magic link, JIT signup at trade, account linking, OAuth error mapping; ✅ ROUND 2 완료 (170→303, +133)
+iter 23 | bugs SKIPPED | improvs +2=305 | home round3 STRICT: ⚠️ imp-0304 한국 PIPA 30조 의무 위반 (footer 개인정보/이용약관 링크 부재) + imp-0305 canonical link 부재; STRICT 작동 (18→2)
