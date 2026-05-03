@@ -2654,3 +2654,113 @@
   impact: low
   evidence: "코드 web/lib/hooks/use-chats.ts L73-89 onSuccess: messageId === clientMessageId 일 때 교체 — SSE 가 server 응답 도착 전 먼저 도달하면? clientMessageId 가 metadata 에 보관되지 않아 매칭 실패. backend handlers_chat.go L211-218 msgPayload 에 clientMessageId 미포함. SSE handler 에서 dedupe 로직 미확인(use-sse.ts 추가 점검 필요)."
 
+- id: imp-0242
+  found_at_iter: 17
+  area: reservation
+  type: bug
+  target: reservation_modal_note_field_silently_dropped
+  problem: "ReservationModal 의 메모 textarea(reservation-modal.tsx L17,28,53)는 form.notes 키로 상태를 보관하고 createReservation 페이로드에 'notes: form.notes' 로 전송한다. 그러나 backend handlers_reservation.go L25 가 받는 필드는 'noteToCounterparty' 이며, 'notes' 키는 ShouldBindJSON 에서 무시된다. 결과적으로 사용자가 입력한 메모(예: '아이템 합쳐서 1500만 으로 협의' 등 거래 합의 내용)가 DB note_to_counterparty 컬럼에 NULL 로 저장되고, 상대방 카드에는 표시되지 않는다. 100% 데이터 손실 버그인데 어떤 에러도 없어 발견 불가."
+  proposal: "(1) reservation-modal.tsx L28 'notes:' → 'noteToCounterparty:' 로 키 변경(또는 wrapper 에서 매핑). (2) Flutter reservation_form_sheet.dart 도 같은 키 검증. (3) backend req struct 에 binding tag 추가하여 필수 필드 강제(현재 *string 옵션이라 누락 무방). (4) 회귀 방지: __tests__/components/forms/reservation-modal.test.tsx 에 'createReservation 호출 시 noteToCounterparty 키로 전송된다' 단위 테스트 추가. (5) 기존 카드 metadataJson 표시 로직(reservation-card-message.tsx L20)도 'notes' 키만 읽어서 새 데이터(noteToCounterparty)와 정합성 점검 필요."
+  effort: trivial
+  impact: high
+  evidence: "코드 web/components/forms/reservation-modal.tsx L17 useState({...notes:''}), L28 createReservation({notes: form.notes}). backend/cmd/server/handlers_reservation.go L25 req.Note `json:\"noteToCounterparty\"`. JSON unmarshal 시 키 미스매치 → req.Note=nil → DB note_to_counterparty 컬럼 NULL. 사용자/QA 입장에서 어떤 에러도 없어 발견 매우 어려움."
+
+- id: imp-0243
+  found_at_iter: 17
+  area: reservation
+  type: bug
+  target: reservation_invalidate_messages_missing
+  problem: "예약 제안 성공 시 onCreated 콜백(chats/[id]/page.tsx L180)이 ['chats'] 만 invalidate 하고 ['messages', chatId] 는 invalidate 하지 않는다. 백엔드는 reservation 생성과 동시에 chat_messages 에 message_type='system'(또는 'reservation_card') 행을 INSERT 하지만(postgres_reservation.go L64-67), 사용자 화면에는 SSE 를 통해서만 새 시스템 메시지가 전달된다. SSE 가 끊긴 상태/재연결 중/탭 비활성화이면 사용자가 수동 새로고침 전까지 자기 예약 카드를 볼 수 없다. 또한 모달 닫힘 → 빈 채팅 화면 → 카드 없음 → '예약이 안 됐나?' 혼란."
+  proposal: "(1) onCreated 를 () => { qc.invalidateQueries({queryKey:['chats']}); qc.invalidateQueries({queryKey:['messages', id]}); } 로 변경. (2) confirmReservation/cancelReservation 액션 추가 시(imp-0091)도 동일 패턴. (3) 더 견고하게는 mutation 자체에 onSuccess 를 두어 component 단 콜백 의존을 줄임 — useCreateReservation hook 신설. (4) optimistic insert 까지 가면 모달 닫는 순간 자기 카드가 즉시 보여 SSE 의존 제거."
+  effort: trivial
+  impact: high
+  evidence: "코드 web/app/chats/[id]/page.tsx L180 onCreated={() => qc.invalidateQueries({ queryKey: ['chats'] })} — ['messages', id] 누락. backend/internal/repository/postgres_reservation.go L64-67 INSERT chat_messages 시스템 메시지 — useMessages 가 stale cache 유지. SSE off 시 0 reflective UI."
+
+- id: imp-0244
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_reschedule_state_machine
+  problem: "예약이 confirmed 된 후 시간/장소 변경(상대방과 합의)을 하려면 현재는 1) 예약 취소 → 2) 새 예약 제안 의 2-step 으로만 가능하다. 그 사이 listing.status 가 reserved→available 로 잠시 풀리면서 다른 사용자가 가로채는 race 가 있고, 취소 사유 코드가 'reschedule' 같은 의미를 잃어버리며, 양쪽 알림도 '취소됨' '새 제안' 로 분절되어 거래 맥락이 끊긴다. PRD.md L4303-4308 의 rescheduleState 머신(requested/counter_proposed/accepted/rejected/expired)은 정의되어 있으나 backend/web 어디에도 구현 0건."
+  proposal: "(1) 백엔드: POST /reservations/:id/reschedule { newScheduledAt, newMeetingType, newMeetingPoint, scope: 'time_only|location_only|both' } 엔드포인트 신설. 원 예약 status 유지(잠금 유지) + reservation_reschedule_requests 테이블에 row 생성. 상대방 confirm/reject 으로 분기. (2) 프런트: 채팅방 헤더 [예약 변경] 버튼(예약 confirmed 일 때만), 모달은 ReservationModal 재사용 + '변경 사유' 필드. (3) 카드 분리: ReservationRescheduleCard 시스템 메시지로 '변경 요청', accept 시 원 카드 데이터 갱신. (4) listing reserved 상태 유지 → race 차단."
+  effort: large
+  impact: high
+  evidence: "코드 backend grep -r 'reschedule' = 0건(PRD 외). 현재 변경 플로우는 cancel → create 2-step. PRD.md L4303 rescheduleState vocabulary 정의. STATE_SEQUENCE_DIAGRAMS.md L130 confirmed 상태에서 reschedule 전이 미정의. listing reserved_chat_room_id 가 cancel 시 NULL 로 풀려 race window 존재."
+
+- id: imp-0245
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_calendar_export_ics
+  problem: "예약이 confirmed 되어도 사용자가 자기 캘린더 앱(아이폰 캘린더, Google Calendar)에 약속을 등록할 방법이 없다. ReservationCardMessage 는 readonly 표시일 뿐 .ics 다운로드/구글캘린더 추가 버튼이 없다. 거래 약속을 잊는 no-show(domain.AlignmentTradeExpired = -3 페널티) 의 큰 원인이다. 사용자가 '나중에 카톡 알림으로 떠올리겠지' 라는 외부 의존을 강제 받아 자기 일정관리 시스템과 분리된다."
+  proposal: "(1) backend/cmd/server/handlers_reservation.go 에 GET /reservations/:id/ics 추가하여 RFC5545 .ics 파일 stream(BEGIN:VCALENDAR/VEVENT/SUMMARY=거래 약속/DESCRIPTION=listing.title+meetingType/DTSTART=scheduledAt/LOCATION=meetingPoint/END:VEVENT). (2) ReservationCardMessage 에 status='confirmed' 일 때 [📅 캘린더에 추가] 링크(<a download> 으로 .ics 다운로드, 모바일은 자동으로 캘린더 앱 열림). (3) Google Calendar 직접 링크: https://calendar.google.com/calendar/render?action=TEMPLATE&text=...&dates=... 별도 옵션. (4) 알림 설정: 약속 30분 전 사용자 캘린더 자체 알람으로 노쇼 감소."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/chat/reservation-card-message.tsx L8-28: <a href='*.ics'>/calendar/render 링크 0건. backend handlers_reservation.go GET /reservations/:id 자체가 없음(POST 만 존재). domain/models.go L98 AlignmentTradeExpired=-3 페널티는 강한데 사용자 측 reminder 도구 0개."
+
+- id: imp-0246
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_quick_status_chat_macros
+  problem: "예약 confirmed 이후 약속 시점 부근에 사용자가 보내는 메시지는 패턴이 매우 좁다 — '5분 늦어요', '도착했어요', '카톡주세요', '캐릭터 어디?', '거래소 앞에서 만나요'. 그러나 ChatInput 은 빈 텍스트 입력창만 제공하고 빠른 응답 매크로/템플릿 0개. 모바일에서 매번 한글 입력 + 오타 수정의 마찰이 있어 '늦었는데 늦었다고 보낼 시간도 없는' 상황 → 무응답 → 노쇼 페널티로 직결."
+  proposal: "(1) ChatInput 위에 reservation_confirmed 상태일 때만 노출되는 quick-reply 칩 row: [5분 늦어요] [도착했어요] [거래소 앞] [캐릭터 위치 알려주세요] [잠시만요]. 클릭 시 즉시 send 또는 편집 모드(shift-click). (2) 약속 시간 ±15분 윈도우에서는 칩이 자동으로 더 강조(border-gold). (3) 사용자별 자주 쓰는 매크로 5개 학습(localStorage 'rsv_macros'). (4) 매크로 클릭 시 자동으로 system event 'reservation_eta_update' 메타데이터 첨부 → 상대방 카드에도 '5분 후 도착 예정' 갱신. (5) 시각/거리(meetingPoint) 컨텍스트 기반 매크로 추천(KST timezone+오프라인이면 '거래소 앞', 인게임이면 '서버 어디?')."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/components/chat/chat-input.tsx 가 textarea 단일. quick-reply 칩 0건. 백엔드 message_type 에 system/text/image 만 있고 'eta_update' 같은 카테고리 0건. 약속 시점 30분 전후 상대방 응답 SLA 측정 도구 부재."
+
+- id: imp-0247
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_no_show_claim_flow
+  problem: "약속 시간이 지났는데 상대방이 안 나타난 경우(no-show)를 처리할 UI가 없다. domain/models.go L65,68 의 ReservationNoShowReported='no_show_reported' 와 AlignmentTradeExpired=-3 는 정의돼 있고, report-modal 의 reportType 에 'no_show'(report-modal.tsx L13) 가 있긴 하지만 이는 일반 신고 폼이라 reservation context(시간/장소/대기시간/증거)가 빠진다. PRD.md L237 'no-show claim 의 생성 조건, 중복 제한, accepted reschedule 와의 관계' 정책은 있으나 web 0건."
+  proposal: "(1) ReservationCardMessage 가 status='confirmed' AND scheduledAt + 30min < now 이면 [상대방이 안 와요] 버튼 노출. (2) 클릭 → no-show claim 모달: 대기 시작/종료 시각 자동 기록, 대기 위치 메모, 증거 텍스트('장로 인근에서 30분 대기, 카톡/귓속말 무응답'), 증거 이미지(스샷 1장). (3) backend POST /reservations/:id/no-show-claim 엔드포인트 신설 → reservations.status='no_show_reported' + reports 자동 생성 + 상대방 alignment -3. (4) 24시간 내 상대방이 'reschedule_request' 또는 'reason_explain' 으로 응답 가능(중복 제한). (5) 양쪽 모두 노쇼 클레임이 있으면 admin 큐에 자동 적재."
+  effort: large
+  impact: high
+  evidence: "코드 backend handlers_reservation.go grep 'no_show|noShow' = 0건. domain/models.go L68 ReservationNoShowReported 상태는 정의만 됨. report-modal.tsx L13 no_show 옵션은 일반 신고로 거래 컨텍스트 미포함. PRD.md L237 no-show 정책이 명시되어 있으나 코드 0건."
+
+- id: imp-0248
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_listing_busy_indicator_for_buyer
+  problem: "구매자가 매물 상세에서 채팅 시작 → 예약 제안 시도 시 backend가 'CONFLICT: 이미 활성 예약이 존재합니다'(handlers_reservation.go L44-47)를 반환할 수 있다. 그런데 이 정보는 사용자가 모달 submit 까지 가서야 알게 된다. 매물 카드/상세 페이지 어디에도 '이 매물은 다른 사용자와 예약 진행 중' 표시가 없다(listing.status='available' 로 표시). 결과적으로 채팅방 시작 → 예약 모달 열기 → 입력 → submit → 실패 → 좌절 의 4단계 마찰."
+  proposal: "(1) listing 응답에 has_active_reservation:bool 또는 active_reservation_count 필드 추가(SELECT COUNT(*) FROM reservations WHERE listing_id=... AND status IN ('proposed','confirmed')). (2) 매물 카드에 'reserved' 가 아니라도 '🔒 예약 협의 중' 노란 배지 노출 — 다른 구매자에게 '먼저 진행 중인 거래가 있다' 시그널. (3) 매물 상세 [채팅 시작] 버튼 disabled 까지는 아니더라도 클릭 시 confirm '다른 사용자와 협의 중인 매물입니다. 그래도 채팅을 시작할까요?'. (4) 채팅방 헤더 [예약 제안] 버튼 자체를 disable + tooltip '다른 거래가 진행 중'."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend handlers_listing.go GetListing 응답 필드에 active_reservation 정보 0건. web/components/listing/* 카드 표시에서 reservation 상태 분기 0건. CONFLICT 에러는 backend 에 있으나 프런트는 사후 toast 만(reservation-modal.tsx L33)."
+
+- id: imp-0249
+  found_at_iter: 17
+  area: reservation
+  type: feature
+  target: reservation_expires_at_user_visibility
+  problem: "DB schema(reservations.expires_at)와 backend req(handlers_reservation.go L26 ExpiresAt *string)는 만료 시각을 받지만 1) ReservationModal 폼에 expires_at 입력 필드가 없어 사용자가 직접 설정 불가, 2) backend는 default 만료 자동 계산 로직도 없음, 3) ReservationCardMessage 는 expires_at 표시 0건이라 '응답 시간이 얼마나 남았는지' 알 수 없음, 4) 만료 발생 시 정리(expired status 갱신)하는 sweep job 도 backend/cmd/server/main.go L39 에 refresh_token 만 정리하고 reservations 0건."
+  proposal: "(1) ReservationModal 에 '응답 대기 시간' 드롭다운(1시간/3시간/12시간/24시간/만료없음) — default '24시간'. (2) backend handlers_reservation.go 에서 ExpiresAt 이 없으면 NOW() + interval '24 hour' 자동 설정. (3) ReservationCardMessage 에 status='proposed' 이면 '⏰ 응답 마감 23시간 12분' 라이브 카운터. (4) main.go 에 1시간 주기 goroutine 추가: UPDATE reservations SET status='expired' WHERE status='proposed' AND expires_at < NOW(); → chat_status='open' 복구 + system 메시지 '응답 시간이 지나 자동 만료되었어요'. (5) 만료 시 proposer alignment -1(domain.AlignmentTradeExpired 활용)."
+  effort: medium
+  impact: high
+  evidence: "코드 reservations.expires_at TIMESTAMPTZ NULL(001_initial.sql L_). web reservation-modal.tsx L17 form 객체에 expiresAt 필드 0건. 카드 표시(reservation-card-message.tsx) 카운트다운 0건. backend main.go L39 sweep 은 refresh_token only — reservations expired 정리 cron 0건. domain.AlignmentTradeExpired 정의되어 있으나 트리거 코드 0건."
+
+- id: imp-0250
+  found_at_iter: 17
+  area: reservation
+  type: a11y_mobile
+  target: reservation_card_action_44px_and_status_color
+  problem: "imp-0091 가 [확정/거절/취소] 버튼 신설을 제안했는데, 그 위에 추가로 모바일 a11y 관점이 있다. 1) ReservationCardMessage 자체가 max-w-[70%] 로 채팅 버블이라 모바일 375px 에서 약 260px 폭 — 그 안에 버튼 2개를 가로 배치하면 각 ~120px 폭으로 thumb tap 어려움. 2) 카드 border 가 status 와 무관하게 항상 border-gold 라서 시각 위계가 없어 confirmed/cancelled/expired 가 같은 색으로 보임. 3) 카드 안 텍스트가 text-xs(12px)/text-sm(14px) 혼재로 약속 시간이 가장 중요한데 가장 작아 보임."
+  proposal: "(1) 액션 버튼은 모바일에서 grid-cols-1 stacked, sm:grid-cols-2 에서만 가로(min-h-[44px] 강제). (2) status 별 border/bg 토큰: proposed=border-gold/bg-card, confirmed=border-success/bg-success/5, cancelled=border-danger/bg-danger/5 opacity-70, expired=border-text-dim/bg-card opacity-50. (3) 카드 내 typography 위계 재설계: 약속 시간을 text-base font-semibold(상위), 접선방식 text-sm, 메모 text-xs. (4) 카드 상단 status pill 추가('진행중'/'확정됨'/'취소됨'/'만료'). (5) 다크모드 컨트래스트 4.5:1 검증 — 현재 text-text-secondary 는 확실치 않음."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/chat/reservation-card-message.tsx L14 className='max-w-[70%] border border-gold' — status 분기 0건, color token 1종. L15 'text-xs' 가 가장 강조될 약속 시간보다 더 큼. L16-21 약속 시간 'text-sm' 상대적으로 작음. button 디자인(아직 미존재) 의 모바일 stacked 정책 0건."
+
+- id: imp-0251
+  found_at_iter: 17
+  area: reservation
+  type: ux
+  target: reservation_history_archive_in_profile
+  problem: "거래 완료(reservation.status='fulfilled') 또는 취소(cancelled) 후 예약은 채팅 메시지 안에 살아있긴 하지만, 사용자가 '내가 지난 6개월 간 어떤 약속을 잡았는지/노쇼 횟수가 얼마인지' 같은 자기 거래 이력을 한눈에 보는 페이지가 없다. /profile/trades 는 chat_room 단위 list 라 한 채팅방에 여러 예약이 있어도 1개로만 보이고, reservation 상태별 필터(fulfilled/cancelled/expired)도 없다. 자기 평판 관리(예: 노쇼 0회 자랑) 와 분쟁 시 증거 회수에 약점."
+  proposal: "(1) /profile/me/reservations 신설 페이지 — 백엔드 GET /me/reservations { status?, from?, to? } 추가. (2) 카드 list: 매물명, 일시(KST), 접선방식, 상대방 닉네임, 상태 배지, 결과(완료/취소/노쇼/만료), [상세] 링크. (3) 상단 탭 [전체][확정][완료][취소/만료] + 기간 필터(이번 달/3개월/6개월/전체). (4) 통계 헤더: 완료 N건, 노쇼 N건, 평균 응답시간. (5) profile.reviewer 관점에서 자기 노쇼 0건이 자랑이라면 공개 프로필에 'verified streak' 배지 노출."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/profile/trades/page.tsx 는 chat_rooms 단위만 표시. /profile/me/reservations 라우트 0건. backend GET /me/reservations 0건(POST /chats/:id/reservations 만 존재). 통계 집계(완료/노쇼 카운트) 0건."
+
