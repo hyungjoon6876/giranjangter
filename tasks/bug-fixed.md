@@ -38,3 +38,12 @@
   files_touched: ["web/components/layout/header.tsx"]
   verification: "localhost:3000 375x667 재탐지: 로그인 link height 30 → 34px. 244 vitest pass, eslint clean."
   squash_commit: "03a7162"
+
+- id: bug-0007
+  fixed_at_iter: 4
+  page: /login
+  rule_id: B-3-tap-target
+  fix_summary: "web/app/login/page.tsx — '로그인 없이 둘러보기' button에 px-4 py-2 min-h-[44px] 추가. 패딩 없던 18px 높이 → 44px로 키워 WCAG 2.5.5 minimum 24px / 프로젝트 ≥32px 충족 (Google 권장 44px touch target)."
+  files_touched: ["web/app/login/page.tsx"]
+  verification: "localhost:3000/login 375x667 재탐지: button 103x18 → 132x44 확인. 244 vitest pass, eslint clean. 사전존재 type 에러는 변경 무관 (test fixture 타입)."
+  squash_commit: "65bff90"

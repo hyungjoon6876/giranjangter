@@ -663,3 +663,168 @@
   impact: medium
   evidence: "Playwright 비로그인 375x667 main 안 tabbable: [{tag:'A', text:'유유저_da1e387a거래 0회 · newcomer리뷰 보기 ›', tabIndex:0}] 1개. h1 tabIndex=-1 미설정, button 0개, image 비클릭."
 
+- id: imp-0061
+  found_at_iter: 4
+  area: listing_create
+  type: ux
+  target: listings_new_404_handling
+  problem: "사용자가 자연스럽게 추측한 URL https://giranjt.com/listings/new 이 동적 라우트 [id]=new 로 매칭되어 GET /api/v1/listings/new 가 실패하고 '⚠️ 매물을 불러올 수 없습니다 / 네트워크 연결을 확인해주세요 / 다시 시도' 화면이 노출된다. 실제로는 매물 등록의 잘못된 진입 시도인데 '네트워크 오류'로 안내해 사용자가 원인을 파악할 수 없다."
+  proposal: "(1) web/app/listings/new/page.tsx 를 추가해 /create 로 308 리다이렉트하거나, (2) next.config.ts redirects 에 source:'/listings/new' destination:'/create' permanent:true 를 추가한다. (3) /listings/[id]/page.tsx 의 ID validator 가 'new' 같은 reserved word 를 감지하면 /create 로 라우팅. (4) 네트워크 에러 화면을 '잘못된 매물 ID 또는 삭제된 매물입니다' 와 분기."
+  effort: trivial
+  impact: high
+  evidence: "Playwright + curl: GET /listings/new 200 OK 로 [id]=new dynamic route 매칭, 본문에 '매물을 불러올 수 없습니다 네트워크 연결을 확인해주세요 다시 시도'. web/app/listings/ 디렉토리에 new/ 또는 new.tsx 미존재, [id]/page.tsx 만 존재. is404=true(에러 마커 검출)."
+
+- id: imp-0062
+  found_at_iter: 4
+  area: listing_create
+  type: ux
+  target: login_gate_context_message
+  problem: "비로그인 사용자가 /create 직접 진입(또는 FAB '+ 매물 등록' 클릭) 시 /login 으로 보내지지만, 로그인 페이지 main 의 카피는 '리니지 클래식 거래 플랫폼' + '로그인 없이 둘러보기' 단 2줄로 일반 로그인 화면과 100% 동일하다. 사용자가 '왜 여기로 왔는지', '로그인하면 어디로 돌아가는지' 알 수 없어 의도와 신뢰가 끊긴다. 또한 redirect 쿼리스트링이 직접 URL 진입(server-side)에서는 보존되지 않아 'Direct hard reload' 시나리오에서 redirect=/create 가 사라진다."
+  proposal: "(1) login 페이지 상단에 redirect 파라미터 기반 컨텍스트 카피 노출: '매물 등록을 위해 로그인이 필요해요. Google 계정 1초 로그인 후 바로 등록 화면으로 돌아갑니다.' (2) /create page.tsx 의 useEffect 에서 router.push 대신 router.replace(`/login?redirect=${encodeURIComponent(pathname)}`) 를 호출해 redirect param 을 항상 보존하고 history pollution 방지. (3) middleware.ts 에서 server-side 401 redirect 시에도 redirect 쿼리 부착."
+  effort: small
+  impact: high
+  evidence: "Playwright: 직접 https://giranjt.com/create → 최종 URL https://giranjt.com/login (redirect param 없음, redirectParam=null). 모바일 FAB 클릭 시는 /login?redirect=%2Fcreate 로 정상 보존. login main text='리니지 클래식 거래 플랫폼로그인 없이 둘러보기' (redirect 컨텍스트 0). use-auth-guard.ts L20-21: pathname encode + push, 직접 hard load 시는 client-side 라 toast 만 뜨고 사라짐."
+
+- id: imp-0063
+  found_at_iter: 4
+  area: listing_create
+  type: ux
+  target: redundant_register_entry_points
+  problem: "데스크탑 1280px 에서 매물 등록 진입점이 (1) 헤더 nav '매물 등록' 링크 (292,15), (2) 페이지 우상단 '+ 매물 등록' 버튼 (1151,273), (3) 푸터 '서비스/매물 등록' (970,1025) 3곳에 동시 존재한다. 모바일 375px 에서는 (1) 우하단 FAB '+'(288,531), (2) 하단 탭 '등록'(180,613) 2곳 — 둘 다 비슷한 시간에 화면에 보이고(거리 25.5px) 어느 것이 1차 경로인지 모호하다. 모든 경로가 비로그인 시 동일한 /login (메시지 차별화 없음)으로 보내지므로 정보 노이즈."
+  proposal: "(1) 데스크탑은 헤더 nav '매물 등록' 만 1차 경로로 두고, 페이지 우상단 '+ 매물 등록' 버튼은 (a) 비로그인일 땐 hidden, (b) 로그인 시에만 노출. 푸터는 '내 매물' 같이 차별화. (2) 모바일은 FAB 또는 하단 탭 둘 중 하나만. FAB 유지 시 하단 탭 '등록' 자리를 '내 거래' 로 재할당해 거래 활동 중심. (3) FAB '+' 글자에 'aria-label=매물 등록' 외에도 호버/포커스 툴팁 '매물 등록하기' 추가."
+  effort: small
+  impact: medium
+  evidence: "Playwright 1280x800: a[href='/create'] 5개(visible 3개), 375x667: visible 2개(FAB 56x56 at 288,531; 하단탭 90x55 at 180,613, fabBottom→navTop 거리 25.5px). FAB textContent='+', hasIcon=false (SVG 아이콘 없이 단순 '+' 글자, font-size 32px)."
+
+- id: imp-0064
+  found_at_iter: 4
+  area: listing_create
+  type: feature
+  target: anonymous_inline_form_preview
+  problem: "비로그인 사용자가 '+ 매물 등록' 클릭 시 즉시 /login 으로 보내져, 등록 화면이 어떻게 생겼는지 / 어떤 정보가 필요한지 / 양식을 채우는 데 얼마나 걸리는지 미리 알 수 없다. 이는 신규 사용자 conversion 의 큰 마찰점이다(가입 후 양식 보고 '생각보다 길다' 이탈)."
+  proposal: "비로그인 상태에서도 /create 페이지를 'preview 모드'로 렌더한다. 입력 가능하지만 (1) 모든 input/select 가 disabled 또는 read-only, (2) 상단에 '미리보기 — 등록은 로그인 후 가능합니다' 배너, (3) '등록하기' 버튼이 'Google 로그인 후 등록하기' 로 라벨 변경. 양식을 sessionStorage 에 임시 저장해 로그인 후 자동 복원."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/create/page.tsx L43-47: useEffect 에서 isLoggedIn 가드, L60 if (!isLoggedIn) return null. 비로그인 사용자는 페이지 콘텐츠를 0% 본 채 /login 으로 즉시 redirect."
+
+- id: imp-0065
+  found_at_iter: 4
+  area: listing_create
+  type: feature
+  target: form_draft_autosave
+  problem: "매물 등록 폼은 useState 8개 필드(listingType, serverId, categoryId, itemName, title, description, priceType, priceAmount, tradeMethod) + images 배열 + selectedItem + enhancementLevel 을 메모리에만 보관한다. 사용자가 실수로 뒤로가기/탭 닫기/세션 만료 시 입력한 모든 정보가 사라진다. 이미지 업로드(최대 5장 × 10MB)는 다시 업로드해야 한다."
+  proposal: "useEffect 에서 form/images/selectedItem/enhancementLevel 변경 시마다 디바운스 1초 후 localStorage 'create_listing_draft' 에 저장. 페이지 마운트 시 draft 가 있으면 '이전 작성 중이던 내용이 있어요. 이어서 작성하시겠어요? [예/지우기]' 토스트 액션. 등록 성공 또는 명시적 '폼 지우기' 시 draft 삭제. images 는 imageId 만 보관(서버 업로드 결과)."
+  effort: small
+  impact: high
+  evidence: "코드 web/app/create/page.tsx L26-41: useState 만 사용, localStorage/sessionStorage 호출 0건. handleSubmit L88 에서 mutate 후 router.push('/'), 실패 시 toast 만 뜨고 form 데이터 그대로 유지(이건 정상)지만 앱/브라우저 종료 시 손실."
+
+- id: imp-0066
+  found_at_iter: 4
+  area: listing_create
+  type: feature
+  target: price_market_reference
+  problem: "가격 입력 시 '이 아이템의 평균/중앙값 시세' 정보가 없어 신규 사용자가 너무 비싸거나 너무 싸게 책정할 위험이 크다. 결국 거래 매칭 효율과 사용자 만족도가 떨어진다. priceType='offer'(제안받음) 도 가격 옆에 disabled input 만 보일 뿐 가이드가 없다."
+  proposal: "selectedItem + enhancementLevel + serverId 가 채워지면 priceAmount 입력 옆에 '동일 조건 시세 200,000원 ~ 350,000원 (평균 270,000원, 최근 거래 12건)' 노출. API 추가: GET /api/v1/listings/price-stats?itemId=&enchant=&serverId=. 데이터 부족 시 '이 조건 거래 데이터가 아직 부족해요' 안내."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/create/page.tsx L196-207: priceAmount input 단독, 시세/가이드 컴포넌트 없음. 같은 페이지에 selectedItem.optionText, categoryPath 는 표시되나 시세 시그널 0개."
+
+- id: imp-0067
+  found_at_iter: 4
+  area: listing_create
+  type: feature
+  target: meeting_area_time_input
+  problem: "매물 상세에서 노출되는 '거래 가능 시간 / 접선 장소 / 옵션' 필드(API: preferredMeetingAreaText, availableTimeText, optionsText) 가 등록 폼에 입력 UI 가 없다. 결국 모든 매물의 해당 필드가 null 이 되고(imp-0054 와 직결), 거래 의사결정에 필수 정보가 채팅으로만 전달돼 효율이 떨어진다."
+  proposal: "거래 섹션에 (1) '거래 가능 시간' textarea (placeholder='예: 평일 저녁 7-10시, 주말 종일'), (2) '접선 장소(오프라인)' input (tradeMethod 가 in_game 이 아닐 때만 노출), (3) '아이템 옵션' textarea (selectedItem.optionText 를 기본값으로 prefill, 사용자가 추가 옵션 적을 수 있게). 모두 optional 이지만 미입력 시 '미입력 항목이 있어요. 채팅 응답이 늦어질 수 있어요' 안내."
+  effort: small
+  impact: high
+  evidence: "코드 web/app/create/page.tsx form state: listingType/serverId/categoryId/itemName/title/description/priceType/priceAmount/tradeMethod 9개. preferredMeetingAreaText/availableTimeText/optionsText 입력 UI 0개. handleSubmit L90-102 의 data payload 에도 미포함. 결과로 imp-0054 (상세 페이지에 거래시간/장소 모두 null) 발생."
+
+- id: imp-0068
+  found_at_iter: 4
+  area: listing_create
+  type: ux
+  target: server_select_no_recent
+  problem: "서버 선택이 native <select> 한 개로 28개+ 옵션을 알파벳/추가 순서로 노출한다. 사용자는 보통 자기 메인 서버 한두 개만 거래하므로 매번 같은 서버를 찾기 위해 드롭다운을 끝까지 스크롤한다. 또한 native select 는 모바일에서 OS 기본 휠/리스트 UI 라 한국어 검색이 불편하다."
+  proposal: "(1) 최근 등록 시 사용한 서버를 localStorage 'last_servers' 에 보관(최대 3개), 드롭다운 상단 'optgroup label=최근' 으로 prepend. (2) 또는 서버 선택을 칩 그룹(홈과 일관)으로 변경 + 검색 input 결합. (3) 단일 서버 사용자(>80%)를 위해 선택 후 다음 등록부터 default 자동 적용."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L159-173: <select id=serverId> + servers.map(<option>). localStorage 호출 0건. 사용자별 server preference state/cookie 미존재."
+
+- id: imp-0069
+  found_at_iter: 4
+  area: listing_create
+  type: ux
+  target: title_autogen_lock_unclear
+  problem: "제목이 selectedItem 변경 시 자동 생성되는데(L50-58), 사용자가 한 번이라도 직접 수정하면 titleAutoGenerated=false 가 되어 이후 자동생성이 멈춘다. 그러나 사용자에게 이 잠금 상태를 표시하는 시그널이 없다. 다시 자동생성으로 돌아갈 방법(reset 버튼)도 없어 itemName 을 바꿔도 제목이 그대로라 혼란."
+  proposal: "input 우측에 '🔄 자동 생성' 토글 칩을 두고 titleAutoGenerated=true 일 때 활성, 사용자가 직접 수정하면 비활성으로 자동 변경. 사용자가 다시 칩을 누르면 즉시 selectedItem+enhancementLevel 기반으로 재생성. placeholder 도 ('아이템을 선택하면 자동 생성됩니다' → '아이템 선택 시 자동 생성. 직접 수정 시 잠금')."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/create/page.tsx L28: titleAutoGenerated state. L222-223 onChange 에서 setTitleAutoGenerated(false), 다시 true 로 만드는 UI 0건. placeholder='아이템을 선택하면 자동 생성됩니다'(L224) 만 표시."
+
+- id: imp-0070
+  found_at_iter: 4
+  area: listing_create
+  type: a11y_mobile
+  target: fab_no_label_visual
+  problem: "모바일 FAB 이 단순 '+' 글자(font-size 32px) 만 노출하고 SVG 아이콘이나 텍스트 라벨이 없다. aria-label='매물 등록' 은 있으나 시각적으로 '+' 만 보여 사용자가 '뭘 더하는 건지' 추측해야 한다. 56x56 hit-target 은 OK 지만 '+' 글자는 컨텍스트 약함."
+  proposal: "(1) FAB 에 SVG plus 아이콘 + tooltip 'title=매물 등록' 부착, (2) 또는 expandable FAB 패턴: 평상시 56x56 '+', 호버/롱프레스 시 'plus 매물 등록' label 이 좌측으로 슬라이드 노출. (3) 첫 방문자에게는 1회 'fade-in' 방식 'tap to register' 라벨 노출(localStorage 'fab_seen' 으로 한 번만)."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/page.tsx L158-164: <Link href=/create aria-label='매물 등록' class='...text-2xl...'>+</Link>. textContent='+', hasIcon=false(SVG/img 없음), title null."
+
+- id: imp-0071
+  found_at_iter: 4
+  area: listing_create
+  type: a11y_mobile
+  target: form_field_validation_inline
+  problem: "폼 필드는 native required + minLength(title>=2, description>=10) 를 사용하지만 (1) 검증 실패 시 브라우저 기본 popup 만 노출되고, (2) 한국어 OS 에서는 '이 입력란을 작성하세요' 같은 직역 메시지, (3) 시각적 에러 상태(red border, error text) 가 없어 어느 필드를 봐야 할지 모호하다. priceAmount 도 number type 인데 음수/소수 검증이 클라이언트에 없다."
+  proposal: "(1) react-hook-form + zod 또는 useState validation 으로 모든 필드의 한국어 에러 메시지 inline 노출 (예: '제목을 2자 이상 적어주세요', '설명은 의미 있는 거래 정보를 10자 이상 적어주세요'). (2) Submit 시 첫 invalid 필드로 자동 스크롤 + focus. (3) priceAmount 양의 정수만, 최소 100원 이상."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx: required, minLength={2}, minLength={10}, type='number' 만 사용. errorState/errorMessage/aria-invalid/aria-describedby 0개. handleSubmit L88-109 에서 try/catch 후 generic '등록에 실패했습니다' 토스트만."
+
+- id: imp-0072
+  found_at_iter: 4
+  area: listing_create
+  type: performance
+  target: form_submit_no_progress
+  problem: "createListing.isPending=true 일 때 submit 버튼이 disabled + 라벨 '등록 중...' 으로 바뀌지만, 이미지 5장(최대 50MB) 을 업로드한 매물 등록 시에도 같은 1초 미만 텍스트만 표시된다. 사용자는 진행률을 볼 수 없어 느린 네트워크에서 '멈춘 건가' 의심하고 다시 클릭(이미 disabled 라 안 눌리지만 인지 부하)."
+  proposal: "(1) submit 시 fullscreen overlay 'spinner + 매물 등록 중...' (aria-live=polite), (2) 이미지 업로드는 ImageUpload 컴포넌트가 이미 처리하지만 등록 단계 자체에서 추가 진행률을 표시. (3) 5초 이상 걸리면 '응답이 늦어요. 네트워크를 확인해주세요' 안내. (4) 성공 시 router.push 전 짧은 success 토스트 또는 confetti 마이크로 인터랙션."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L271-277: button disabled={createListing.isPending}, 라벨 '등록 중...' 단 1줄. progress bar/spinner overlay 0개. handleSubmit 의 await mutateAsync 동안 나머지 form 은 그대로 표시(다른 필드 수정 가능 → 데이터 정합성 잠재 이슈)."
+
+- id: imp-0073
+  found_at_iter: 4
+  area: listing_create
+  type: content
+  target: description_placeholder_guidance
+  problem: "description textarea 의 placeholder 가 '아이템을 선택하면 옵션이 자동 입력됩니다' 단 1줄이라, 사용자에게 어떤 내용을 적어야 거래가 잘 성사되는지 가이드가 없다. 결과적으로 imp-0047 의 'tgewetwewefwef' 같은 자판 노이즈 description 이 양산된다."
+  proposal: "placeholder 를 다단계 예시로 풍부화: '예시:\\n[아이템 옵션]\\n공격력 +5, 명중 +1\\n\\n[거래 조건]\\n질리언 서버 인게임 거래만, 평일 저녁 시세 협상 가능. 디스코드 ID: example#1234'. 또는 placeholder 옆 '거래 잘 되는 설명 예시 보기 ▾' disclosure 로 모범 답안 노출. 입력 글자수 카운터(0/2000) 함께."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L237-245: textarea placeholder='아이템을 선택하면 옵션이 자동 입력됩니다', minLength=10. 글자수 카운터/예시 disclosure/모범 카피 0개. imp-0047 의 description='tgewetwewefwef' 같은 자판 노이즈가 첫 페이지 노출 매물 4개 중 1개에 이미 존재."
+
+- id: imp-0074
+  found_at_iter: 4
+  area: listing_create
+  type: feature
+  target: image_upload_camera_capture
+  problem: "이미지 업로드 input 이 type='file' multiple 만 가지고 있어 모바일에서도 무조건 사진첩(또는 일반 파일 선택) 만 열린다. 거래용 인증샷(예: '인벤토리 보유 증거')은 즉석 촬영이 자연스러운데 'capture' 속성 부재로 카메라 직접 진입이 막혔다. 또한 이미지 순서 변경(드래그) 도 없어 첫 이미지(='대표') 를 다시 업로드해야 바꿀 수 있다."
+  proposal: "(1) input 에 capture='environment' 추가 또는 별도 '📷 촬영' 버튼 분리(모바일 only). (2) 이미지 그리드에 react-dnd 또는 @dnd-kit 으로 드래그 순서 변경, 첫 번째가 자동 '대표'. (3) 각 이미지 우상단에 '대표로 지정' 버튼."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/image-upload.tsx L98-103: input type='file' accept multiple 만 존재. capture 속성 0건. handleRemove(L84) 만 있고 reorder 함수 0개. 그리드 L119: grid-cols-5 정적 노출, draggable 속성 0개."
+
+- id: imp-0075
+  found_at_iter: 4
+  area: listing_create
+  type: a11y_mobile
+  target: image_upload_drop_zone_keyboard
+  problem: "이미지 업로드 드롭존(div.border-dashed)이 onClick 핸들러로 inputRef 를 클릭하지만 키보드 접근이 불가능하다. div 라 tabIndex 없고 role 없고, Enter/Space 키로 동작하지 않는다. 또한 onDrop 만 있고 ondragenter/leave 시각 피드백(active border color) 도 없어 드롭 가능 영역인지 인식 어렵다."
+  proposal: "(1) div 를 button type='button' 으로 변경하거나 role='button' tabIndex='0' + onKeyDown(Enter/Space) 핸들러. aria-label='이미지 업로드, 클릭 또는 드래그'. (2) onDragEnter 시 border-gold 강조 + onDragLeave 복구. (3) input 에 직접 label 연결(htmlFor)도 가능."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/components/forms/image-upload.tsx L90-95: <div onDrop onDragOver onClick>...</div>. tabIndex/role/aria-label 모두 미설정, onKeyDown 핸들러 0건, onDragEnter/Leave 핸들러 0건."
+

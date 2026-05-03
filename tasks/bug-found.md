@@ -68,3 +68,15 @@
   source_root_cause: "web/components/layout/header.tsx:84 — Link className uses 'py-1.5' producing 30px height for non-logged-in 로그인 link"
   status: fixed
   fixed_at_iter: 3
+
+- id: bug-0007
+  found_at_iter: 4
+  page: /login
+  rule_id: B-3-tap-target
+  normalized_selector: "main button.mt-6.text-sm.text-text-secondary"
+  viewport: 375x667
+  evidence: "'로그인 없이 둘러보기' button measures 103x18 at 375 viewport (confirmed on local; production 106x18). Button has no padding — text-sm 12px line-height ≈ 18px → height fails project rule ≥32px and WCAG 2.5.5 minimum 24px. Primary alt-flow CTA on /login (only path for anonymous browse without Google sign-in) becomes hard to tap on mobile."
+  source_root_cause: "web/app/login/page.tsx:104 — button className 'mt-6 text-sm text-text-secondary hover:text-gold' lacks vertical padding, producing 18px height"
+  status: fixed
+  fixed_at_iter: 4
+  fix_note: "added px-4 py-2 min-h-[44px] → button now 132x44 at 375 viewport"
