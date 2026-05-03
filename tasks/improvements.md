@@ -2851,3 +2851,135 @@
   effort: trivial
   impact: low
   evidence: "코드 web/components/forms/review-modal.tsx L63: 'disabled={submitting || !rating}' — 그 옆/아래에 helper text/error message JSX 0건. aria-describedby 0건. 클릭 시 피드백(toast/shake) 핸들러 0건. opacity-50 시각 단서만 의존."
+
+- id: imp-0260
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: admin_report_detail_target_deep_link_and_context
+  problem: "admin/app/reports/page.tsx 상세 패널은 'targetType: 매물, targetId: b155f6a7…' 같은 raw ID 만 표시한다. 운영자는 (1) 그 매물·채팅·메시지를 직접 보려면 manually URL 을 조립해 새 탭을 열거나 admin/listings 에서 ID 검색해야 하고, (2) 신고 시점에 매물 제목/가격/이미지·채팅 마지막 N건의 메시지·신고된 메시지 본문·신고자/대상자 닉네임·계정 가입일·alignment_score 등 판단에 필요한 컨텍스트를 한 화면에서 못 본다. 결과적으로 '신고 1건 처리에 5탭을 열어야 한다'는 운영 비효율로 SLA 가 늘어진다."
+  proposal: "(1) admin reports 상세 패널에 deep link 자동 생성 — targetType==='listing' → 'admin/listings/:id' 와 'giranjt.com/listings/:id' 두 링크, 'chat_room/message' → 'admin/chats/:id' 모달. (2) 응답에 reporterNickname, reporterAccountStatus, reporterAlignmentScore, reporterPriorReportCount(허위/확정), targetPreview(listing snapshot json: title/price/images[0]·chat last 10 messages·message body) 추가. (3) handleAdminGetReport 가 target_type 별로 JOIN 해 한 번에 컨텍스트 페이로드 반환. (4) 'snapshot' 컬럼을 reports 에 저장(listing 가격/제목 변조 후 신고 회피 방지)."
+  effort: large
+  impact: high
+  evidence: "코드 admin/app/reports/page.tsx L165-197 detail panel 에 targetId 만 raw 노출, <a href> 또는 deep link 0건. backend/cmd/server/handlers_admin.go L42-61 handleAdminGetReport 응답에 reporterNickname/targetPreview/priorReportCount 필드 0건 — JOIN/쿼리 0건. db/migrations/001_initial.sql L223-235 reports 테이블에 snapshot/preview 컬럼 0건."
+
+- id: imp-0261
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: auto_hide_listing_after_n_reports_threshold
+  problem: "reports 테이블에 같은 listingId 대상 5건·10건 신고가 누적되어도 자동으로 listing.visibility='temp_hidden' 으로 전환하는 로직이 0건이다(handlers_report.go·main.go·repository grep). 결과적으로 (1) 운영자가 알아챌 때까지 사기 의심 매물이 검색·홈 노출에 그대로 남고, (2) 1인 운영 환경에서 신고가 들어오는 속도 > 처리 속도면 피해자가 추가 발생. 임계 신고가 들어와도 사람이 직접 확인할 때까지 자동 보호 장치 0건."
+  proposal: "(1) handleCreateReport 트랜잭션 끝에 동일 (target_type='listing', target_id) reports COUNT 가 N(예: 5) 이상이고 타입이 scam_suspicion/fake_listing/prohibited_item 이면 listings.visibility='temp_hidden' + 사유 'auto_hidden_threshold_5' 로 업데이트. (2) 자동 숨김 시 운영자에게 SSE 알림('5건 누적 신고로 자동 숨김 — 검토 필요'). (3) target_type='user' 도 동일 로직(누적 임계 → account_status='auto_review'). (4) 자동 조치는 audit_logs 에 actor_role='system' 으로 기록, 운영자가 24시간 내 검토하지 않으면 매일 리마인드. (5) 매물 작성자에게 '귀하의 매물이 다수 신고로 자동 임시숨김 처리되었습니다 — 이의제기' 알림."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_report.go L29-39 CreateReport 트랜잭션 끝에 SELECT COUNT/UPDATE listings 로직 0건. backend/internal/repository/postgres_reservation.go CreateReport 함수 — 후속 자동 액션 0건. main.go 안 background goroutine 두 개(refresh_token, notification cleanup) 만 존재하고 reports 임계 모니터 0건. listings.visibility 값에 'temp_hidden'/'auto_hidden' 정의 0건(domain/models.go grep)."
+
+- id: imp-0262
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: false_report_penalty_and_reporter_alignment
+  problem: "신고가 reject 되거나 'false_positive' 로 판정되어도 reporter 의 alignment_score 변동이 0건이다(domain/models.go L93-100 AlignmentReportConfirmed 상수만 존재, AlignmentFalseReport·AlignmentReporterAbuse 정의 0건). 따라서 악의적인 reporter 가 경쟁 매물·싫은 사용자를 무차별 신고해도 본인 페널티 0이고, 운영자 큐만 어지럽혀진다. handleAdminUpdateReportStatus 의 status='resolved' 도 confirmed/rejected 구분 없이 단일 enum 이라 거짓 신고 통계도 못 낸다."
+  proposal: "(1) reports.status enum 확장: submitted, assigned, resolved_confirmed(타깃 잘못), resolved_rejected(reporter 잘못), resolved_inconclusive(증거 부족), withdrawn. (2) admin 처리 UI 에서 'reject 사유' 선택(증거 부족·중복·정책 외·악의적 신고). (3) resolved_rejected 면 reporter alignment -2(첫 false report 는 학습 오류 인정), 같은 reporter 의 누적 false report ≥ 3 이면 -10 + 24시간 신고 권한 정지(중간 단계). (4) 누적 false report ≥ 5 이면 신고 권한 영구 박탈 + 운영자 검토 큐로 이동. (5) reporter dashboard 에 'false report 점수' 노출(이의제기 가능)."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_admin_audit.go L223 'oneof=submitted assigned resolved' — confirmed/rejected 구분 0건. backend/internal/domain/models.go L93-100 alignment 상수에 ReportConfirmed(-20) 만 정의, FalseReport/ReporterAbuse 0건. handleAdminReportAction 도 무조건 alignment.Change(req.TargetUserID, AlignmentReportConfirmed) 호출 — reporter 점수 조정 0건(L102)."
+
+- id: imp-0263
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: report_appeal_flow_for_target_users
+  problem: "운영자가 admin/reports/:reportId/actions 로 'warning/temp_hide/permanent_hide/restrict/suspend' 조치를 내리면 target user 는 alignment -20 + 계정 제한을 받지만, 그 결정을 다투는 appeal 채널이 0건이다. 즉 운영자 1명이 신고 내용만 보고(스크린샷 0건, 컨텍스트 부족) 잘못된 조치를 내려도 사용자가 '저는 그런 짓 안 했습니다' 라고 항변할 공식 경로가 없다. /me/appeals, /api/me/appeals POST/GET 엔드포인트, appeals 테이블, admin/app/appeals 페이지가 모두 0건."
+  proposal: "(1) appeals 테이블 추가 (id, target_user_id, related_report_id, related_action_id, body TEXT, evidence_files JSONB, status: pending/under_review/upheld/rejected, admin_response, created_at, resolved_at). (2) handleCreateAppeal POST /me/appeals (target_user_id 가 alignment 가 -20 받은 자거나 moderation_action 의 target_user_id 인 경우만 허용). (3) admin/app/appeals 페이지에 큐 + 'upheld'(원본 조치 취소 + alignment +20 복원 + reporter 페널티) / 'rejected'(원본 조치 유지) 버튼. (4) 사용자 sanction notification 에 '이의제기하기' CTA 포함."
+  effort: large
+  impact: high
+  evidence: "코드 ripgrep 'appeal' across backend/cmd/server/* 결과 0건(grep). db/migrations/*.sql 에 appeals 테이블 0건. admin/app 디렉토리에 appeals/ 폴더 0건(ls). frontend/lib/features/* 에 appeal 모듈 0건. handleAdminReportAction L102 alignment.Change 후 reverse path 0건."
+
+- id: imp-0264
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: report_response_time_sla_dashboard
+  problem: "운영자/대표가 '평균 신고 처리 시간', '24시간 이상 미처리 건수', 'SLA 위반율' 같은 지표를 한눈에 볼 대시보드가 0건이다. admin/app/page.tsx(메인 대시보드)는 listings/users/trades KPI 만 있고 reports SLA 카드 0건(use-dashboard.ts grep). 결과적으로 운영자는 자기 처리 속도가 느려지고 있는지 자각할 메커니즘이 없고, 사용자에게 SLA 약속(예: '24시간 내 처리')도 못 한다. 외부 transparency report(분기별 처리 통계 공개)도 데이터 백엔드 0건."
+  proposal: "(1) admin 대시보드에 'Reports SLA' 카드: 평균 처리시간(median), p90 처리시간, 24h 초과 미처리 건수, 사유별 처리시간 분포(스파크라인). (2) backend GET /admin/reports/stats?range=7d|30d|90d 응답 추가 — reports 테이블에 resolved_at 컬럼(현재 updated_at 만 있음, 명시적 분리 필요) 추가 마이그레이션. (3) /reports/transparency 공개 페이지(인증 불필요) — 분기별 신고 접수/처리 카운트 + 사유별 비율(개인정보·금액 정보는 마스킹) — 사용자 신뢰 향상. (4) SLA 위반(접수 후 48h+) 신고에는 admin 알림 자동 발송."
+  effort: large
+  impact: medium
+  evidence: "코드 admin/lib/hooks/use-dashboard.ts grep 'reports' 0건. admin/app/page.tsx 메인 대시보드에 reports SLA KPI 0건. backend/cmd/server/handlers_admin*.go 에 /admin/reports/stats 엔드포인트 0건. db/migrations/001_initial.sql L233-234 reports 에 resolved_at 별도 컬럼 0건(updated_at 으로 추정)."
+
+- id: imp-0265
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: reporter_withdraw_report_endpoint
+  problem: "신고 후 사용자가 '오해였다, 잘못된 신고였다, 당사자끼리 해결됐다' 라고 깨달아도 자기 신고를 철회할 채널이 0건이다. /me/reports/:reportId DELETE 또는 PATCH status=withdrawn 엔드포인트 0건(main.go L137, handlers_report.go grep). 결과: (a) 잘못된 신고가 운영자 큐에 영원히 남아 처리 시간 낭비, (b) 운영자가 잘못된 신고 토대로 alignment -20 처리하면 비가역적 피해, (c) 사용자가 신고를 철회하지 못하니 '차라리 신고하지 말걸' 학습 → 경계 사례 신고 위축."
+  proposal: "(1) PATCH /me/reports/:reportId/withdraw 엔드포인트 추가, 본인 reporter 만 가능, status==='submitted' 일 때만(처리 시작 후엔 불가). (2) reports 테이블 status enum 에 'withdrawn' 추가 + withdrawn_reason 컬럼. (3) 클라이언트 /me/reports 페이지(imp-0120 으로 신설 시) 각 행에 '신고 철회' 버튼 — 'submitted' 상태 한정. (4) 24시간 골든타임 — 신고 후 24시간 내에는 자유 철회, 이후엔 admin 검토 필요. (5) 잦은 withdraw(같은 reporter 가 7일 내 3회 이상 철회) 는 false report 패턴으로 alignment 페널티 -1."
+  effort: small
+  impact: medium
+  evidence: "코드 backend/cmd/server/main.go L137 readOnly.GET('/me/reports', ...) — DELETE/PATCH 라우트 0건. handlers_report.go L1-63 에 handleWithdrawReport 0건. handlers_admin_audit.go L223 status enum 에 'withdrawn' 0건. web/app/me/reports/* UI 0건(앞 imp-0120 종속)."
+
+- id: imp-0266
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: chat_message_inline_report_with_context_capture
+  problem: "현재 채팅에서 '신고' 버튼을 누르면 ReportModal 이 targetType='chat_room' 로 호출되는 단순 구조이고(이미 imp-0118 에서 type 불일치 보고), 신고 시점에 신고자가 '어떤 메시지가 문제였는지' 메시지 단위로 핀포인트할 수단이 0건이다. 운영자는 'chat_room 전체' 만 보고 어느 발언이 욕설/사기였는지 추리해야 한다. 메시지 long-press → 컨텍스트 메뉴 '이 메시지 신고' UX 0건(web/app/chats/[id]/page.tsx L78-180 메시지 렌더에 onLongPress/contextmenu 핸들러 0건)."
+  proposal: "(1) 메시지 row 에 우상단 ⋯ 아이콘(hover 시 노출) → 메뉴 '메시지 신고/복사/유저 신고/유저 차단'. (2) ReportModal 호출 시 targetType='message', targetId=messageId 전달, 폼 상단에 신고 대상 메시지 카드(보낸이·시각·본문 100자 발췌) 표시 — '이 메시지를 신고합니다' 명확화. (3) 백엔드는 reports 에 message snapshot(body, sender, sent_at)을 함께 저장(수정/삭제 후에도 운영자가 컨텍스트 확보). (4) 모바일은 long-press 350ms → haptic + 컨텍스트 메뉴. (5) ReportModal target preview 영역은 a11y aria-label 'reporting message: ...'."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/chats/[id]/page.tsx L78-180 메시지 렌더 루프 안에 onContextMenu/onLongPress 0건. 우상단 ⋯ 메뉴 element 0건. L182-187 ReportModal 호출 targetType='chat_room' (imp-0118) — message 단위 0건. handlers_chat.go message-level report endpoint 0건."
+
+- id: imp-0267
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: bulk_action_for_repeat_offender_clusters
+  problem: "운영자가 같은 user 또는 같은 listing 에 대한 다중 신고를 한 번에 처리할 수단이 0건이다. admin/app/reports/page.tsx 는 신고 1건 단위로 detail panel 을 열고 '조치 실행' 버튼을 눌러야 하므로, 동일 reporter abuser 대상 신고 10건이 들어오면 클릭 10번 + 메모 10번. 결과적으로 cluster(같은 target_id) 처리 일관성도 없고(어떤 건 warn, 어떤 건 suspend), 운영자 손목만 아프다. multi-select + bulk action UI 0건, /admin/reports/bulk-resolve 엔드포인트 0건."
+  proposal: "(1) admin reports 표에 row checkbox + '전체 선택' 헤더 추가. (2) bulk action toolbar — '선택된 N건' 표시 후 '동일 사유로 resolve / 동일 조치 적용 / 일괄 reject' 버튼. (3) 백엔드 POST /admin/reports/bulk-resolve {reportIds[], status, actionCode?, memo?} — 트랜잭션 안에서 일괄 처리 + audit_log 일괄 기록. (4) cluster 자동 그룹핑 옵션 — 같은 (targetType, targetId) 신고를 카드 하나로 묶고 'group resolve' 한 번이면 산하 신고 N건 모두 처리. (5) bulk 처리 시 '동일 처분이 정말 적절한가' confirm dialog 로 휴먼 게이트."
+  effort: medium
+  impact: medium
+  evidence: "코드 admin/app/reports/page.tsx L139-145 DataTable 에 row checkbox/selectedRows state 0건. L260 단일 행 onClick=setSelectedReport 패턴만 존재. backend/cmd/server/handlers_admin*.go grep 'bulk\\|BulkResolve' 0건. main.go 에 /admin/reports/bulk* 라우트 0건."
+
+- id: imp-0268
+  found_at_iter: 19
+  area: report
+  type: bug
+  target: report_action_no_content_visibility_change
+  problem: "handleAdminReportAction 이 ActionCode='temp_hide' 또는 'permanent_hide' 를 받아도 실제 listings/messages 의 visibility 컬럼은 업데이트하지 않는다(handlers_admin.go L86-94: moderation_actions INSERT 와 reports.status='resolved' UPDATE 만 함). 즉 운영자가 '임시 숨김' 조치를 누르면 audit log 에는 'temp_hide' 가 남지만 매물 자체는 그대로 검색/홈에 노출 — 사용자에게는 처리 안 한 거나 마찬가지. ActionCode 와 실제 상태 변경의 분리 불일치."
+  proposal: "(1) handleAdminReportAction 에 switch (req.ActionCode) — case 'temp_hide'/'permanent_hide': target_type 분기로 listings UPDATE visibility='hidden' 또는 chat_messages UPDATE deleted_at=NOW() 또는 reviews UPDATE visibility='hidden'. (2) case 'restrict': users UPDATE account_status='restricted' + restriction_scope. (3) case 'suspend': users UPDATE account_status='suspended'. (4) 모든 트랜잭션이 atomically 한 번에 — 부분 실패 방지. (5) 액션 결과 응답에 affectedEntities[] 포함(어떤 row 가 어떻게 바뀌었는지). (6) admin/app/reports 의 select option 라벨/value 와 백엔드 oneof 도 일관성 검증."
+  effort: small
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_admin.go L86-94 트랜잭션 안: INSERT moderation_actions + UPDATE reports.status — listings/users/chat_messages UPDATE 0건. L68 oneof='warning temp_hide permanent_hide restrict suspend' 5종 받지만 실제 effect 는 alignment.Change 만(L102). admin/app/reports/page.tsx L244-247 select 라벨 'warn_user/restrict_chat/restrict_listing/suspend_account' 와 백엔드 enum 도 불일치."
+
+- id: imp-0269
+  found_at_iter: 19
+  area: report
+  type: a11y_mobile
+  target: mobile_long_press_report_haptic_and_focus_trap
+  problem: "ReportModal 은 Modal 컴포넌트로 열리지만 (1) 모바일 키보드가 textarea 에 포커스되면 modal 본문이 가려져 submit 버튼이 안 보이고, (2) iOS Safari/Android 에서 modal 외부 body 스크롤이 차단되지 않아 fold 가능, (3) 닫기 버튼 외 영역 탭으로 닫을 때 입력 내용이 경고 없이 손실, (4) 닫힘 시 trigger 버튼으로 focus 가 복귀하지 않아 키보드 사용자가 길을 잃는다. e2e: 모바일 viewport(375x667)에서 ReportModal 열고 textarea focus → 키보드 올라오면 submit 버튼 viewport 밖."
+  proposal: "(1) Modal 에 body lock — 'overflow: hidden' 적용 + scrollY 복구. (2) ReportModal max-height: 90vh + body overflow-y: auto, submit 버튼은 sticky bottom 으로 고정해 키보드와 무관하게 항상 노출. (3) 외부 영역 탭(또는 ESC) 시 form dirty 면 confirm dialog '작성 중인 신고가 있습니다. 닫으시겠습니까?'. (4) 닫힐 때 trigger 버튼에 focus 복귀(useRef 패턴). (5) iOS/Android 햅틱(navigator.vibrate(10)) 으로 submit 시 피드백."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/report-modal.tsx Modal wrapper 사용 — body lock useEffect 0건. submit 버튼 L63 sticky/fixed 0건. onClose 콜백에 dirty 체크 0건. trigger ref 복귀 0건. navigator.vibrate 호출 0건. web/components/ui/modal.tsx 에 max-height/overflow 핸들링 검증 필요(별도 분석)."
+
+- id: imp-0270
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: report_status_change_notification_to_target_user
+  problem: "신고가 confirmed 되어 alignment -20 와 moderation action(warn/restrict/suspend) 이 가해지는 target user 가 '왜 자기 점수가 떨어졌는지·어떤 조치를 받았는지·어느 신고가 원인이었는지' 알림받는 채널이 0건이다(handlers_admin.go L86-110 에 INSERT INTO notifications 대상 target_user 도 0건, 앞 imp-0123 은 reporter 알림이고 본 건은 target_user 알림으로 별개). 결과: 사용자가 갑자기 채팅 보내기/매물 등록이 거부되어 '버그인가' 로 오해, 항의/이의제기 경로도 모름. 절차 정의의 투명성 부재."
+  proposal: "(1) handleAdminReportAction 트랜잭션 안에 INSERT INTO notifications (user_id=req.TargetUserID, type='moderation_action', title='운영팀 조치 안내', body='회원님의 [매물/채팅]에 대한 신고가 검토되어 [경고/임시제한/계정정지] 조치가 적용되었습니다.', deep_link='/me/sanctions/:actionId', reference_type='moderation_action', reference_id=actionID). (2) /me/sanctions 페이지 신설(클라이언트) — 자기 받은 조치 목록 + 사유 + 만료일 + 이의제기 링크. (3) restriction 범위(chat/listing/all) 와 duration_days 명시 + 카운트다운 UI. (4) SSE 실시간 푸시. (5) 이의제기 가이드 — 'evidence 와 함께 giranjt@gmail.com 또는 /me/appeals 로'."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_admin.go L78-113 트랜잭션 안에 INSERT INTO notifications (user_id=TargetUserID) 0건. /me/sanctions 라우트(main.go) 0건. web/app/me/sanctions/* 0건. SSE event 'moderation_action_applied' 카탈로그(internal/event) 정의 0건."
+
+- id: imp-0271
+  found_at_iter: 19
+  area: report
+  type: feature
+  target: target_user_alignment_dampening_for_first_offense
+  problem: "handleAdminReportAction 이 모든 confirmed 신고에 대해 alignment.Change(target, AlignmentReportConfirmed=-20, ...) 를 일괄 적용한다(handlers_admin.go L102). 이는 (1) 첫 위반자/명백히 의도 없는 실수자(예: 단순 욕설 1회) 와 (2) 5번째 confirmed 신고 받는 상습 어뷰저를 같은 -20 으로 처벌하는 단조성 문제 — 첫 위반자는 grade='caution' 으로 떨어져 추후 회복이 어렵고, 상습범은 -20 으론 부족하다. severity 와 history 에 따른 차등 점수 0건."
+  proposal: "(1) action_code 별 alignment delta 차등 — warning -5, temp_hide -10, permanent_hide -20, restrict -25, suspend -40. (2) target user 의 누적 confirmed report 횟수 가중치 — 1st: 1.0x, 2nd: 1.5x, 3rd+: 2.0x(상습 가중). (3) 신고 사유별 가중 — privacy_exposure/prohibited_item 은 기본 +5 추가 페널티(중대 위반). (4) domain/models.go 에 AlignmentDeltaForAction(actionCode, priorOffenses, reportType) 함수 추가, alignment.Change 호출 전에 계산. (5) admin UI 에 '예상 alignment 변동: -10 (warning + 1st offense)' 미리보기 노출."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_admin.go L102 'alignment.Change(tx, req.TargetUserID, domain.AlignmentReportConfirmed, ...)' — req.ActionCode/priorOffenses 무시한 단일 -20. backend/internal/domain/models.go L99 AlignmentReportConfirmed = -20 단일 상수, 동적 계산 함수 0건. handleAdminReportAction 에서 SELECT count from reports/moderation_actions WHERE target_user_id=$1 AND status='resolved_confirmed' 0건."
