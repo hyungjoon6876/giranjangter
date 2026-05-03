@@ -2983,3 +2983,92 @@
   effort: medium
   impact: medium
   evidence: "코드 backend/cmd/server/handlers_admin.go L102 'alignment.Change(tx, req.TargetUserID, domain.AlignmentReportConfirmed, ...)' — req.ActionCode/priorOffenses 무시한 단일 -20. backend/internal/domain/models.go L99 AlignmentReportConfirmed = -20 단일 상수, 동적 계산 함수 0건. handleAdminReportAction 에서 SELECT count from reports/moderation_actions WHERE target_user_id=$1 AND status='resolved_confirmed' 0건."
+
+- id: imp-0272
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: cursor_pagination_50_row_hard_cap_history_loss
+  problem: "ListNotifications 가 'LIMIT 50' 으로 하드캡(postgres_reservation.go L359), 그 너머 알림은 사용자가 절대 다시 볼 수 없다. 7일 자동 정리(main.go L67) 와 결합되면 더 심각 — 활성 사용자(거래 다수, 채팅 다수) 는 하루 만에 50건을 초과해 어제 받은 '예약 확정' 같은 핵심 알림이 사라진다. cursor 파라미터/load-more 버튼/스크롤 무한 로딩 0건. 'LIMIT 50' 은 client-side 상수도 아닌 SQL 하드코딩이라 운영자 설정도 불가능."
+  proposal: "(1) handleListNotifications 에 query param '?cursor=<createdAt|notificationId>&limit=20' 추가. (2) ListNotifications(ctx, userID, cursor *string, limit int) 시그니처 변경, SQL 'WHERE user_id=$1 AND (created_at < $2 OR (created_at = $2 AND id < $3)) ORDER BY created_at DESC, id DESC LIMIT $4'. (3) 응답 'data' 외 'nextCursor' 필드 추가. (4) 프런트 useNotifications → useInfiniteQuery, IntersectionObserver 로 자동 로드. (5) /notifications page 무한 스크롤 + 'X일 이전 알림은 자동으로 정리됩니다' inline 안내. (6) 헤더 벨 dropdown 은 최신 5건만, '모두 보기' 클릭 시 페이지로."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/internal/repository/postgres_reservation.go L359 'LIMIT 50' 하드코딩, 함수 시그니처(interfaces.go L451) cursor/limit 파라미터 0건. handlers_notification.go L17 'repo.ListNotifications(ctx, userID)' 단일 호출. web/lib/hooks/use-profile.ts L28-35 useQuery(useInfiniteQuery 아님). main.go L67 'INTERVAL 7 days' 정리와 결합 시 활성 사용자 데이터 손실 가속."
+
+- id: imp-0273
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: deduplication_and_rate_limit_per_aggregate
+  problem: "imp-0131 이 INSERT 부재를 다루지만 일단 INSERT 가 추가되면 즉시 발생할 새 문제 — 같은 채팅방에서 5초 안에 메시지 5개가 오면 5개의 별도 notifications row 가 쌓이고, 헤더 벨이 5건으로 깜빡이며, 모바일 푸시(imp-0136 후속) 도 5번 울려 사용자를 괴롭힌다. 동일 (user_id, reference_type, reference_id) 에 대해 N분 내 unread 알림이 이미 있으면 새 row 를 만들지 말고 'updated_at + count' 만 증가시키는 디듀프 정책 0건. domain/Notification 에 unread_count 필드도 0건."
+  proposal: "(1) DB 마이그레이션 — notifications 에 'unread_count INTEGER NOT NULL DEFAULT 1', 'updated_at TIMESTAMPTZ' 추가 + UNIQUE(user_id, reference_type, reference_id, is_read) WHERE is_read=false partial index. (2) repo.UpsertNotification(ctx, userID, type, refType, refID, deepLink, title, body): 'INSERT ... ON CONFLICT (user_id, reference_type, reference_id) WHERE is_read=false DO UPDATE SET unread_count=unread_count+1, body=EXCLUDED.body, updated_at=NOW()'. (3) 카운트 기반 표시 — '닉네임B (3개의 새 메시지)'. (4) chat 디듀프 윈도 무제한(읽기 전까지), reservation/review 등은 ref 가 변하므로 자연 분리. (5) 사용자가 markRead → 새 알림은 다시 새 row. (6) 필요 시 type 별 N분 cooldown 도 적용 가능."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/db/migrations/001_initial.sql L252-263 notifications 스키마에 unread_count/updated_at 컬럼 0건, partial unique index 0건. domain/models.go L302-313 Notification 구조체에 카운트 필드 0건. UpsertNotification 인터페이스 부재. imp-0131 만 INSERT 부재를 다루며 dedup 은 별개."
+
+- id: imp-0274
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: blocked_user_suppression_in_notifications
+  problem: "block_relations 테이블이 존재하고(migrations 001 L52-58) postgres_chat.go L221-232 BlockUser/UnblockUser 가 동작하지만, 차단된 사용자가 (a) 채팅을 보냈을 때 알림이 여전히 차단자에게 도달, (b) 차단자가 등록한 매물에 차단된 사용자가 댓글/문의(향후 기능)할 때도 도달할 우려가 있다. 차단 의미가 '메시지 자체는 막지만 알림은 노출' 이라면 차단의 사용자 효익이 반감 — 진짜 어뷰저는 더미 계정 만들어 다시 보내며, 차단자 인박스에 noise 누적."
+  proposal: "(1) repo.UpsertNotification 시 actor_user_id 파라미터 추가 — 'WHERE NOT EXISTS (SELECT 1 FROM block_relations WHERE blocker_user_id=$user_id AND blocked_user_id=$actor_user_id)' guard. (2) 채팅 메시지 INSERT 핸들러(handlers_chat.go) 에서 차단 관계면 INSERT INTO chat_messages 자체를 거부하거나(권장), 또는 메시지는 저장해도 알림만 skip. (3) 매물에 question/inquiry 기능 도입 시 동일 패턴. (4) 차단 해제 시 과거 묻혔던 알림 복구 X(개인정보 노출) — 단순히 차단 시점 이후만 다시 받기. (5) 관리자 broadcast(imp-0276) 는 차단 무관 항상 도달. (6) e2e 테스트 — 'A 가 B 차단 → B 가 메시지 → A 의 GET /notifications 에 0건'."
+  effort: small
+  impact: medium
+  evidence: "코드 backend/internal/repository/postgres_chat.go L221-232 BlockUser 구현. handlers_chat.go SendMessage 핸들러 grep 'block_relations' 0건 — 차단 검사 없이 메시지 저장. 향후 추가될 imp-0131 의 INSERT INTO notifications 도 actor 파라미터 0건이라 차단 필터 자연 누락. backend/internal/repository/interfaces.go BlockedByUser/IsBlocked 헬퍼 0건."
+
+- id: imp-0275
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: marketing_consent_and_korean_privacy_law_compliance
+  problem: "한국 정보통신망법 제50조·개인정보보호법 시행령 제17조에 따라 '광고성/마케팅 알림(신규 매물 추천, 이벤트, 프로모션, 가격 인하 알림)' 은 사용자의 명시적 동의(opt-in) 없이 발송 시 3,000만원 이하 과태료 대상이고, 동의했더라도 매 알림 본문에 '수신거부' 1-click 링크를 포함해야 한다. 현재 users 테이블(imp-0131 + 추후 imp-0136 web push) 에 marketing_consent_at/marketing_consent_via 컬럼 0건, 동의 받는 UI 0건, 알림 본문 'unsubscribe' 링크 0건 — 정식 출시 시 즉시 위반."
+  proposal: "(1) DB 마이그레이션 — users 에 'marketing_consent_at TIMESTAMPTZ NULL', 'marketing_consent_revoked_at TIMESTAMPTZ NULL', 'marketing_consent_source TEXT NULL'(signup/settings/popup). (2) Google OAuth 콜백 직후 '광고성 알림 수신 동의(선택)' 별도 체크박스 페이지 (transactional 거래 알림은 동의 불필요, marketing 만 분리). (3) /profile/settings/notifications(imp-0134) 에 '광고/이벤트' 토글 추가, 토글 시 marketing_consent_at 갱신. (4) Insert 시점 type='marketing'/'promo'/'price_drop'/'recommendation' 알림은 marketing_consent_at IS NOT NULL AND marketing_consent_revoked_at IS NULL 만 발송. (5) 알림 본문 끝에 '수신거부' deepLink → POST /me/preferences/marketing/revoke 1-click. (6) 매년 동의 갱신 안내(연 1회 재확인)."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/db/migrations/001_initial.sql L7-30 users 테이블 grep 'marketing_consent' 0건. web/app/login/* 'consent\\|동의\\|광고' 0건. handlers_notification.go INSERT(예정) 에 type-specific consent 검사 0건. 한국 정보통신망법 §50 '영리목적 광고성 정보 전송 제한' 미준수 시 과태료 위험."
+
+- id: imp-0276
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: admin_broadcast_system_announcement_endpoint
+  problem: "운영자가 '내일 오전 2-4시 점검 예정' '신규 정책 시행' '특정 서버 거래 일시 중단' 같은 공지를 전 사용자에게 보낼 수 있는 채널이 0건이다. handlers_admin.go 에 broadcast/announcement 엔드포인트 0건, /admin 어디에도 'notifications/broadcast' UI 없음. 결과: 운영자가 트위터/디스코드/카페 같은 외부 채널에 공지를 흩뿌리고, 사용자는 인앱에서 '왜 거래가 안 되지' 의문 — 신뢰도·CS 비용 폭증. 점검 시작 직전 갑작스러운 503 도 사전 안내 0건."
+  proposal: "(1) admin POST /admin/notifications/broadcast { type: 'maintenance'|'announcement'|'policy', title, body, deepLink?, audienceFilter?: { primaryServer?, role?, joinedBefore? }, scheduledAt?: ISO } 신설. (2) 백엔드 — audienceFilter 매칭 사용자 batch SELECT, INSERT 트랜잭션 chunk 1000건씩, 동시에 SSE 'announcement:new' broadcast. scheduledAt 이 미래면 broadcasts 테이블 enqueue → cron tick 에서 dispatch. (3) /admin/announcements 페이지 — Markdown editor + audience preview('약 12,300명에게 발송') + 발송/예약. (4) 사용자 측 — type='maintenance' 알림은 헤더 상단에 dismissible banner(/notifications 안 가도 보이게). (5) 점검 알림은 marketing consent 무관(시스템 transactional)."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_admin.go grep 'broadcast\\|announcement' 0건. main.go L194-216 admin route 트리에 '/admin/notifications/*' 0건. broadcasts 테이블 schema 부재. web/components/layout/* 'banner\\|maintenance' 0건. /admin/announcements 라우트 부재."
+
+- id: imp-0277
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: in_app_realtime_toast_for_foreground_users
+  problem: "사용자가 /listings/abc 매물 상세를 읽고 있을 때 다른 채팅방에서 새 메시지가 와도, 헤더 벨 빨간 점 1개만 변할 뿐 시각적 피드백이 약하다(움직임 없음, 사운드 없음). 모바일에서는 더더욱 빨간 점이 reach zone 밖이라 거의 인식되지 않음. native push 가 없는 PWA 환경에서 'foreground 사용자에게 즉각적 in-app toast' 는 표준 패턴이지만 ToastContainer 는 mutation success/error 에만 쓰이고 SSE notification:new(imp-0133 도입 후) 와 연결 0건. 결과: 활성 사용자도 알림을 즉시 보지 못함."
+  proposal: "(1) SSEContext provider 의 'notification:new' 이벤트 핸들러에서 useToast().addToast('info', `${title} — ${body}`, { actionLabel: '보기', actionHref: deepLink, durationMs: 6000, position: 'bottom-right'(데스크톱)|'top'(모바일) }) 호출. (2) 자기가 현재 보고있는 페이지(pathname) 와 deepLink 가 같으면 toast 생략(이미 보고있는 채팅방의 새 메시지). (3) DND 시간대(imp-0134) 면 toast 도 skip. (4) Toast 컴포넌트에 미디어 쿼리 'prefers-reduced-motion' 시 슬라이드 애니메이션 비활성. (5) 옵션: 사용자 설정에서 '소리'(짧은 비프 또는 시스템 알림음 mp3) on/off — 모바일은 비활성 기본. (6) 다중 toast 큐 (5개 누적 시 그룹화 'X개의 새 알림')."
+  effort: small
+  impact: medium
+  evidence: "코드 web/lib/hooks/use-toast.ts(추정 위치) — useToast 는 onError/onSuccess 에 사용되나 SSE 연동 0건. SSEContext.tsx grep 'addToast' 0건. /chats/* 페이지 외 다른 페이지에서 새 채팅 알림 시각 피드백 0건. window.Notification API(브라우저 native) 호출도 0건. tasks/improvements.md imp-0133 은 cache invalidation 만 다루고 toast UX 별개."
+
+- id: imp-0278
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: snooze_and_remind_me_later_per_notification
+  problem: "사용자가 알림을 받았지만 지금 처리할 시간이 없어 '내일 아침에 다시 알려줘' 가 필요한 경우가 빈번(예: 새벽 2시 도착한 거래 제안). 'mark read' 는 영구 처리이고 'unread' 유지는 헤더 벨이 계속 켜져있어 시각적 피로도 높음. 카카오톡/잼/슬랙 같은 표준 메신저는 'snooze' 기능을 제공한다. 현재 /notifications 에 snooze 0건, GET /notifications 에 snoozed_until_at 필터링 0건."
+  proposal: "(1) DB 마이그레이션 notifications 에 'snoozed_until_at TIMESTAMPTZ NULL' 컬럼 추가. (2) POST /notifications/:id/snooze { until: '1h'|'8h'|'tomorrow_9am'|'next_week'|customISO } 신설. (3) ListNotifications 쿼리 'WHERE user_id=$1 AND (snoozed_until_at IS NULL OR snoozed_until_at <= NOW())' 필터 — snoozed 알림은 만료 시각 전까지 인박스에서 숨김. (4) /notifications row 에 swipe(모바일)/hover(데스크톱) → '👁 1시간 후 알림' 'Tomorrow 9 AM' 메뉴. (5) cron tick(매 5분) 에서 'WHERE snoozed_until_at < NOW() AND ... ' 매칭 row 들에 SSE notification:resurfaced 푸시. (6) 알림 페이지 별도 'Snoozed' 섹션 — 다가올 시각 미리보기."
+  effort: medium
+  impact: low
+  evidence: "코드 backend/db/migrations/001_initial.sql L252-263 notifications 스키마에 snoozed_until_at 0건. handlers_notification.go grep 'snooze' 0건, 라우트 부재. web/app/notifications/page.tsx swipe 또는 우클릭 메뉴 0건. /notifications 페이지에 단순 mark-read 외 처리 옵션 부재."
+
+- id: imp-0279
+  found_at_iter: 20
+  area: notification
+  type: feature
+  target: delivery_open_click_analytics_per_type
+  problem: "운영자가 '거래완료 알림은 사용자가 보고 후기 쓸까?' '신고처리 알림 도달 후 사용자가 unblock 했을까?' 같은 효과 측정을 할 데이터 0건이다. notifications 테이블에 opened_at/clicked_at/dismissed_at 컬럼 부재, audit_logs 에도 'notification.delivered' 'notification.opened' 이벤트 0건. 결과: 알림 카피 A/B 테스트 불가, type 별 CTR 비교 불가, 효과 없는 type 을 줄여 noise 줄이는 의사결정 데이터 부재."
+  proposal: "(1) notifications 에 'delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()' (이미 created_at), 'opened_at TIMESTAMPTZ', 'clicked_at TIMESTAMPTZ' 추가. (2) 사용자가 /notifications 진입 → POST /notifications/seen { ids[] } → opened_at = NOW(). (3) 사용자가 row 클릭(deepLink 이동) → POST /notifications/:id/click → clicked_at = NOW(). (4) 관리자 대시보드 — type 별 CTR(clicked/delivered), 평균 click delay(시간), per-day 추이. (5) A/B 테스트 — variant_key 컬럼 추가, INSERT 시 무작위 A/B 카피 선택 후 기록, 대시보드에 비교. (6) variant_key 도입 후 카피 개선 의사결정 자동화 가능. (7) 7일 정리(main.go L67) 도 cleaned_at 로 logical delete 후 90일 통계용 보관(별도 정리 정책)."
+  effort: medium
+  impact: low
+  evidence: "코드 backend/db/migrations/001_initial.sql L252-263 notifications 컬럼에 opened_at/clicked_at/variant_key 0건. handlers_notification.go grep 'opened\\|clicked\\|seen' 0건. /admin/notifications/stats 라우트 부재. audit_logs L270 grep 'notification' 0건 — 알림 관련 감사 이벤트 미정의."
+
