@@ -28,3 +28,4 @@ iter 22 | bugs SKIPPED | improvs +14=303 | auth round2: login throttling, suspic
 iter 23 | bugs SKIPPED | improvs +2=305 | home round3 STRICT: ⚠️ imp-0304 한국 PIPA 30조 의무 위반 (footer 개인정보/이용약관 링크 부재) + imp-0305 canonical link 부재; STRICT 작동 (18→2)
 iter 24 | bugs SKIPPED | improvs +0=305 | listings round3 STRICT: 🎯 첫 0건 (saturated, cons=1); 28 entries 충분하다고 판정
 iter 25 | bugs SKIPPED | improvs +0=305 | listing_detail round3 STRICT: 🎯 두 번째 0건 (saturated, cons=2); 31 entries 충분
+iter 26 | bugs SKIPPED | improvs +0=305 | listing_create round3 STRICT: 🎉🎉🎉 세 번째 0건 (cons=3); 30 entries 충분; 다음 iter에 DUAL_LOOP_COMPLETE 출력 예정
