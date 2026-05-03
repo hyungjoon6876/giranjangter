@@ -2334,3 +2334,168 @@
   effort: medium
   impact: medium
   evidence: "Playwright: '카카오|kakao' 0건, telegramShare false, qrCode false. og:image='http://localhost:3000/images/og-image.png'(잘못됨). intentLinks=[] (kakaolink:// 또는 다른 앱 인텐트 0건). 카톡 공유는 한국 시장 거래 매물 99% 의 1순위 공유 채널."
+
+- id: imp-0213
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: quantity_field_input
+  problem: "createListingRequest 백엔드 스펙은 Quantity int min=1 을 요구하지만 web/app/create/page.tsx 는 quantity:1 로 하드코딩(L92)해 사용자가 입력할 UI 가 없다. 결과로 룬/포션/주문서/물약 같은 stack-able 아이템(예: '아데나 포션 ×100', '대장군 룬 ×3') 을 묶어 등록하지 못해, 동일 아이템 100개를 100건의 분리 매물로 올리거나 description 본문에 '×100' 이라고 비정형 표기하는 우회로가 발생한다."
+  proposal: "(1) selectedItem.isStackable=true(또는 categoryId in ['potion','rune','scroll']) 일 때만 '수량' number input 노출(default 1, min 1, max 999). (2) 가격 라벨도 '개당 가격' 으로 변경 + total='priceAmount × quantity' 라이브 미리보기. (3) 매물 목록 카드에는 '×수량' chip 표시(imp-0044 와 함께)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L92 quantity:1 하드코딩, 폼에 수량 input 0개. backend handlers_listing.go L26 Quantity binding=required,min=1 — DB 스키마는 임의 수량 지원. 룬/포션 카테고리는 본질적으로 stack 거래인데 단일 매물=단일 단위로 강제됨."
+
+- id: imp-0214
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: duplicate_listing_action
+  problem: "반복 거래자(예: 같은 활성화 룬을 매주 1개씩 파는 회원)가 동일 아이템·서버·조건의 매물을 새로 등록할 때마다 8개 필드를 처음부터 다시 입력해야 한다. 백엔드 GET /listings/:id 응답에는 모든 필드가 있고 / 매물 상세에 '이 매물 복제' 진입점이 0건이다."
+  proposal: "(1) 자기 매물 상세 페이지(또는 /profile 의 내 매물 리스트) 에 '복제하여 새로 등록' 메뉴 노출. 클릭 시 router.push(`/create?duplicate=${listingId}`). (2) /create 페이지가 ?duplicate 쿼리를 감지하면 GET /listings/:id 결과로 form/images/selectedItem/enhancementLevel 모두 prefill (단, status/createdAt 제외). (3) 한 줄 알림 '거래 완료된 동일 매물을 다시 등록합니다 — 가격을 확인해주세요' 노출. status=sold 매물도 복제 가능."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L31-41 form initial state 정적, useSearchParams 사용 0건. listing-detail 우상단 메뉴(?) 본인 매물 진입점에 '복제' 옵션 0건. 거래 데이터(my-listings) 패턴상 동일 카테고리 반복 등록자가 다수일 것."
+
+- id: imp-0215
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: listing_template_save
+  problem: "imp-0065 의 단일 draft autosave 와 별개로, 다양한 카테고리 거래자(예: 무기·방어구·장신구를 매주 번갈아 파는 회원)가 카테고리별 '기본 양식'을 영구 보관할 수단이 없다. 매번 '거래 가능 시간', '디스코드 ID', '가격 협상 정책' 같은 boilerplate 를 description 에 다시 적어야 한다."
+  proposal: "(1) /profile 또는 /create 상단 우측에 '내 템플릿' 드롭다운 추가. 사용자는 등록 화면에서 '템플릿으로 저장' 버튼을 눌러 현재 form snapshot 을 이름붙여 localStorage('listing_templates' 배열, 최대 5개) 에 저장. (2) 새 등록 시 '템플릿 적용' 으로 즉시 prefill (선택 후에도 수정 가능). (3) 백엔드 user_settings.template_blob (JSON) 스키마 추가 시 디바이스 간 동기화. 단순 v1: localStorage."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx 에 template/preset 관련 state/UI 0건. localStorage key 'listing_templates' 미존재. profile 페이지에도 '내 양식' 진입점 0건. 반복 boilerplate 입력은 마찰점."
+
+- id: imp-0216
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: bulk_listing_paste
+  problem: "거래자가 한꺼번에 여러 매물(예: '활성화 룬 +3 50만, 활성화 룬 +5 80만, 진명검 +6 200만')을 등록하려면 매번 폼을 처음부터 다시 채워야 한다. 폼 1회 작성에 30초~2분 걸리므로 N건 등록 시 N×시간 — 도매 거래자 이탈 요인."
+  proposal: "(1) /create 페이지 상단에 '일괄 등록 모드' 토글. 활성 시 textarea 노출 — 한 줄당 1매물 형식 '아이템명 +강화 가격 / 서버 / 거래방식'. 예: '진명검 +6 2000000 / 카인 / either'. (2) Parse 후 미리보기 테이블(N행) 생성, 사용자가 row 별 verify/edit 가능. (3) '한 번에 등록' 버튼 → POST /listings/bulk (N개를 transaction 으로). 실패한 row 만 빨간색 표시. (4) 같은 아이템·강화 데이터 자동 매칭(item_master fuzzy)."
+  effort: large
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx 단일 매물 form 만 존재, '일괄/bulk/multi' 키워드 0건. backend POST /listings 도 단건만. 도매 거래자(예: 룬 100개 보유) 케이스 미지원."
+
+- id: imp-0217
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: schedule_publish_at
+  problem: "사용자가 '주말 저녁 8시'(거래자 활동 피크) 에 매물을 노출하고 싶어도 등록은 즉시 publish 만 가능하다. status='available' 로 즉시 들어가고 visibility='public' 이라 가시성 컨트롤 0. 결국 사용자는 알람 맞춰서 직접 그 시간에 등록 클릭해야 한다."
+  proposal: "(1) 거래 섹션에 '게시 시간' radio: [지금 / 예약]. '예약' 선택 시 datetime-local input(현재 시각+10분 ~ +7일 사이). (2) 백엔드 listings.scheduled_publish_at TIMESTAMPTZ 컬럼 추가, status='scheduled' visibility='hidden' 으로 INSERT, 별도 cron(또는 Listings.ListListings 쿼리에 NOW() >= scheduled_publish_at 조건 추가) 으로 자동 publish. (3) 사용자 매물 목록에 '게시 예정 — 5월 4일 20:00' 뱃지 + 즉시 게시/취소 버튼."
+  effort: large
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx 게시시간 input 0개, backend handlers_listing.go L38 INSERT 시 status='available' visibility='public' 하드코딩. listings 테이블에 scheduled_at/publish_at 컬럼 미존재. UX 적으로 거래 활동 피크 시간 활용 불가."
+
+- id: imp-0218
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: image_enhancement_ocr_autofill
+  problem: "사용자가 게임 인벤토리 스크린샷을 첫 이미지로 올리면 강화 수치('+6'), 옵션('마력 +1, 명중 +2'), 아이템명을 사람이 다시 타자해야 한다. 이미지에 이미 모든 정보가 있는데 폼은 그것을 활용하지 않는다."
+  proposal: "(1) 이미지 업로드 직후 백엔드 POST /images/:id/extract 에서 OCR(Tesseract 한글 또는 Cloud Vision) 실행, '+숫자' 패턴/옵션 텍스트/아이템명 추출. (2) 결과를 응답으로 받아 enhancementLevel/optionsText/itemName 자동 prefill (사용자에게 '이미지 분석 결과를 적용했어요. 확인해주세요' 토스트). (3) MVP 는 Tesseract.js 클라이언트 OCR 로 시작(외부 API 비용 0). 정확도 낮으면 점진적으로 개선. (4) 사용자가 '직접 입력' 모드로 끄는 토글."
+  effort: large
+  impact: medium
+  evidence: "코드 web/components/forms/image-upload.tsx upload() L27-74 단순 multipart POST 만, OCR/EXIF 추출 호출 0건. backend handlers_upload.go(추정) 에 분석 endpoint 미존재. Tesseract.js, Cloud Vision, OpenAI Vision 등 어떤 통합도 없음. 라이프스타일 마켓(당근/번개)도 점진 도입한 핵심 차별화."
+
+- id: imp-0219
+  found_at_iter: 15
+  area: listing_create
+  type: ux
+  target: price_amount_won_unit_helper
+  problem: "priceAmount 가 type='number' 단일 input 으로 '500000' 같은 long-digit 입력을 강제한다. 한국어 거래자는 자연스럽게 '50만', '200만', '1억', '1.5억' 으로 표현하고, 화면 표시도 '500,000원' 천단위 콤마가 자연스러운데, 폼은 (1) 콤마 미적용, (2) '만/억' 단축 미지원, (3) 라이브 한글 변환('500,000 = 50만원') 미표시."
+  proposal: "(1) priceAmount input 을 controlled 컴포넌트로 변경: 표시값=Number(value).toLocaleString('ko-KR'), state=원시 정수. (2) input 옆 라이브 hint '50만원' 표시(value/10000>=10? '50만' : null). (3) chip 그룹 [+1만, +10만, +100만, +1000만, ÷2, ×2] 로 빠른 조정. (4) input mode='numeric' inputMode='numeric' 으로 모바일 숫자 키보드 활성. (5) 50,000 미만 또는 1,000,000,000 초과 시 inline warning."
+  effort: small
+  impact: high
+  evidence: "코드 web/app/create/page.tsx L199-207: <input type='number' value={form.priceAmount} onChange={update} disabled={priceType=='offer'} />. toLocaleString 호출 0건, '만/억' 변환 0건, chip 그룹 0건, inputMode 미지정. 거래 가격은 보통 만~억 단위라 콤마 부재 시 자릿수 오타(0 하나 누락) 위험 큼."
+
+- id: imp-0220
+  found_at_iter: 15
+  area: listing_create
+  type: ux
+  target: buy_listing_role_relabel
+  problem: "listingType='buy'(구매 매물) 모드를 토글하면 제목 자동생성만 '...구매합니다' 로 바뀌고, 나머지 라벨은 모두 판매 기준 그대로다. (1) '가격(원)' 라벨이 '내가 지불할 최대가' 로 바뀌어야 의미 명확, (2) '거래 방식' 도 '받을 방식' 가깝고, (3) 가격 유형 'offer' 의미가 '제안받음→내가 제안받는다(=판매자 입장)' 라 구매 모드에서는 모순. (4) 이미지도 '내가 사고 싶은 아이템 예시' 로 의미 변동 — 아이콘 1장으로 충분, 5장 강제 필요 없음."
+  proposal: "(1) form.listingType==='buy' 일 때 라벨 dynamic: 가격 '최대 지불가', 거래 '수령 방식', 이미지 라벨 '구매하려는 아이템 이미지(선택)'. (2) priceType options 도 buy 모드에서는 [고정가, 협상가능] 만, 'offer' 제거 또는 '제안 받습니다(= 가격 비공개로 채팅)' 로 의미 명시. (3) 이미지 maxImages 를 buy 모드에서는 2장으로 자동 축소. (4) 'BUY' 컬러 액센트(예: 채도 낮은 녹색)로 시각적 구분."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx 라벨 정적, listingType 분기는 L53(typeStr) 1곳만. priceType options L189-193 = [fixed, negotiable, offer] 양 모드 동일. ImageUpload maxImages=5 고정 L250."
+
+- id: imp-0221
+  found_at_iter: 15
+  area: listing_create
+  type: ux
+  target: description_overwrite_on_item_change
+  problem: "handleItemSelect L70-76 가 selectedItem 변경 시 description 을 항상 `[아이템 옵션]\\n${optionText}\\n\\n` 으로 덮어쓴다(item.optionText 있을 때). 사용자가 이미 description 을 5분간 작성한 후 '아이템 변경' 으로 다른 아이템을 고르면 작성한 거래 조건/디스코드 ID/협상 정책이 모두 사라진다. 토스트나 확인 다이얼로그 0건."
+  proposal: "(1) handleItemSelect 에서 description 이 빈 문자열 OR 'auto-generated' 시그널일 때만 덮어쓰기. 사용자가 직접 입력한 텍스트가 있으면 보존(또는 prepend '[아이템 옵션]\\n…\\n\\n' + 기존 텍스트). (2) descriptionAutoFilled state 를 두고 imp-0069 '제목 자동생성' 패턴과 일관 처리. (3) item 변경 시 토스트 '이전 설명을 유지했어요. 옵션을 추가하려면 다시 적어주세요' 안내."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L70-76: setForm({...f, description: item.optionText ? `[아이템 옵션]\\n…\\n\\n` : f.description}). 사용자 입력 보존 분기 0건. descriptionAutoFilled state 미존재. confirm()/dialog 0건."
+
+- id: imp-0222
+  found_at_iter: 15
+  area: listing_create
+  type: feature
+  target: deep_link_query_prefill
+  problem: "외부 커뮤니티(디스코드, 카페)에서 누군가가 '진명검 +6 카인서버 50만 정도에 사세요' 같은 거래 추천 링크를 공유할 때, /create?item=진명검&enchant=6&server=cain&price=500000 같은 deep-link prefill 이 가능하면 conversion 이 큼. 현재 폼은 useSearchParams 호출 0건이라 어떤 쿼리도 prefill 되지 않는다."
+  proposal: "(1) /create 마운트 시 useSearchParams 로 [item/enchant/server/price/listingType/categoryId] 추출. (2) ItemAutocomplete 가 item= 쿼리로 자동 fuzzy-search → 첫 결과 selectedItem 으로 자동 선택. (3) 검색 결과 0건이거나 모호하면 prefill 만 하고 사용자가 확정 클릭. (4) prefill 적용 시 상단 dismissable 배너 '외부 링크에서 가져온 정보로 채웠어요'. (5) /listings/[id] 의 '비슷한 매물 등록' CTA 와 결합."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx useSearchParams import 0건, 모든 form state 가 useState 빈값으로 초기화. URL 쿼리 파싱 분기 0건. /listings/[id] 페이지에도 'create with this template' 링크 0건."
+
+- id: imp-0223
+  found_at_iter: 15
+  area: listing_create
+  type: performance
+  target: image_upload_per_item_progress
+  problem: "ImageUpload.upload (L27-74) 은 validFiles 를 for-of 로 순차 await 하는 동안 단순 'uploading=true' boolean 만 표시한다. 5장 ×10MB 를 모바일 LTE 에서 올리면 30~90초 소요인데 사용자는 '몇 번째 / 몇 장 진행 중' / '실패한 파일이 어느 것' 알 수 없다. 1번째 성공 후에도 다음 4장은 같은 'spinner + 업로드 중...' 만 표시."
+  proposal: "(1) 각 파일을 [{file, status:'queued'|'uploading'|'done'|'failed', progress:0-100, errorMsg?}] 배열로 관리. (2) Promise.all + axios onUploadProgress 또는 fetch + ReadableStream 으로 per-file progress 추적. (3) 업로드 그리드의 각 썸네일 자리에 (a) 진행 중: 원형 progress + percent, (b) 실패: '×' + retry 버튼, (c) 완료: 정상 썸네일. (4) 동시 병렬 3개로 throughput 향상."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/components/forms/image-upload.tsx L51-72: setUploading(true) → for-of await uploadImage → setUploading(false). per-file progress 0건, axios/fetch progress 이벤트 0건. UI 단일 'uploading ? 업로드 중...' 분기. 5장 직렬 업로드 시 사용자에게 정보 0."
+
+- id: imp-0224
+  found_at_iter: 15
+  area: listing_create
+  type: content
+  target: submit_error_specific_messages
+  problem: "handleSubmit L106-108 catch 블록이 서버 응답 무관 항상 '등록에 실패했습니다' 토스트만 표시. backend handlers_listing.go 는 4가지 분기 에러 코드 발생: VALIDATION_ERROR(400), FORBIDDEN(403, 이미지 소유권), 가격 미입력 VALIDATION_ERROR(400, 별도 메시지), INTERNAL_ERROR(500). 사용자는 '뭘 고쳐야 하는지' 모른 채 같은 폼을 다시 submit."
+  proposal: "(1) catch (err) 에서 err.response.data.error.code 로 분기: VALIDATION_ERROR → 백엔드 message 그대로 토스트 + 첫 실패 필드로 스크롤(Gin binding 메시지에서 field 추출). FORBIDDEN → '이미지 권한이 없습니다. 다시 업로드해주세요' + images=[] 리셋. INTERNAL_ERROR → '서버 오류 — 1분 후 재시도' + Sentry 로그. (2) error.code 매핑 테이블을 lib/errors.ts 에 통합 — 모든 mutation 이 공통 사용. (3) 토스트 카드에 retry 버튼."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L103-108: try { await mutateAsync } catch { addToast('error', '등록에 실패했습니다') }. err 객체 사용 0건. backend handlers_listing.go 응답 형식 {error:{code, message}} 일관 사용 중인데 클라이언트가 무시."
+
+- id: imp-0225
+  found_at_iter: 15
+  area: listing_create
+  type: ux
+  target: form_progress_stepper
+  problem: "폼은 8개 섹션(거래 유형 / 아이템 / 서버 / 가격 / 상세 정보(제목·설명) / 이미지 / 거래방식 / 등록 버튼)이 단일 세로 스크롤로 노출된다. 모바일 375px 에서 화면 높이 667px 기준 스크롤 길이가 ~3 화면 분량이라 사용자가 '내가 어디까지 했는지', '얼마나 남았는지' 인지하기 어렵다. 진행률 bar / step indicator 0건."
+  proposal: "(1) 상단 sticky 진행률 bar — 필수 필드 7개(itemName, serverId, title, description, priceAmount(offer 제외), images optional, tradeMethod) 중 채워진 비율. (2) 또는 multi-step wizard — [1/4 아이템 → 2/4 가격 → 3/4 상세/이미지 → 4/4 거래방식+제출] 좌우 스와이프 또는 '다음' 버튼. (3) 모바일은 stepper, 데스크탑(lg+)은 단일 스크롤 + 진행률 bar 만. (4) 미입력 단계는 stepper 에 빨간 점 표시."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx form structure: 단일 <form className=space-y-4> 내 div 8개. progressBar/stepper/multi-step 컴포넌트 0건. sticky 헤더 0건. 모바일 폼 길이 측정: 입력 모두 채우면 ~1800px(스크롤 3~4회)."
+
+- id: imp-0226
+  found_at_iter: 15
+  area: listing_create
+  type: ux
+  target: post_create_edit_redirect
+  problem: "handleSubmit L104-105 가 등록 성공 후 router.push('/') 로 홈으로 리다이렉트한다. 사용자는 '내 매물이 정말 등록됐는지', '오타가 없는지' 즉시 확인 불가능하고, 잘못된 정보(예: 가격 0 하나 더 붙음) 도 detail 페이지를 새로 찾아 들어가서야 발견한다. UpdateListing 백엔드는 있지만 UI 진입점이 거의 없다."
+  proposal: "(1) 성공 시 router.push(`/listings/${listingId}?just_created=true`). (2) 매물 상세에서 ?just_created 일 때 상단에 success 카드 — '등록 완료! 이대로 게시할까요?' + [확인 / 수정] 2 버튼. '수정' 클릭 시 인라인 편집 모드로 (제목/설명/가격/거래방식 만 수정 가능). (3) 5분 이내에는 무료 수정, 이후엔 status_history 기록과 함께 수정 가능. (4) 토스트 'X님의 매물이 등록되었습니다' + 본인이면 '편집' 링크."
+  effort: small
+  impact: high
+  evidence: "코드 web/app/create/page.tsx L104-105: await mutateAsync(data); router.push('/'). 성공 시 listingId 사용 0건(응답 무시). backend POST /listings 응답 L104-108 listingId 반환됨. 매물 상세에서 본인 편집 진입점 visible=false(probably hidden)."
+
+- id: imp-0227
+  found_at_iter: 15
+  area: listing_create
+  type: content
+  target: char_count_and_max_length
+  problem: "백엔드는 title min=2 max=100, description min=10 max=2000 강제. 프런트는 minLength 만 적용하고 maxLength 미적용 — 사용자가 description 에 2001자 작성 후 submit 하면 backend VALIDATION_ERROR 가 토스트로 떠 모든 작업이 무위. 또한 라이브 글자수 카운터도 부재라 '얼마나 남았는지' 모름. imp-0073 placeholder 가이드와 별개 issue."
+  proposal: "(1) <input id='title' maxLength={100} aria-describedby='title-counter'> + 우측 작은 'N/100' 표시(>=80% 일 때 amber). (2) <textarea id='description' maxLength={2000} aria-describedby='desc-counter'> + 'N/2000자' 표시. (3) 카운터는 한글 = 1자(서버도 byte 가 아니라 char 기준이라 가정 — 검증 필요). (4) 95% 도달 시 'border-amber', 100% 도달 시 'border-danger' + submit disabled 까진 안 가도 OK(maxLength 가 막음)."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/create/page.tsx L216-228 title <input minLength={2}>, L236-245 textarea <textarea minLength={10}> — maxLength 속성 0건. 글자수 표시 span/div 0건. backend handlers_listing.go L22-23 binding 'min=2,max=100' 'min=10,max=2000' 강제, 위반 시 400 에러."

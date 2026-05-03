@@ -17,3 +17,4 @@ iter 11 | bugs SKIPPED | improvs +15=170 | auth: oauth provider 다양화, 계�
 iter 12 | bugs SKIPPED | improvs +18=188 | home round2: filter URL state 부재, twitter:image localhost, 계정 카테고리 ToS 위반 위험, Korean 만/억 가격 포맷, line-clamp/preconnect/manifest service-worker
 iter 13 | bugs SKIPPED | improvs +12=200 | listings round2: SEO sitemap/robots, JSON-LD ItemList, price-drop watch, saved searches, listing comparison, RSS/Atom feed; ⭐ 200 milestone
 iter 14 | bugs SKIPPED | improvs +12=212 | listing_detail round2: JSON-LD Product/Offer + BreadcrumbList, item DB link, stale listing warning, counter-offer form, newcomer safe-trade warning, KakaoTalk share
+iter 15 | bugs SKIPPED | improvs +15=227 | listing_create round2: bulk paste-to-create, image OCR 강화 detect, scheduled publish, KRW unit helper, duplication/templates; ⚠️ image contract bug (web 'images' vs backend 'imageIds')
