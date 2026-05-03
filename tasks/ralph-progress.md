@@ -20,3 +20,4 @@ iter 14 | bugs SKIPPED | improvs +12=212 | listing_detail round2: JSON-LD Produc
 iter 15 | bugs SKIPPED | improvs +15=227 | listing_create round2: bulk paste-to-create, image OCR 강화 detect, scheduled publish, KRW unit helper, duplication/templates; ⚠️ image contract bug (web 'images' vs backend 'imageIds')
 iter 16 | bugs SKIPPED | improvs +14=241 | chat round2: in-room search, input draft 저장, Web Notification, URL scam warning, chat export 분쟁 증거, scroll-anchor "↓N new" pill
 iter 17 | bugs SKIPPED | improvs +10=251 | reservation round2: imp-0242/0243 contract & cache bugs, reschedule state machine, .ics export, no-show flow, conflict preflight, expires_at sweep
+iter 18 | bugs SKIPPED | improvs +8=259 | review round2: ⚠️ imp-0252 권한 체크 누락 (3rd party 후기 작성), imp-0254 LIMIT 50 silent 누락, verified-purchase 배지 부재, 후기 모더레이션 0건; 16→8 saturation 시작

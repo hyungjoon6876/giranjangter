@@ -2764,3 +2764,90 @@
   impact: medium
   evidence: "코드 web/app/profile/trades/page.tsx 는 chat_rooms 단위만 표시. /profile/me/reservations 라우트 0건. backend GET /me/reservations 0건(POST /chats/:id/reservations 만 존재). 통계 집계(완료/노쇼 카운트) 0건."
 
+- id: imp-0252
+  found_at_iter: 18
+  area: review
+  type: bug
+  target: review_create_missing_participant_authorization
+  problem: "POST /trade-completions/:compId/reviews 핸들러가 요청 사용자가 거래의 참가자(requested_by 또는 counterpart) 인지 검증하지 않는다. 코드 handlers_review.go L29-38: GetCompletionForReview 로 status='confirmed' 만 확인하고, 그 다음 'if userID == info.CounterpartUserID { targetUser = info.RequestedByUserID } else { targetUser = info.CounterpartUserID }' 분기는 단순 매핑만 한다. 즉 제3자(완전히 다른 사용자) 가 valid completionId 를 알면 누구에게나 후기를 쓸 수 있고, 그 후기가 두 거래 참가자 중 한 명에게 적립된다. 평판 시스템의 무결성을 깨는 보안 결함."
+  proposal: "L33 직후 명시적 권한 체크 추가: 'if userID != info.CounterpartUserID && userID != info.RequestedByUserID { c.JSON(http.StatusForbidden, gin.H{...code:\"FORBIDDEN\"...}); return }'. 또한 alignment.Change(reviewer) 가 거래 참가자가 아닌 사용자의 alignment 도 변경할 수 있어 부정 적립 발생 — 권한 체크는 alignment 호출 이전이어야 한다. 추가 방어선으로 reviews INSERT 시 'WHERE EXISTS (SELECT 1 FROM trade_completions WHERE id=$2 AND (requested_by=$3 OR counterpart=$3))' 같은 조건 INSERT 검증."
+  effort: trivial
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_review.go L29-38: GetCompletionForReview 후 status 만 검사, userID 가 RequestedByUserID/CounterpartUserID 인지 검증 0건. 분기는 단순 'userID == counterpart 면 target=requestedBy, 아니면 target=counterpart' — userID 가 어느 쪽도 아닌 경우 조용히 'else' 가지로 들어가 임의 user 에게 후기 적립. UNIQUE(completion_id, reviewer_user_id) 제약으로 중복은 막히지만 1회 공격은 통과."
+
+- id: imp-0253
+  found_at_iter: 18
+  area: review
+  type: feature
+  target: review_received_notification_missing
+  problem: "사용자가 후기를 받아도 알림이 발송되지 않는다. CreateReview 트랜잭션(postgres_reservation.go L270-306)이 reviews INSERT + user_profiles 카운터 업데이트 + alignment 적립만 하고, notifications 테이블 insert 또는 SSE event publish 호출 0건. ripgrep 'review' across backend/internal/event 결과 0건. 즉 셀러는 자기 프로필을 직접 새로고침하기 전까진 새 후기가 달렸는지 모르며, negative 후기에 대한 답변·소명 기회도 늦어진다. 후기 작성자는 자기 후기가 카운트됐는지 확인하기 위해 매번 상대 프로필을 봐야 한다."
+  proposal: "(1) CreateReview 트랜잭션 끝에 notifications INSERT 추가: 타입 'review_received', target_user_id=reviewee, payload={ reviewerNickname, rating, listingTitle }. (2) SSE /sse/notifications 채널로 즉시 push — 사용자가 알림 벨 클릭 시 'OO님이 좋았어요 후기를 남겼습니다' 카드. (3) negative 후기는 추가로 '답변하기(7일 이내)' CTA 포함(imp-0109 의 seller response 도입과 결합). (4) 7일 후 자동 정리 cron 에 review_received 도 포함."
+  effort: small
+  impact: high
+  evidence: "코드 backend/internal/repository/postgres_reservation.go L270-306 CreateReview 트랜잭션 — notifications INSERT 0건, event publish 0건. backend 디렉토리 grep 'review.*notif|notif.*review' 0건. SSE 핸들러(handlers_sse.go) 에서 review 이벤트 publish/subscribe 0건. 사용자는 프로필 페이지 reload 전까지 새 후기 인지 불가."
+
+- id: imp-0254
+  found_at_iter: 18
+  area: review
+  type: bug
+  target: review_list_silent_50_limit_data_loss
+  problem: "ListUserReviews SQL 에 'LIMIT 50' 이 하드코딩되어 있다(postgres_reservation.go L312). imp-0115 의 페이지네이션 제안과 별개로, 현 상태는 '데이터 일부가 사일런트 누락' 이라는 더 무거운 문제다. 후기 51개를 받은 셀러의 51번째 후기는 API 응답에서 빠지고, 클라이언트는 'reviews.length === 50' 인 줄만 알고 더 있다는 신호도 받지 못한다. 받은 리뷰 헤더 '받은 리뷰 (50)' 는 거짓말이 되며, 후기 차트/통계(imp-0107)의 모든 ratio 계산이 잘못된 분모로 산출된다."
+  proposal: "단기: LIMIT 50 → LIMIT 1000(현실적 상한)으로 즉시 완화 + 응답에 'truncated: true' 플래그 노출해 사용자에게 '최대 N개만 표시 중' 경고. 장기: imp-0115 의 cursor pagination 와 함께 totalCount 별도 SELECT COUNT(*) 응답 추가해 헤더 숫자가 실제 총량과 일치하도록 보장. 또한 user_profiles 에 positive_review_count + negative_review_count 카운터를 read-time 출처로 사용하면 LIMIT 영향 없이 총량 노출 가능."
+  effort: trivial
+  impact: high
+  evidence: "코드 backend/internal/repository/postgres_reservation.go L308-312 SELECT … LIMIT 50 — 51번째 행부터 응답 누락. handlers_review.go L73 'data: reviews' 응답에 totalCount/truncated 필드 0건. 클라이언트 web/app/profile/[userId]/reviews/page.tsx L31 '받은 리뷰 ({reviews.length})' 가 실제 총량과 다를 수 있음."
+
+- id: imp-0255
+  found_at_iter: 18
+  area: review
+  type: feature
+  target: review_request_auto_reminder_after_completion
+  problem: "거래 완료(deal_completed) 후 후기 작성을 유도하는 reminder 가 0건이다. 사용자가 그 시점에 모달을 닫거나 다른 화면으로 이동하면 후기는 영영 작성되지 않는다. 결과적으로 '후기 작성률(reviews / completed_trades)' 이 매우 낮아 신뢰 시그널 양 부족 — 새 셀러가 신뢰 빌드업까지 가는 시간이 길어진다. 또한 운영 데이터 부족(거래 N% 만 후기로 검증됨) 으로 분쟁 시 알리바이도 약함."
+  proposal: "(1) trade_completion 이 confirmed 되면 24h/72h 두 번 reminder 알림 발송(notifications + SSE). 본문 'OO 매물 거래는 어땠나요? 한 줄 후기로 다음 사람을 도와주세요'. (2) 7일 지나면 reminder stop, 14일까지는 작성 가능 윈도우. (3) profile/trades 의 '거래 완료' 카드에 '후기 작성하기 (D-X)' 카운트다운 배지 + 미작성 거래만 필터. (4) 대시보드 메트릭: 후기 작성률 KPI(주 단위)."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend 측 cron/scheduler grep — main.go L39 부근 sweep 은 refresh_token, notification cleanup 만(이전 commit 'feat(backend): 알림 7일 자동 정리'). 후기 reminder 관련 cron 0건. notifications.type 값에 'review_reminder' 없음(현재 도메인 모델 탐색 결과). chat-page 의 deal_completed 이후 reminder UI 0건."
+
+- id: imp-0256
+  found_at_iter: 18
+  area: review
+  type: feature
+  target: review_verified_buyer_badge
+  problem: "리뷰 카드는 reviewerNickname + rating + comment 만 보여줘 '실제로 거래한 사람의 후기' 라는 신뢰 시그널이 약하다. 외부 플랫폼은 'Verified Purchase' 배지로 마케팅성 가짜 후기와 실거래 후기를 구분한다. 본 시스템은 reviews.completion_id FK 가 있어 모든 후기가 본질적으로 verified buyer 인데, UI 가 그 사실을 사용자에게 전달하지 않는다 — 신뢰의 자원을 그냥 버리는 셈."
+  proposal: "(1) 리뷰 카드에 작은 chip '거래 완료 후기' 또는 '✓ 실거래' 추가, 툴팁 '플랫폼이 거래 완료를 확인한 후기입니다'. (2) 카드 좌측 4px 색띠로 시각적 강조. (3) 백엔드 응답에 verified=true 평면 필드 명시(향후 import 된 외부 후기/마이그레이션 후기 구분 시 false 가능). (4) 매물 카드에도 '실거래 후기 N건' 으로 노출(imp-0105 와 결합)."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/profile/[userId]/reviews/page.tsx L34-62 리뷰 카드: verified/실거래 배지 0건. backend handlers_review.go L70-72 응답: verified 필드 0건. 그러나 reviews.completion_id FK 는 존재하므로 (001_initial.sql L211) 모든 후기가 정의상 verified — 시각화만 누락."
+
+- id: imp-0257
+  found_at_iter: 18
+  area: review
+  type: feature
+  target: review_with_photo_attachments
+  problem: "리뷰는 텍스트 한 줄만 가능해 거래 시 받은 매물 사진/스크린샷 첨부가 불가능하다. 리니지 클래식 거래는 '약속한 옵션이 진짜였는지' 가 핵심 쟁점인데, 후기 사진(가령 인벤토리 스크린샷, 거래 영수증) 없이 텍스트만으로는 분쟁 발생 시 증거력이 약하고, 다른 구매자도 '이 셀러가 약속대로 매물을 줬는지' 시각적으로 검증 불가."
+  proposal: "(1) ReviewModal 에 image upload 영역 추가(최대 3장, 5MB). (2) reviews 테이블에 image_urls TEXT[] 컬럼 추가, S3/local 스토리지 같은 ImageController 재사용. (3) 리뷰 카드에 thumbnail 그리드 + 클릭 시 lightbox. (4) 운영자 측 신고된 사진은 blur 처리 + manual review. (5) 사진 첨부 후기는 '사진 첨부 후기' 배지 + 정렬 옵션 '사진 후기만'."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/components/forms/review-modal.tsx L36-67: form 안 image input 0건. backend reviews 스키마(001_initial.sql L209-218): image_urls 컬럼 0건. 도메인 모델 review 에 사진 필드 0건. 매물 listing 은 ImageController + uploaded_images 테이블 활용 중이라 인프라 재사용 가능."
+
+- id: imp-0258
+  found_at_iter: 18
+  area: review
+  type: feature
+  target: review_content_moderation_filter
+  problem: "리뷰 comment 가 자유 텍스트인데 backend 단에서 욕설/PII(전화번호·계좌번호·디스코드 ID)/외부 링크/스팸 패턴 필터가 0건이다. handlers_review.go L20-23 에 binding 도 string 타입 검증만. 사용자 닉네임 + 후기는 공개 페이지(/profile/[userId]/reviews) 에 영구 노출되므로 악의적 후기 작성자가 '01012345678 사기꾼' '디코 fakeid 사칭함' 같은 PII/명예훼손 텍스트를 박으면, 신고-삭제 워크플로(imp-0111) 가 작동하기 전까지 검색엔진에 인덱싱될 수도 있다."
+  proposal: "(1) backend 측 가벼운 필터: 한국어 욕설 사전(공개 OSS) + 정규식(전화번호, 한글 11자 이상 연속숫자, URL) 매치 시 자동 hidden_pending_review 상태로 INSERT, 운영자 검토 후 publish. (2) 또는 즉시 차단 + '욕설/연락처는 후기에 포함할 수 없습니다' inline 안내. (3) 외부 도메인 URL 은 strip 또는 mask. (4) 운영 대시보드에 'pending review' 큐. (5) 셀러 신고 1건 이상 누적된 후기는 자동 hidden + 검토 대기."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_review.go L20-23: comment *string binding 'oneof/regex' 0건. ripgrep 'profanity|badwords|moderation|filter' across backend 결과 0건. 리뷰 작성 후 즉시 LIST API 에 노출(workflow: insert→공개)되어 검토 단계 0개. 도메인 모델 reviews 에 status/visibility 컬럼 0건(001_initial.sql L209-218)."
+
+- id: imp-0259
+  found_at_iter: 18
+  area: review
+  type: ux
+  target: review_modal_no_disabled_reason_tooltip
+  problem: "ReviewModal 의 submit 버튼이 rating 미선택 시 disabled 되지만, 사용자에게 '왜 비활성화인가' 가 안내되지 않는다(L63 disabled={submitting || !rating}). 시각 단서는 opacity-50 뿐, hover/focus 툴팁/aria-describedby/inline 메시지 0건. 모바일 사용자가 '한 줄 코멘트(선택)' 만 입력하고 [리뷰 제출] 을 탭했을 때 아무 피드백 없이 버튼이 안 눌리면 '버그인가?' 로 오해 후 이탈."
+  proposal: "(1) 버튼 아래 inline 안내 문구 — rating === null 이면 '평가를 먼저 선택해 주세요(좋았어요/아쉬웠어요)' 표시, 선택되면 fade-out. (2) submit 버튼에 aria-describedby='submit-helper-text' 로 SR 사용자에게도 사유 노출. (3) 사용자가 disabled 인 버튼을 탭하면 light shake animation + toast '평가 선택 필요'. (4) imp-0112 의 radiogroup 의무화와 결합."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/forms/review-modal.tsx L63: 'disabled={submitting || !rating}' — 그 옆/아래에 helper text/error message JSX 0건. aria-describedby 0건. 클릭 시 피드백(toast/shake) 핸들러 0건. opacity-50 시각 단서만 의존."
