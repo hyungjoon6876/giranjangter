@@ -1708,3 +1708,168 @@
   impact: medium
   evidence: "코드 web/app/profile/trades/page.tsx L33-67 chip 필터 0건, search input 0건. trade type 4종(L19-24 chatStatusLabel) 모두 한 list. archived 개념 0건."
 
+- id: imp-0156
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: redirect_param_context
+  problem: "/login?redirect=%2Fchat 처럼 redirect 쿼리가 있어도 로그인 화면 본문에는 어디로 돌아갈지 단서가 0건이다 — 헤더(\"로그인\") + 로고 + 'kim(으)로 로그인' Google 버튼 + '로그인 없이 둘러보기' 만 노출. 사용자는 '왜 지금 로그인 화면에 왔지? 채팅 누르려고 했는데?' 의 맥락을 잃고, 의도치 않게 '둘러보기'를 눌러 같은 흐름을 또 반복한다. 채팅/매물등록/예약 모두에서 redirect 가 발생하는데 어떤 행동을 이어가는지 알리지 않는다."
+  proposal: "(1) web/app/login/page.tsx L31-35 sanitization 결과로 path → 한국어 라벨 매핑 — '/chat'→'채팅 시작하려면', '/listings/new'→'매물 등록하려면', '/listings/<id>'→'이 매물에 채팅·찜하려면', '/profile'→'내 정보 보려면' (사전식 매핑 + fallback '계속하려면'). (2) 로고 아래에 작은 배지/문구로 '{label} 로그인이 필요합니다' 표시 (text-text-secondary, mb-2). (3) redirect 가 '/' 인 일반 진입은 기존 tagline 유지. (4) 마침표 없는 한 줄, 두 줄 미만(L92 '리니지 클래식 거래 플랫폼' 자리 또는 그 위)."
+  effort: trivial
+  impact: medium
+  evidence: "1280x800 + 375x667 두 뷰포트 모두에서 ?redirect=/chat 진입 시 본문에 'chat' 단어 0건. login/page.tsx L31-35 sanitize 결과를 사용해 router.push(redirect) 만 하고 표시는 안 한다. listing_create 영역의 imp-0011 와 다름 — 그쪽은 매물상세에 '로그인하면…' CTA, 여기는 로그인화면 자체의 맥락 텍스트."
+
+- id: imp-0157
+  found_at_iter: 11
+  area: auth
+  type: feature
+  target: oauth_provider_diversity
+  problem: "코드 web/app/login/page.tsx L9-10, L65-72 가 Google 단일 OAuth 만 제공한다 — 한국 사용자(리니지 클래식 주 타겟)는 카카오/네이버 계정 보유율이 Google 보다 높고, '게임용 부계정' 에는 일부러 Google 안 쓰는 사용자가 있다. backend handlers_auth.go L45-72 의 switch 문도 case 'google' 단 하나(나머지는 dev 모드 only). Apple Sign-In(iOS Flutter 출시 시 필수)도 부재. 신규 가입 마찰이 'Google 계정 없음 = 가입 불가' 의 hard wall."
+  proposal: "(1) Kakao OAuth 추가 — KOE205(앱 키 등록) → web/app/login/page.tsx 에 카카오 SDK + 노란 버튼 추가, backend oauth/kakao.go 신규(idtoken.Validate 패턴 따라 user_info 호출). (2) Naver OAuth 추가 — Naver Login API. (3) Apple Sign-In(Flutter 모바일 우선, 웹은 후순위) — 'Sign in with Apple' 가이드라인 충족(black/white 테마, 라운드 코너). (4) DB users.login_provider 는 이미 TEXT 라 마이그레이션 불필요(L29 DEFAULT 'kakao' 가 이미 있음 — 본디 다중 의도). (5) 첫 진입 시 '추천 — Google' 표시(현재 사용자 가장 많은 provider 통계), 나머지는 'OR' divider 아래."
+  effort: large
+  impact: high
+  evidence: "코드 web/app/login/page.tsx L65-72 renderButton Google 만, backend handlers_auth.go L45-71 switch case 'google' 만(default 는 dev only). Kakao/Naver/Apple 라이브러리 import 0건(grep 'kakao\\|naver\\|apple' web/lib → 0). 한국 OAuth 점유: 카카오 계정이 Google 보다 가입 베이스 큼."
+
+- id: imp-0158
+  found_at_iter: 11
+  area: auth
+  type: feature
+  target: account_deletion_self_serve
+  problem: "사용자가 계정을 자가 삭제할 진입점이 0건이다 — /profile/page.tsx L126-131 은 '로그아웃' 버튼만, '회원 탈퇴' 0건. backend grep 'withdraw\\|delete_account' → middleware/auth.go 에서 'withdrawn' 상태 체크만 있고 그 상태로 전이시키는 핸들러 0건(handlers_auth.go 에 회원 탈퇴 routes 0개). GDPR/개인정보보호법 관점에서 '개인 정보 삭제 요청' 채널 부재 + 사용자가 이 사이트와 영구 결별 수단 부재 — 운영자에게 이메일 보내야 하는 구조."
+  proposal: "(1) /profile/account → '회원 탈퇴' 신규 페이지 — '진행 중인 거래/예약 0 건' 체크 후 비활성화/허용. (2) 탈퇴 사유 5종 라디오('이용 빈도 낮음', '거래 사기 경험', '정보가 부족함', '다른 사이트 사용', '기타') + 자유 의견 textarea. (3) backend POST /me/withdraw — soft-delete: account_status='withdrawn', users.login_provider_user_key 익명화(prefix 'withdrawn:'+ uuid), user_profiles.nickname='탈퇴한 사용자', avatar_url=NULL, introduction=NULL. (4) 30일 grace period — 그 기간 동안 같은 OAuth sub 으로 재로그인하면 '복구하시겠습니까?' 모달, OK 면 status='active' 되돌림. (5) 30일 후 매물·채팅·리뷰 텍스트는 '탈퇴한 사용자' 로 표시되되 거래 통계는 보존. (6) 탈퇴 직전 '내 데이터 다운로드(JSON)' 버튼 — GDPR Right to Portability."
+  effort: large
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L40-45, L126-131 회원탈퇴 0건. backend grep 'withdraw\\|delete_account\\|me/delete' → 핸들러 routes 0건, 상태 'withdrawn' 정의만 존재(domain/models.go L154). 마이그레이션 0건."
+
+- id: imp-0159
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: logout_server_side
+  problem: "코드 web/app/profile/page.tsx L40-45 handleLogout 은 apiClient.clearTokens() 만 호출하고 backend POST /auth/logout 은 부르지 않는다(grep 'auth/logout' web/lib → 0건). backend handlers_auth.go L275-288 의 handleLogout 은 DeleteRefreshTokensByUser 로 모든 디바이스 refresh 무효화 — 그러나 클라이언트가 호출 안 하므로 '로그아웃' 후에도 다른 탭/디바이스의 refresh token 은 살아있다. '공용 PC 에서 로그아웃' 시나리오에 보안 취약."
+  proposal: "(1) web/lib/api-client.ts 에 logout() 메서드 추가 — POST /auth/logout 후 clearTokens(). (2) profile/page.tsx L40-45 handleLogout 을 await apiClient.logout() 으로 교체. (3) 백엔드 호출 실패해도 로컬 token 은 클리어(silent fail) — 네트워크 끊김 시에도 사용자 의도(로그아웃) 는 만족. (4) '로그아웃' 옆에 '모든 디바이스에서 로그아웃' 부가 옵션(현재 backend 가 이미 모든 디바이스 토큰 삭제하므로 단순 라벨링 명확화) — 또는 backend 를 '이번 디바이스만' 으로 좁히고 별도 '모든 디바이스 로그아웃' 옵션 추가. (5) 로그아웃 후 router.push('/') + addToast('info', '로그아웃되었습니다')."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/profile/page.tsx L40-45 logout 4줄 — clearTokens, queryClient.clear, router.push, refresh. apiClient grep 'logout' → 0건. backend handlers_auth.go L275-288 routes 등록되어 있으나 호출처 0건."
+
+- id: imp-0160
+  found_at_iter: 11
+  area: auth
+  type: feature
+  target: device_session_management
+  problem: "코드 backend/db/migrations/005_refresh_tokens.sql refresh_tokens 테이블에 user_agent, ip_address, device_label, last_used_at 컬럼 0건 — 사용자가 '내 활성 세션 5개 중 신뢰 안 가는 1개만 삭제' 불가. 서버는 토큰 발급/회전만 알고 '어떤 디바이스/브라우저' 인지 모른다. 의심스러운 로그인(타지역 IP) 알림도 불가. 핸드폰 분실 시 '저 디바이스만 로그아웃' 기능 부재(현재 logout 은 all-or-nothing)."
+  proposal: "(1) 마이그레이션 — refresh_tokens 에 user_agent TEXT, ip_address INET, device_label TEXT, last_used_at TIMESTAMPTZ DEFAULT NOW(), created_country TEXT 추가. (2) handleLogin/handleRefresh 에서 c.Request.UserAgent(), c.ClientIP() 기록. (3) GET /me/sessions → 본인 모든 활성 refresh_tokens 목록 반환(device_label, last_used_at, created_at, ip_address 마스킹). (4) DELETE /me/sessions/:id → 특정 세션만 종료. (5) /profile/security 페이지 — 활성 디바이스 카드 list, '이번 디바이스' 표시, 다른 디바이스 'X' 버튼. (6) device_label 자동 생성 — UA 파싱: 'Chrome on macOS', 'Safari on iPhone', 'Mobile Web'."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/db/migrations/005_refresh_tokens.sql L2-8 컬럼 5개(id, user_id, token_hash, expires_at, created_at) 만 — UA/IP 컬럼 0건. backend grep 'UserAgent\\|ClientIP' handlers_auth.go → 0건. /me/sessions 라우트 0건(main.go grep)."
+
+- id: imp-0161
+  found_at_iter: 11
+  area: auth
+  type: feature
+  target: terms_of_service_consent_tracking
+  problem: "신규 가입 흐름에 약관/개인정보처리방침 동의 단계가 0건이다 — backend handlers_auth.go L86-97 isNew 분기에서 CreateUserWithProfile 만 호출, terms_agreed_at·privacy_agreed_at 컬럼 0건(grep 'tos\\|terms\\|agreed_at' migrations → 0). web/app/login 에 약관 링크/체크박스 0건. 한국 정보통신망법·개인정보보호법상 만 14세 미만 가입 차단·약관 동의 시점 기록 의무 위반 가능성. 약관 변경 시 '재동의' 강제 메커니즘 부재."
+  proposal: "(1) 마이그레이션 — users 에 terms_version TEXT, terms_agreed_at TIMESTAMPTZ, privacy_version TEXT, privacy_agreed_at TIMESTAMPTZ, age_confirmed_at TIMESTAMPTZ 추가. (2) /onboarding 신규 페이지 — isNew=true 의 첫 로그인 응답 후 redirect, 약관(scrollable) + 개인정보 + '만 14세 이상' 체크박스 3종 + '동의하고 시작하기' 버튼. (3) backend POST /me/agreements — 4 컬럼 timestamp 기록. (4) 운영 중 약관 버전 갱신 시(예: v1→v2), middleware 가 users.terms_version != current 면 /me 응답에 'agreementUpdated: true' 플래그 → 다음 진입 시 /onboarding/update 강제. (5) /docs/terms, /docs/privacy 정적 페이지(이미 footer 에 링크 있다고 추정 — 없으면 신설)."
+  effort: large
+  impact: high
+  evidence: "코드 backend/db/migrations/ grep 'terms\\|tos\\|agreed_at\\|privacy' → 0건. handlers_auth.go L86-97 신규 가입 시 약관 컬럼 기록 0건. web/app/login/page.tsx 본문에 '약관' '개인정보' 단어 0건(snapshot 확인). users 테이블 컬럼 5종(L27-36)에 동의 컬럼 0건."
+
+- id: imp-0162
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: post_login_landing_for_new_user
+  problem: "backend handlers_auth.go L120-134 가 isNewUser:true 를 응답에 포함하나 web/app/login/page.tsx L41-54 handleGoogleResponse 는 이 플래그를 무시하고 redirect(=요청 path) 로 무조건 push 한다 — 신규/기존 동일 흐름. 신규는 닉네임 '유저_xxxxxxxx'(handlers_auth.go L89) 자동 부여 + 프로필 비어있음 + 서버 미선택 상태로 매물 화면 진입, '리니지 클래식의 어떤 서버를 쓰나요?' '닉네임 바꾸세요' 같은 첫 행동 가이드 0건. 신규 retention 의 핵심 onboarding moment 누락."
+  proposal: "(1) login/page.tsx L41-54 handleGoogleResponse — response.user.isNewUser === true 면 router.push('/onboarding/welcome') 로 redirect 우선. (2) /onboarding/welcome 신규 페이지 — 환영 + 3 단계 stepper: ① 닉네임 설정(default '유저_xxx' overwrite, 중복 체크 inline) → ② 주 서버 선택(Servers list, primary_server_id) → ③ 거래 약속/매너 안내(클릭률 기록). (3) 마지막에 '시작하기' 버튼 → router.push(원래 redirect). (4) 'Skip' 가능하지만 닉네임만 필수. (5) 진행 중간 이탈해도 다음 로그인 시 onboarding_completed_at NULL 이면 다시 강제(또는 banner)."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/login/page.tsx L41-47 handleGoogleResponse — response.user 의 isNewUser 분기 0건, 단순 router.push(redirect). backend handlers_auth.go L133 'isNewUser': isNew 응답에 포함되나 클라이언트는 무시. 닉네임 default '유저_'+userID[:8] (L89) — 사용자 친화 닉네임 0건."
+
+- id: imp-0163
+  found_at_iter: 11
+  area: auth
+  type: a11y_mobile
+  target: anonymous_browse_link_tap_target
+  problem: "375x667 뷰포트 측정 — '로그인 없이 둘러보기' 버튼 BoundingRect 106x18 px(playwright evaluate 결과). WCAG 2.5.5 / Apple HIG / Material 의 44x44(또는 최소 36x36) 권장 미달. 클릭 시 router.push('/') 의 핵심 fallback 흐름인데 손가락 두꺼운 사용자/노안 사용자가 정확히 누르기 힘들다. 헤더 '로그인' 링크도 57x30 — 역시 아래 한도 미달."
+  proposal: "(1) web/app/login/page.tsx L102-107 button — className 의 px-4 py-2 → px-6 py-3, min-h-[44px] 는 이미 있으나 width 가 텍스트만큼만 — display:block + max-w-[280px] mx-auto 로 가로 확장. (2) text-sm → text-base 로 폰트 13→16px, 손가락 크기와 라벨 크기 균형. (3) 헤더 '로그인' 링크는 components/layout/responsive-header 에서 px-3 → px-4, py-2 보장. (4) icon + label 조합으로 '←  로그인 없이 둘러보기' 화살표 추가 — 시각적 affordance + 클릭 영역 확장."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright browser_evaluate 375x667 결과: '로그인 없이 둘러보기' button rect w=106.09 h=18, 헤더 '로그인' link rect w=57.125 h=30. WCAG 2.5.5 권장 44x44 미달."
+
+- id: imp-0164
+  found_at_iter: 11
+  area: auth
+  type: content
+  target: tagline_value_prop_clarity
+  problem: "/login L92-93 의 H1 자리 텍스트가 로고('기란JT') + 한 줄 tagline '리니지 클래식 거래 플랫폼' 만 — 신규 사용자가 '여기서 뭘 할 수 있는지' '왜 안전한지' '왜 무료인지' 0건의 정보로 판단해야 한다. 'kim 으로 로그인' Google 버튼만 누르는 첫 행동을 강요받음. 경쟁 서비스(아이템매니아, 아이템베이) 인지도가 압도적이라 '왜 기란JT?' 의 짧은 차별 문구 절실."
+  proposal: "(1) tagline 을 2줄로 — 1줄 '리니지 클래식 거래, 무료로 안전하게' / 2줄(text-xs) '거래 수수료 0원 · 매너 평가 기반 · 게임사 비공식 커뮤니티'. (2) 로그인 버튼 위에 작은 trust signal — '✓ 익명 사용자 거래 추적 차단', '✓ Google 계정 OAuth 만 사용 — 비밀번호 0건', '✓ 1:1 채팅 암호화'(실제 구현 일치하는 것만). (3) Google 버튼 아래 'Google 계정으로만 로그인 가능 — 카카오/네이버 추가 예정'(provider 추가 timeline 시각화)."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright snapshot login 본문: img(로고) + p('리니지 클래식 거래 플랫폼') + iframe(Google 버튼) + button('로그인 없이 둘러보기'). value prop 문장 0건, 차별점 단어 0건('수수료'/'무료'/'안전' 0건)."
+
+- id: imp-0165
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: session_expiry_user_feedback
+  problem: "코드 web/lib/api-client.ts L67-74 의 401 → doRefresh 가 실패 시 L102 clearTokens() 만 하고 사용자에게 'session expired' 알림 0건. 사용자는 갑자기 useMe 결과 null → /profile 의 '로그인이 필요합니다' 화면으로 자동 튕기는 경험을 한다 — '내가 뭘 했길래?' 라는 혼란. 30일 refresh TTL(JWT_REFRESH_TTL=720h) 만료 후 / 다른 디바이스에서 logout-all 호출 후 / 약관 변경 후 모두 동일 silent fail."
+  proposal: "(1) api-client.ts L99-104 clearTokens() 직전에 window.dispatchEvent(new CustomEvent('auth:expired', {detail:{reason}})) 발행. (2) lib/providers 의 AuthExpiredListener 컴포넌트 신규 — listen 후 toast.warning('세션이 만료되었습니다 — 다시 로그인해주세요') + 5초 후 router.push('/login?redirect=' + currentPath). (3) refresh 실패 reason 분기 — 'expired'(자연 만료, info), 'revoked'(다른 디바이스 logout-all, warning), 'account_change'(약관/계정상태 변경, error). (4) 만료 직전 알림 — useEffect 로 access TTL 만료 1분 전 '세션이 곧 만료됩니다 — 활동을 계속하시려면 클릭'(soft renew)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/lib/api-client.ts L99-104 doRefresh 실패 시 console.error + clearTokens 만 — toast/router/event 호출 0건. AuthExpired 컴포넌트 0건(grep 'auth:expired' web → 0). JWT_ACCESS_TTL 15m, JWT_REFRESH_TTL 720h(config)."
+
+- id: imp-0166
+  found_at_iter: 11
+  area: auth
+  type: performance
+  target: token_storage_xss_hardening
+  problem: "코드 web/lib/api-client.ts L33-46 가 accessToken/refreshToken 을 localStorage 에 평문 저장(Playwright evaluate 로 ls 키 확인) — 임의의 XSS(외부 라이브러리 취약점, 사용자 생성 콘텐츠 escape 누락 등)로 토큰 탈취 시 attacker 가 30일간 사용자 사칭 가능. 30일 refresh + 평문 storage 의 조합이 위험. 보안 퍼포먼스 관점: 'fast token availability vs XSS surface' 트레이드오프."
+  proposal: "(1) refresh token 만 HttpOnly + Secure + SameSite=Strict cookie 로 이전 — backend handleLogin 응답에서 Set-Cookie 헤더 추가, web 은 credentials:'include' 로 자동 전송(localStorage 에서 제거). (2) access token 은 in-memory(window 변수) — XSS 시에도 새로고침으로 즉시 휘발. (3) 새로고침 시 /auth/refresh 자동 호출(쿠키만으로) → access 받음 → 메모리에 저장. (4) tab 간 동기화 — BroadcastChannel('auth') 로 'login'/'logout' 이벤트 broadcast. (5) Caddy/nginx CSP 헤더 'script-src' 강화로 XSS 자체 1차 차단. (6) 단계적 — 먼저 refresh 만 cookie 화, access 는 localStorage 유지 → 호환성 검증 후 access in-memory 로."
+  effort: large
+  impact: high
+  evidence: "Playwright browser_evaluate localStorage 키: ['accessToken','refreshToken'] (로그인 후, 추정). 코드 api-client.ts L33-35, L42-47 localStorage.setItem 직접 호출. 쿠키 사용 0건(grep 'Set-Cookie\\|HttpOnly' backend handlers_auth.go → 0). CSP 헤더 검토 필요."
+
+- id: imp-0167
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: multi_tab_logout_sync
+  problem: "사용자가 탭 A 에서 로그아웃하면 — 코드 web/app/profile/page.tsx L40-45 가 localStorage.removeItem 만, 탭 B 의 apiClient 인스턴스(이미 메모리에 accessToken 보유)는 모르고 계속 작동 — 'storage' 이벤트로 use-auth.ts L7-9 가 isLoggedIn snapshot 만 갱신, 그러나 apiClient.accessToken 멤버는 stale. 다음 fetch 까지 'logged in' 처럼 동작 → 401 받음 → silent refresh 시도 → revoked refresh → clearTokens(이번엔 동기화). 일관성 깨짐 + 보안 윈도우 존재."
+  proposal: "(1) api-client.ts 에 syncFromStorage() 추가 — window addEventListener('storage', e => { if (e.key === 'accessToken' && e.newValue === null) { this.accessToken = null; this.refreshToken = null } }). (2) constructor 에서 자동 등록. (3) BroadcastChannel('auth') 도입 시(imp-0166 와 결합) 'logout' 메시지 받으면 즉시 clearTokens + router.push('/'). (4) Service Worker 가 있다면(grep) postMessage 동기화. (5) tab 간 race 제거 — 한 번 로그아웃하면 모든 탭이 0.5초 내 같은 화면(/) 으로."
+  effort: small
+  impact: medium
+  evidence: "코드 web/lib/api-client.ts L23-46 ApiClient 클래스 — storage event listener 0건(grep 'addEventListener\\|storage' api-client.ts → 0). use-auth.ts L6-9 는 useSyncExternalStore 로 isLoggedIn 만 sync, apiClient 멤버 accessToken 은 직접 참조 안 함. logout 시 다른 탭 sync 0건."
+
+- id: imp-0168
+  found_at_iter: 11
+  area: auth
+  type: feature
+  target: account_recovery_notification_channel
+  problem: "코드 backend/db/migrations/001_initial.sql L27-36 users 테이블에 email/phone 컬럼 0건 — Google OAuth 로 받은 email(oauth/google.go L11-14 GoogleTokenInfo.Email) 은 인증 시 존재하지만 사용자 row 에 저장 안 함(handlers_auth.go L92 CreateUserWithProfile signature 가 nickname 만 받음). 결과: '계정 정지 이메일 통지', '약관 변경 안내', '비활성 계정 곧 삭제' 등 어떤 out-of-band 통신 채널도 부재. 운영자가 사용자에게 직접 닿을 수단 0건."
+  proposal: "(1) 마이그레이션 — users 에 email TEXT(nullable, UNIQUE 아님 — 멀티 OAuth 같은 메일 가능), email_verified BOOLEAN DEFAULT FALSE, email_consented_marketing BOOLEAN DEFAULT FALSE 추가. (2) handleLogin L86-97 — info.Email 을 users.email 에 저장(Google OAuth 는 email_verified=true). (3) /profile/notifications-prefs 페이지 — 마케팅 수신 동의 토글, 거래 알림(필수) on, 운영 공지 토글. (4) backend SMTP 설정(env SMTP_HOST 등) + 단순 sendEmail() helper(SES/SendGrid/Mailgun 중 무료 등급). (5) 첫 사용 — 약관 변경 통지 1회 발송 테스트, 정지 알림, 30일 휴면 경고."
+  effort: large
+  impact: medium
+  evidence: "코드 backend/db/migrations/001_initial.sql L27-36 users 컬럼 — id, login_provider, login_provider_user_key, account_status, role, last_login_at, created_at — email/phone 0건. handlers_auth.go L86-97 isNew 분기 info.Email 을 변수에서 dropping(저장 0건). SMTP 라이브러리 import 0건(go.mod grep 'mail' → 0). AccountSuspended 통지 채널 0건."
+
+- id: imp-0169
+  found_at_iter: 11
+  area: auth
+  type: ux
+  target: error_message_disambiguation
+  problem: "코드 web/app/login/page.tsx L48-53 catch 블록은 backend 에러를 setError(apiErr?.error?.message ?? '로그인에 실패했습니다') 로 일괄 표시 — 'Google 인증에 실패했습니다'(handlers_auth.go L57) 와 '계정이 정지되었습니다' (suspended)(handlers_auth.go L177) 모두 같은 빨간 텍스트로만. 사용자가 '내 잘못인지(토큰 만료/취소) vs 계정 문제(정지/탈퇴) vs 서버 문제(500)' 구분 불가 — 'Google 로 다시 시도' 인지 '고객센터 문의' 인지 다음 행동을 모름."
+  proposal: "(1) login/page.tsx L48-53 — apiErr.error.code 별 분기 UI: code='UNAUTHORIZED' → '인증이 거절되었습니다 — 다시 시도하세요' + Google 버튼 강조 / code='ACCOUNT_SUSPENDED' → '계정이 정지되었습니다 — 사유: <message>' + '고객센터 문의(giranjt@gmail.com)' link / code='ACCOUNT_WITHDRAWN' → '탈퇴한 계정입니다 — 새 Google 계정으로 시도하세요' / code='INTERNAL_ERROR' → '서버 오류 — 잠시 후 다시 시도하세요'(retry 버튼 30초 cooldown). (2) 에러 경계 색상 구분 — auth(노랑) vs account(빨강) vs server(회색). (3) 5번 연속 같은 code 면 '문제가 계속되면 giranjt@gmail.com 으로 문의하세요'."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/login/page.tsx L48-53 catch — apiErr.error.message 만 사용, error.code 분기 0건. backend 가 보내는 code 6종 이상(UNAUTHORIZED/ACCOUNT_SUSPENDED/ACCOUNT_WITHDRAWN/VALIDATION_ERROR/INTERNAL_ERROR/FORBIDDEN). UI 는 단일 빨간 p (text-[#e74c3c])."
+
+- id: imp-0170
+  found_at_iter: 11
+  area: auth
+  type: a11y_mobile
+  target: google_oauth_iframe_focus_management
+  problem: "Playwright snapshot 의 Google 로그인 iframe(ref=e44) 은 cross-origin → 키보드 Tab 으로 진입은 가능하나 focus ring 이 시각적으로 약하고 뒤로(Shift+Tab) 나가는 경로가 명확하지 않음. /login 본문에는 Google 버튼 외에 fallback 로그인 수단 0건이라 iframe 안에서 막히면 키보드만 쓰는 사용자(스크린리더, 손 부상)가 갇힌다. 또한 iframe focus 시 외부 페이지의 ESC 가 'login 취소' 의도로 동작 안 함."
+  proposal: "(1) login/page.tsx L96 ref={googleBtnRef} 컨테이너에 onKeyDown — ESC 누르면 router.push('/'), Tab from outside 진입 시 visible focus ring(focus:ring-2 ring-gold). (2) iframe 위에 sr-only 라벨 — '<span class=sr-only>Google 계정으로 로그인. iframe 안의 버튼을 사용하거나 ESC 로 취소</span>'. (3) iframe 아래 '키보드 사용자: 둘러보기로 돌아가려면 Shift+Tab' helper text(sr-only 또는 detail). (4) fallback CTA(imp-0157 의 다른 provider 도입 시) 키보드 흐름 검증."
+  effort: trivial
+  impact: low
+  evidence: "Playwright snapshot ref=e44 iframe(Google Sign-In) — outer page 에서 ESC handler 0건(login/page.tsx grep 'onKeyDown\\|ESC\\|Escape' → 0). iframe 외 키보드 진입 가능 요소 4종(헤더 로그인, body skip-link, 본문 둘러보기, 하단 nav 4개) 만."
+

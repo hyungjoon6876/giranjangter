@@ -13,3 +13,4 @@ iter 7 | bugs +0/-1=0 | improvs +16=117 | merged auto/bug-7-0002 (web/lib/utils.
 iter 8 | bugs SKIPPED (loop done) | improvs +12=129 | report: imp-0118 chat report 100% silent fail (target_type 불일치 chat_room vs backend oneof), no my-reports page, no evidence upload, no SLA notification
 iter 9 | bugs SKIPPED | improvs +8=137 | notification: imp-0130 TS Notification type 불일치 (silent broken render) + imp-0131 backend INSERT 0건 (feature 사실상 dead code) + 인앱 채널만 (no web push/email)
 iter 10 | bugs SKIPPED | improvs +18=155 | profile: /profile/<userId> 인덱스 404 (only /reviews), trustBadge raw 렌더, logout 확인 없음, blocked-list/settings/characters 화면 부재
+iter 11 | bugs SKIPPED | improvs +15=170 | auth: oauth provider 다양화, 계정 삭제 self-serve, device session mgmt, multi-tab logout sync, T&C consent tracking; 🎯 areas 11/11 완주
