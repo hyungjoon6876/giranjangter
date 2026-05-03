@@ -828,3 +828,168 @@
   impact: medium
   evidence: "코드 web/components/forms/image-upload.tsx L90-95: <div onDrop onDragOver onClick>...</div>. tabIndex/role/aria-label 모두 미설정, onKeyDown 핸들러 0건, onDragEnter/Leave 핸들러 0건."
 
+- id: imp-0076
+  found_at_iter: 5
+  area: chat
+  type: ux
+  target: chat_redirect_param_loss_on_direct_load
+  problem: "익명 사용자가 https://giranjt.com/chats 또는 /chats/abc-123 으로 직접 진입(외부 링크/북마크/공유)하면 ChatsPage / ChatDetailPage 의 useEffect 가 router.replace('/login') 만 호출하고 redirect 쿼리 파라미터를 부착하지 않아, 로그인 후 사용자는 의도한 채팅이 아닌 / 로 떨어진다. login page.tsx L31-35 는 ?redirect= 를 처리할 준비가 되어 있는데도 호출처에서 누락된다."
+  proposal: "(1) web/app/chats/page.tsx L31, web/app/chats/[id]/page.tsx L97 의 router.replace('/login') 을 router.replace(`/login?redirect=${encodeURIComponent(pathname)}`) 로 변경. (2) 또는 useAuthGuard 의 requireAuth 패턴을 useEffect 내부에서도 재사용해 모든 게이팅 페이지에서 redirect 보존을 일관 처리. (3) /create 페이지에도 같은 패턴 점검(imp-0062 와 함께)."
+  effort: trivial
+  impact: high
+  evidence: "Playwright 익명 375x667: https://giranjt.com/chats → 최종 URL https://giranjt.com/login (redirect param=null). https://giranjt.com/chats/abc-123 → 동일 결과. 코드 web/app/chats/page.tsx L31 router.replace('/login'), web/app/chats/[id]/page.tsx L97 동일 패턴. login page.tsx L31-35 는 searchParams.get('redirect') 처리 코드 보유."
+
+- id: imp-0077
+  found_at_iter: 5
+  area: chat
+  type: content
+  target: chat_login_gate_context_message
+  problem: "익명 사용자가 채팅 페이지로 진입해 /login 에 도달했을 때 로그인 화면 카피가 '리니지 클래식 거래 플랫폼' + '로그인 없이 둘러보기' 단 2줄로 일반 로그인 페이지와 100% 동일하다. 사용자는 '왜 채팅으로 못 갔는지', '로그인하면 채팅으로 돌아가는지' 알 수 없어 toast(2-3초 후 사라짐) 외에는 컨텍스트 시그널이 없다. imp-0062 와 동일한 패턴이 chat 영역에서도 발생."
+  proposal: "login 페이지에 redirect 파라미터 패턴별 컨텍스트 카피 추가. /chats 또는 /chats/* 일 때 '판매자와 채팅하려면 로그인이 필요해요. Google 로그인 후 바로 채팅으로 돌아갑니다.' 노출. redirect 매핑 테이블(/create→매물 등록, /chats→채팅, /profile→내 프로필)을 컴포넌트 상수로 두고 분기."
+  effort: trivial
+  impact: medium
+  evidence: "Playwright: https://giranjt.com/chats → /login bodyText='본문으로 건너뛰기마켓채팅매물 등록로그인리니지 클래식 거래 플랫폼로그인 없이 둘러보기...' (chat 컨텍스트 카피 0). 코드 web/app/login/page.tsx L89-115 은 redirect 변수 정의는 있으나 컨텍스트 메시지 분기 없음."
+
+- id: imp-0078
+  found_at_iter: 5
+  area: chat
+  type: feature
+  target: anonymous_chat_intent_capture
+  problem: "비로그인 사용자가 매물 상세에서 '채팅하기' 버튼을 보지 못한다(actions.length>0 가드, 익명 응답에 availableActions=null). 따라서 '이 판매자에게 문의하고 싶다' 의도가 있어도 1) 이 매물에 채팅 기능이 있는지 자체를 발견 못 하고, 2) 로그인 후 같은 매물로 돌아갈 경로가 끊긴다. 거래 conversion 의 핵심 경로가 막혀 있다."
+  proposal: "(1) 매물 상세에 '채팅하기' 버튼을 익명에게도 항상 노출하되, 클릭 시 'Google 로그인 후 채팅 시작하기' 라벨 + onClick 에서 /login?redirect=/listings/<id>?action=chat 으로 이동. (2) 로그인 콜백에서 action=chat 이면 자동으로 createChat → /chats/<id> 진입. (3) 또는 channeling page chat preview: 익명에게는 read-only system message '판매자: 안녕하세요! 로그인 후 메시지를 보내주세요' 만 노출하는 limited UI."
+  effort: medium
+  impact: high
+  evidence: "Playwright 익명 https://giranjt.com/listings/b155f6a7-...: button 0개(액션 바 미렌더). 코드 web/app/listings/[id]/page.tsx L207: actions.length>0 가드, L247 actions.includes('start_chat') 이중 가드. 익명 API 응답 availableActions=null."
+
+- id: imp-0079
+  found_at_iter: 5
+  area: chat
+  type: ux
+  target: chat_message_length_no_limit
+  problem: "ChatInput textarea 에 maxLength 가 설정되어 있지 않아 사용자가 수만 글자를 입력해도 클라이언트 단에서 차단되지 않는다. 서버 거부(413/422) 시 optimistic 메시지가 'failed' 상태로 남고 재전송 시도해도 같은 에러 반복, 사용자는 어디서 잘라야 할지 모른다. 이미 onSend(text.trim()) 로 공백만 막을 뿐 길이 가드 없음."
+  proposal: "(1) ChatInput textarea 에 maxLength={2000} (또는 백엔드 검증 한도와 동일 값) 부여. (2) 입력 글자수가 1800 이상이면 우하단에 'XXX/2000' counter 표시(text-text-secondary, >1950 시 text-danger). (3) 붙여넣기 시 즉시 잘라내고 toast '메시지는 2000자까지 입력할 수 있어요'. (4) 같은 한도를 backend domain validation 과 일치하게 lib/constants.ts 로 분리."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/chat/chat-input.tsx L52-64: textarea props={value, onChange, onKeyDown, placeholder, rows, aria-label, className, disabled} — maxLength 미설정. submit() L33-38 의 trimmed.length 가드 0건. lib/constants.ts 또는 도메인 상수 미존재."
+
+- id: imp-0080
+  found_at_iter: 5
+  area: chat
+  type: feature
+  target: image_attachment_in_chat
+  problem: "채팅 messageType 은 'text' | 'system' | 'reservation_card' 3종뿐이고, 이미지/파일 첨부 진입점이 ChatInput 에 없다. 거래 협상에서는 인벤토리 인증샷, 옵션 캡처, 입금 영수증 같은 이미지 공유가 핵심이다. 현재는 외부 디스코드/카톡으로 우회해야 하므로 plat lock-in 이 약하고 분쟁 시 증거 보존도 어렵다."
+  proposal: "(1) ChatInput 에 클립 아이콘 IconButton 추가 → input[type=file accept='image/*' capture='environment'] 트리거. (2) 백엔드에 messageType='image' 추가 + S3/storage upload 후 metadataJson={url,width,height} 형태 저장. (3) ChatMessage 에 image 분기로 next/image 렌더, 클릭 시 lightbox. (4) 단, MVP 수준에서는 이미지 1장/메시지 + 5MB 제한으로 시작."
+  effort: large
+  impact: high
+  evidence: "코드 web/lib/types.ts L83 messageType: 'text' | 'system' | 'reservation_card'. ChatInput L52-73 에는 파일 input 0개. 첨부 버튼/아이콘 0개. 백엔드 send-message 핸들러 'text' messageType 만 검증."
+
+- id: imp-0081
+  found_at_iter: 5
+  area: chat
+  type: ux
+  target: chat_list_search_filter
+  problem: "채팅 목록(/chats)은 ChatRoom[] 을 단순 시간순으로 나열한다. 거래가 활발한 사용자는 수십~수백 개 채팅방을 갖게 되는데, '활성 매물별', '예약 단계별', '미답장만', '특정 매물 제목' 같은 필터/검색이 없어 원하는 대화를 찾기 어렵다."
+  proposal: "(1) 페이지 상단에 검색 input '대화 검색 (상대방, 매물 제목)' + 필터 칩 [전체 / 안 읽음 / 예약 진행 / 거래 완료]. (2) 검색은 chats.filter(c => c.counterparty.nickname.includes(q) || c.listingTitle.includes(q)) 클라이언트 필터. (3) 빈 상태 분기 '검색 결과가 없어요. 다른 키워드로 시도해보세요'."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/chats/page.tsx: 검색 input 0개, 필터 칩 0개. chats.map 순회만 존재 (L88-94). EmptyState 는 chats.length===0 케이스만 처리."
+
+- id: imp-0082
+  found_at_iter: 5
+  area: chat
+  type: feature
+  target: typing_indicator
+  problem: "현재 SSE 로 메시지 도착 이벤트만 처리하고, 상대방이 '입력 중'이라는 시그널이 없다. 협상 도중 응답 대기 시간이 길게 느껴지고, 사용자는 상대가 떠났는지 답을 작성 중인지 알 수 없어 추가 메시지를 보내거나 이탈한다."
+  proposal: "(1) 백엔드 SSE 이벤트 타입 'typing' 추가, 클라이언트는 onChange debounce 1.5s 동안 'typing' 이벤트 publish, 받는 쪽은 활성 chat 헤더 아래에 '상대방이 입력 중...' indicator(animate-pulse 3 dots). (2) 마지막 typing 이벤트 후 3초 무음이면 indicator 자동 숨김. (3) 모바일은 chat header 가 좁아 ListingInfoCard 우측 또는 메시지 영역 하단에 인라인."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/lib/hooks/use-sse.ts: typing 이벤트 핸들러 없음. ChatPanel L141-155 은 connection status 만 노출. backend internal/event 카탈로그에도 typing 이벤트 미존재(추정). 사용자 활동 시그널은 unreadCount 와 lastMessage 단 2종."
+
+- id: imp-0083
+  found_at_iter: 5
+  area: chat
+  type: a11y_mobile
+  target: chat_input_mobile_keyboard_attrs
+  problem: "ChatInput textarea 에 enterkeyhint, autocomplete, autocapitalize, spellcheck, inputmode 속성이 없어 모바일 IME 키보드가 'send' 키 라벨도 없고 자동 대문자 변환이 영문 입력 시 어색하게 동작할 수 있다. 또한 Enter 가 '전송' 단축키인데 OS 기본 'return' 키와 시각적 차별화가 없어 학습이 어렵다."
+  proposal: "textarea 에 enterkeyhint='send', autocomplete='off', autocapitalize='sentences'(한국어 환경에선 무영향이지만 영어/숫자 혼용 시 도움), spellcheck='false'(거래 도메인 단어가 사전에 없어 빨간 밑줄 노이즈) 추가. placeholder 옆에 작은 hint '⏎ 전송 / Shift+⏎ 줄바꿈' 1회 노출(localStorage).'first_chat_input_hint_shown' 으로 한 번만)."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/chat/chat-input.tsx L52-64: textarea props 에 enterkeyhint/autocomplete/autocapitalize/spellcheck/inputmode 0건. Enter→submit 동작은 handleKeyDown L45-50 에 구현되어 있지만 시각적 hint 0건."
+
+- id: imp-0084
+  found_at_iter: 5
+  area: chat
+  type: ux
+  target: chat_height_calc_dynamic_viewport
+  problem: "ChatDetailPage 의 컨테이너가 h-[calc(100vh-120px)] 로 fixed 120px(헤더+상태표시줄?) 을 가정한다. 모바일 Safari 의 동적 주소창(축소/확장으로 100vh 가 변동) 또는 데스크탑에서 헤더 높이가 64px 인 점을 고려할 때 일부 환경에서 메시지 영역이 짤리거나 ChatInput 이 키보드 위로 올라오면서 bottom 이 잘린다. iOS Safari 의 visualViewport 변화 시 자동 스크롤도 미적용."
+  proposal: "(1) Tailwind v4 또는 CSS dvh 사용: h-[calc(100dvh-64px)]. (2) ChatInput 컨테이너에 padding-bottom: env(safe-area-inset-bottom) 부여(iOS 홈 인디케이터 영역). (3) keyboard 등장 시 visualViewport API 로 bottomRef.scrollIntoView 재실행. (4) 데스크탑 Header 64px 와 일치하는 변수 사용."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/chats/[id]/page.tsx L125: className='flex flex-col h-[calc(100vh-120px)]'. ChatPanel L91 도 비슷한 vh 사용. dvh/svh 없음, env(safe-area-inset-*) 0건, visualViewport 핸들러 0건. Header 실제 높이는 components/layout/header.tsx L22 'h-16'(64px) 로 120 과 불일치."
+
+- id: imp-0085
+  found_at_iter: 5
+  area: chat
+  type: content
+  target: chat_empty_state_action_label
+  problem: "EmptyState 의 actionLabel='매물 둘러보기' actionHref='/' 가 home 으로 이동시키는데, 사용자 문맥은 '채팅이 없어서 채팅을 시작할 매물을 찾고 싶은 상태'이므로 '/' 보다는 '/listings'(매물 목록 직진) 또는 다른 매물 권유가 더 정확하다. 또한 '채팅이 없습니다' 자체가 사실 통보형 카피로 마찰점."
+  proposal: "title='첫 거래 채팅을 시작해보세요', description='관심 매물에서 채팅하기 버튼을 누르면 판매자와 바로 대화할 수 있어요', actionLabel='관심 매물 보기' actionHref='/listings?sort=popular'. 추가로 '⭐ 찜한 매물에서 채팅 시작' 보조 버튼(자기 favorites 가 있을 때만)."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/chats/page.tsx L42: <EmptyState title='채팅이 없습니다' description='매물에서 채팅을 시작해보세요' actionLabel='매물 둘러보기' actionHref='/' />. '/' 와 '/listings' 모두 매물 페이지지만 / 는 hero+navigation, /listings 는 그리드 직진."
+
+- id: imp-0086
+  found_at_iter: 5
+  area: chat
+  type: feature
+  target: deal_complete_review_prompt
+  problem: "거래 완료(chatStatus='deal_completed') 후 자동으로 리뷰 작성 유도가 채팅방 안에 없다. 사용자는 별도 프로필 → 거래 내역 → 리뷰 진입을 해야 하므로 리뷰 작성률이 떨어지고, 이는 newcomer 신뢰 시그널 약화로 이어진다(매물 상세에 '거래 0회 · newcomer' 표기됨)."
+  proposal: "(1) chatStatus 가 'deal_completed' 로 전환되면 ChatMessage 위에 system message 카드 '🎉 거래가 완료되었습니다 — 상대방을 평가해주세요'와 [별점 컴팩트 위젯 + '리뷰 쓰기' 버튼]. (2) 리뷰 안 쓴 채 24시간 지나면 알림 발송('아직 리뷰를 안 남기셨어요'). (3) 리뷰 작성 후 카드는 '리뷰 완료 · 5점' 으로 collapse."
+  effort: medium
+  impact: high
+  evidence: "코드 web/app/chats/[id]/page.tsx 와 ChatPanel 모두 reservation 모달은 있으나 review 모달/링크 0개. ChatListItem L29-37 은 deal_completed 라벨만 노출. lib/hooks/use-chats.ts 에는 리뷰 mutation 없음."
+
+- id: imp-0087
+  found_at_iter: 5
+  area: chat
+  type: a11y_mobile
+  target: reservation_button_tap_target
+  problem: "ChatDetailPage 상단의 '예약 제안'(L130-135) / '신고'(L136-141) 버튼이 px-3 py-1.5 + text-xs 로 약 28x28~32x32 크기로 추정된다. WCAG 2.5.5(44x44 권장, 최소 32x32)와 Apple HIG 44pt 미달 가능성 높음. 모바일에서 두 버튼이 가로로 붙어 있어 오탭 시 신고 모달이 잘못 열릴 수 있다."
+  proposal: "(1) 두 버튼 모두 min-h-[44px] px-4 py-2 text-sm 으로 격상. (2) '예약 제안' 은 primary 액션, '신고' 는 dropdown ⋯ 메뉴 안으로 이동해 시각/터치 분리. (3) 또는 신고 버튼을 chat header 우측 ⋯ 메뉴로 이동시켜 actionable + dangerous 액션을 분리(휴대폰 한손 reach 영역 고려)."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/app/chats/[id]/page.tsx L130-141: className='px-3 py-1.5 text-xs ...'. computed height ≈ 28px(text-xs ≈ 12px line-height + py 12px). gap-2 (L129) 로 두 버튼 간 8px 간격."
+
+- id: imp-0088
+  found_at_iter: 5
+  area: chat
+  type: performance
+  target: chat_list_polling_when_unfocused
+  problem: "useMessages 가 sseConnected=false 시 refetchInterval 5000ms 로 폴링하는데, 탭이 background 상태(document.visibilityState='hidden')일 때도 동일 주기로 호출된다. 다중 채팅방을 띄워둔 사용자가 다른 일을 하는 동안 불필요한 네트워크/배터리/NAS CPU 소비. 또한 useChats(채팅 목록) 도 refetch 정책이 query default 라 stale time 동안 같은 호출 반복 가능."
+  proposal: "(1) useMessages 에 refetchIntervalInBackground: false 명시. (2) document.visibilityState 변경 시 refetchInterval 동적 조정(visible 5s, hidden 30s 또는 0). (3) useChats 에 staleTime 30s 부여하고 SSE event 'chat_updated' 수신 시 invalidate. (4) page.tsx 가 unmount 되면 enabled=false 로 폴링 중단(이미 됨)."
+  effort: small
+  impact: low
+  evidence: "코드 web/lib/hooks/use-chats.ts L23: refetchInterval: sseConnected ? false : 5_000. refetchIntervalInBackground 미설정(기본 false 지만 명시 권장). visibilitychange 핸들러 0건. useChats L7-12 는 staleTime/gcTime 미설정."
+
+- id: imp-0089
+  found_at_iter: 5
+  area: chat
+  type: ux
+  target: failed_message_persistence
+  problem: "useSendMessage onError 에서 optimistic 메시지를 status='failed' 로 표시하지만, 페이지 새로고침/탭 닫기 시 React Query cache 가 사라지고 failed 메시지도 함께 사라진다. 사용자는 '내가 보낸 줄 알았는데' 인지 부조화에 빠지고, 분쟁 시 발신 시도 자체를 증명할 수 없다."
+  proposal: "(1) onError 시 localStorage 'chat_failed_<chatId>' 에 {clientMessageId, text, sentAt} 직렬화. (2) 채팅방 진입 시 localStorage 의 failed 메시지를 cache 에 prepend(중복 clientMessageId 제거). (3) 재전송 성공 시 또는 사용자가 '실패 메시지 삭제' 클릭 시 localStorage 에서 제거. (4) 30일 자동 만료."
+  effort: small
+  impact: medium
+  evidence: "코드 web/lib/hooks/use-chats.ts L92-108: onError 에서 setQueryData 만 호출, localStorage/sessionStorage 0건. ChatMessage L100-104 의 onRetry 도 메모리 cache 의존. 새로고침 시 useInfiniteQuery 가 fresh 호출 → server 응답에는 failed 메시지 없음."
+
+- id: imp-0090
+  found_at_iter: 5
+  area: chat
+  type: feature
+  target: quick_reply_templates
+  problem: "거래 채팅에는 반복되는 정형 질문(예: '직거래 가능하신가요?', '시세 협의 가능하신가요?', '언제 시간 되시나요?')이 많은데 매번 타이핑해야 한다. 모바일 키보드 입력은 PC 보다 마찰이 크고 신규 사용자는 어떤 질문이 적절한지도 모른다."
+  proposal: "(1) ChatInput 위에 호러즈ontal scrollable 칩 그룹 [거래 가능?] [시세 협의?] [지금 시간 됨?] [어디서 만날까요?] [강화 옵션?]. 칩 클릭 시 텍스트가 input 에 prefill 되고 사용자가 수정 후 전송. (2) 한 채팅방에서 사용한 칩은 24시간 hide(중복 메시지 방지). (3) 백엔드 분석으로 빈도 높은 표현을 자동 갱신."
+  effort: medium
+  impact: medium
+  evidence: "코드 web/components/chat/chat-input.tsx 와 chat-panel.tsx 어디에도 quick reply / template 컴포넌트 0개. 사용자가 첫 채팅 진입 시 빈 textarea 외에 입력 보조 0건."
+
