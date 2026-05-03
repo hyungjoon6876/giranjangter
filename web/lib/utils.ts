@@ -16,7 +16,7 @@ export function statusLabel(status: string): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  available: "#059669",
+  available: "#10B981",
   reserved: "#F59E0B",
   pending_trade: "#2563EB",
   completed: "#64748B",

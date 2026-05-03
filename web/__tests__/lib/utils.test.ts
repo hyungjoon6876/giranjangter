@@ -30,7 +30,7 @@ describe("statusLabel", () => {
 
 describe("statusColor", () => {
   it("returns hex color for status", () => {
-    expect(statusColor("available")).toBe("#059669");
+    expect(statusColor("available")).toBe("#10B981");
     expect(statusColor("reserved")).toBe("#F59E0B");
     expect(statusColor("pending_trade")).toBe("#2563EB");
     expect(statusColor("completed")).toBe("#64748B");
