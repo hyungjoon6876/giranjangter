@@ -993,3 +993,124 @@
   impact: medium
   evidence: "코드 web/components/chat/chat-input.tsx 와 chat-panel.tsx 어디에도 quick reply / template 컴포넌트 0개. 사용자가 첫 채팅 진입 시 빈 textarea 외에 입력 보조 0건."
 
+- id: imp-0091
+  found_at_iter: 6
+  area: reservation
+  type: feature
+  target: reservation_card_action_buttons
+  problem: "ReservationCardMessage(web/components/chat/reservation-card-message.tsx)는 예약 정보를 readonly 표시만 하고 [확정][거절][취소] 버튼이 0개다. 백엔드는 POST /reservations/:id/confirm, /cancel 엔드포인트와 GetReservationForConfirm/Cancel 핸들러를 모두 구현했지만 web 클라이언트(api-client.ts L249-258)에는 createReservation 만 있어 web 사용자는 받은 예약을 확정/거절할 방법이 채팅방 안에 전혀 없다. 즉 거래 핵심 플로우 proposed→confirmed 가 web 에서 작동 불가능."
+  proposal: "(1) api-client.ts 에 confirmReservation(reservationId) / cancelReservation(reservationId, reasonCode) 추가. (2) ReservationCardMessage 에 status='proposed' 이고 !isMine 일 때 [확정하기][거절하기] 버튼 2개, isMine 이거나 status='confirmed' 일 때 [예약 취소] 버튼 1개를 카드 하단에 노출. (3) 클릭 시 confirm dialog → mutation → invalidate ['messages', chatId] + ['chats']. (4) 상태별 카드 색상 변경(proposed=gold border, confirmed=green border, cancelled=opacity-50 strikethrough). (5) metadataJson 에 reservationId 가 없으면 버튼 비노출 fallback."
+  effort: medium
+  impact: high
+  evidence: "코드 web/components/chat/reservation-card-message.tsx L8-28: button/onClick 0건, status 분기 0건. web/lib/api-client.ts grep 'confirmReservation|cancelReservation' = 0건. backend cmd/server/handlers_reservation.go L82-155 에는 handleConfirmReservation/handleCancelReservation 모두 구현. docs/STATE_SEQUENCE_DIAGRAMS.md L130 'proposed→confirmed by counterparty' 핵심 전이가 web 에서 트리거 불가."
+
+- id: imp-0092
+  found_at_iter: 6
+  area: reservation
+  type: ux
+  target: reservations_route_404
+  problem: "https://giranjt.com/reservations 직접 진입(외부 링크/북마크/알림 deepLink)이 404 'This page could not be found'를 반환한다. web/app 트리에 reservations 디렉토리가 존재하지 않는다. OPENAPI_DRAFT.md L687-693 의 알림 카탈로그에는 deepLink='/trades/01CHAT...' 만 있어 /reservations 경로 자체가 미정의이지만, 사용자/SEO/외부 공유 측면에서 자연스러운 진입 경로가 막혀있고 anonymous 가 redirect 받아 /login 으로 가는 것도 아니라 의도가 더 모호하다."
+  proposal: "(1) web/app/reservations/page.tsx 신규 추가, useAuthGuard 로 게이팅 후 useMyTrades() 데이터 중 chatStatus 가 reservation_proposed/reservation_confirmed 인 거래만 필터링해 '예약 카드 리스트' 형태로 노출(제목, 일시, 접선 방식, 상대방, [채팅방 이동] 버튼). (2) 또는 최소한 /reservations → /profile/trades?filter=reservation 으로 redirect 처리. (3) 알림 deepLink 도 /reservations/<reservationId> 로 통일하여 깊이있는 진입 가능."
+  effort: medium
+  impact: high
+  evidence: "Playwright 익명 https://giranjt.com/reservations 375x667 → 페이지 본문 '404 / This page could not be found' bodyTextLen=60. find web/app -type d -name 'reservation*' 결과 0건(reservations 디렉토리 부재). docs/OPENAPI_DRAFT.md L692 의 deepLink='/trades/01CHAT...' 와 라우트 미스매치."
+
+- id: imp-0093
+  found_at_iter: 6
+  area: reservation
+  type: ux
+  target: reservation_modal_datetime_validation
+  problem: "ReservationModal(web/components/forms/reservation-modal.tsx L45-46)의 date input 은 min 속성이 없어 사용자가 과거 날짜(2020-01-01 등)를 선택할 수 있다. 또한 Date+Time 을 'T...:00Z' 로 단순 결합해 한국 사용자 입력(KST 의도)이 UTC 로 간주되어 실제로는 9시간 늦은 시각으로 저장된다. backend handlers_reservation.go L21 ScheduledAt 은 string 그대로 전달되어 DB 저장 시 KST↔UTC 차이를 알 수 없다."
+  proposal: "(1) date input 에 min={new Date().toISOString().slice(0,10)} 추가, max=오늘+30일(reservation_form_sheet.dart 와 동일 정책). (2) submit 시 KST 로컬 Date 를 명시적으로 UTC 로 변환: new Date(`${date}T${time}:00+09:00`).toISOString(). (3) 입력값이 60분 이내 임박이면 컨펌 dialog '15분 뒤 약속이에요. 정말 제안하시겠어요?'. (4) ReservationCard 표시 시에도 toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) 로 KST 노출."
+  effort: small
+  impact: high
+  evidence: "코드 web/components/forms/reservation-modal.tsx L25 `${form.scheduledDate}T${form.scheduledTime}:00Z` (Z=UTC suffix). L45 input[type=date] 에 min/max 속성 0건. frontend/lib/features/reservation/reservation_form_sheet.dart L54-55 firstDate=DateTime.now(), lastDate=+30days, .toUtc() 정상 변환과 비대칭."
+
+- id: imp-0094
+  found_at_iter: 6
+  area: reservation
+  type: feature
+  target: reservation_meeting_type_either
+  problem: "ReservationModal 의 meetingType 드롭다운(L48-51)은 '인게임' / 'PC방/오프라인' 2종만 노출한다. 그러나 Flutter ReservationFormSheet L82 와 backend(meeting_type 컬럼)는 'either'(무관) 옵션을 지원하고 OPENAPI_DRAFT.md L524 도 server_id 옵션을 가정한다. web 사용자는 '협의 가능' 의도를 표현 못 해 협상 마찰 증가."
+  proposal: "(1) <option value='either'>협의(무관)</option> 추가. (2) 'in_game' 선택 시 server_id 입력(서버 드롭다운 — listing.serverName 자동 prefill), 'offline_pc_bang' 선택 시 meetingPointText placeholder='예: 강남역 PC방 던파' 강제, 'either' 선택 시 두 입력 모두 hide. (3) form layout 을 conditional rendering 으로 정리해 사용자가 불필요한 필드를 안 보게 한다."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/reservation-modal.tsx L48-51: option=['in_game','offline_pc_bang'] 2종. frontend/lib/features/reservation/reservation_form_sheet.dart L79-83: 3종(in_game, offline_pc_bang, either). backend/cmd/server/handlers_reservation.go L21 MeetingType 자유 string. docs/OPENAPI_DRAFT.md L525 server_id 필드 정의."
+
+- id: imp-0095
+  found_at_iter: 6
+  area: reservation
+  type: ux
+  target: reservation_proposal_pre_validation
+  problem: "예약 제안 submit 시 backend가 'CONFLICT: 이미 활성 예약이 존재합니다'(handlers_reservation.go L44-47)를 반환할 수 있는데, web 모달은 이 에러를 일반 toast '예약 제안에 실패했습니다'(reservation-modal.tsx L33)로만 처리한다. 사용자는 왜 실패했는지, 기존 예약이 어떤 상태인지, 어떻게 해결할지 알 수 없어 같은 시도를 반복하다 이탈한다."
+  proposal: "(1) reservation-modal 진입 전 useChats 데이터에서 activeChat.reservationStatus 또는 chatStatus 를 확인해 이미 'reservation_proposed/confirmed' 면 모달 대신 '이미 예약이 진행 중이에요. 기존 예약을 먼저 처리해주세요' alert + [기존 예약 보기] 버튼 노출. (2) submit 실패 시 error.code 별 분기: CONFLICT='이미 활성 예약이 있어요. 기존 예약을 취소한 후 다시 제안해주세요', VALIDATION_ERROR='입력값을 확인해주세요'. (3) backend 응답 body 의 error.code 를 apiClient 가 throw 하도록 통일."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/reservation-modal.tsx L32-34 catch 블록: addToast('error', '예약 제안에 실패했습니다') — error 객체 무시. backend handlers_reservation.go L45 'CONFLICT' code 정의되어 있으나 web 에서 사용 안 됨. 채팅방 진입 전 사전 가드 0건."
+
+- id: imp-0096
+  found_at_iter: 6
+  area: reservation
+  type: a11y_mobile
+  target: reservation_modal_form_field_44px
+  problem: "ReservationModal 의 input/select(reservation-modal.tsx L39 inputClass='py-2.5')는 약 38-40px 높이로 WCAG 2.5.5 권장 44px 미달이다. 모바일 375x667 에서 date+time input 이 grid-cols-2 로 좁게 배치되어 추가로 한 손 조작 시 터치 정확도가 떨어진다. submit 버튼은 py-3(약 44px+) 로 OK 지만 폼 필드들은 작아 균형이 나쁨."
+  proposal: "(1) inputClass 의 py-2.5 → py-3 또는 min-h-[44px], placeholder/value font-size 를 16px(text-base) 로 키워 iOS 자동 줌 방지. (2) date+time grid 를 모바일에서 grid-cols-1 stacked 로 변경(sm:grid-cols-2 로 데스크탑만 분리). (3) 라벨 가시화: 현재 aria-label 만 있는데 visible label 추가('거래 일시', '접선 방식') — 폼 길이가 짧으니 라벨 토글 비용이 적다."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/components/forms/reservation-modal.tsx L39 inputClass: 'px-3 py-2.5 text-sm' (text-sm=14px+py-2.5=10px*2+content). L44 'grid grid-cols-2 gap-3' 모바일에서도 강제 2열. submit button L54 'py-3' 만 충분한 높이."
+
+- id: imp-0097
+  found_at_iter: 6
+  area: reservation
+  type: content
+  target: reservation_card_message_status_label
+  problem: "ReservationCardMessage 하단 카피(L23)가 isMine 따라 '예약 제안을 보냈습니다' / '예약 제안을 받았습니다' 2종만 분기한다. 그러나 reservation 상태는 proposed/confirmed/expired/cancelled/fulfilled 5종(STATE_SEQUENCE_DIAGRAMS.md L93-97)이고 chatStatus 도 같이 변동한다. 사용자는 카드를 봐도 '이게 아직 진행 중인지, 확정됐는지, 만료됐는지' 한눈에 모른다."
+  proposal: "(1) message.metadataJson.status (또는 backend 가 system message 갱신) 기반으로 카피 분기: proposed='상대방의 응답을 기다리는 중', confirmed='✅ 약속이 확정되었어요. 늦지 않게 만나요', cancelled='❌ 예약이 취소되었습니다 — 사유: <reasonCode 한글 매핑>', expired='⏰ 응답 시간이 지나 자동 만료되었어요', fulfilled='🎉 거래가 완료되었습니다'. (2) 카드 색상도 함께 변경(border-gold/green/red/text-dim). (3) 만료까지 남은 시간을 라이브 카운터로 표시('23분 남음')."
+  effort: small
+  impact: high
+  evidence: "코드 web/components/chat/reservation-card-message.tsx L22-24: 단순 isMine 분기 2가지. status 분기 0건. metadataJson.status / metadataJson.reservationStatus 참조 0건. docs/STATE_SEQUENCE_DIAGRAMS.md L93-97 5상태 정의."
+
+- id: imp-0098
+  found_at_iter: 6
+  area: reservation
+  type: feature
+  target: reservation_quick_time_presets
+  problem: "예약 모달의 date+time 입력은 빈 input 두 개로 시작해 사용자가 키보드/스피너로 한 자리씩 입력해야 한다. 거래 합의는 보통 '오늘 저녁', '내일 점심', '주말'처럼 자연어 표현으로 이뤄지는데 이를 폼 필드 입력으로 번역하는 마찰이 크다. 모바일에서 native datepicker 가 뜨더라도 두 단계(date→time)가 별도라 시간 더 걸린다."
+  proposal: "(1) 모달 상단에 빠른 프리셋 칩 그룹 [오늘 저녁(20:00)] [내일 점심(12:00)] [내일 저녁(20:00)] [주말 오후(토 14:00)] [직접 선택]. 칩 클릭 시 form.scheduledDate/Time 자동 채움. (2) 사용자 마지막 선택 5개를 localStorage 'reservation_recent_times' 에 저장해 다음 모달 열 때 우선 노출. (3) 기본 선택은 '내일 저녁' (Flutter 기본값과 일치)."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/reservation-modal.tsx L17 useState 초기값 scheduledDate=''/scheduledTime=''(prefill 0). 빠른 선택 칩/프리셋 0개. frontend reservation_form_sheet.dart L17-18 은 +1day 14:00 prefill — web 과 비대칭."
+
+- id: imp-0099
+  found_at_iter: 6
+  area: reservation
+  type: ux
+  target: reservation_completion_flow_visibility
+  problem: "예약이 confirmed 된 후 '거래 완료'를 트리거할 UI가 web 어디에도 없다. backend는 trade_completions 테이블과 handleCreateTradeCompletion(handlers_reservation.go 추정)을 갖고 있고 OPENAPI_DRAFT.md L588-603 도 정의되어 있지만, web/lib/api-client.ts L261 의 completeTrade 는 listingId 기반 단일 호출이고 채팅방/예약 카드에서 호출하는 버튼이 없다. 사용자는 '약속 시간이 지났는데 어떻게 거래 완료를 처리하지?' 막힌다."
+  proposal: "(1) ReservationCardMessage 가 status='confirmed' 이고 scheduledAt 이 지난 시점이면 [거래 완료 처리] 버튼 노출. 클릭 시 완료 모달 → completion_note + [완료 요청] → backend 가 24h auto-confirm. (2) 동시에 채팅방 헤더 '예약 제안' 버튼이 있던 자리를 [거래 완료 처리]로 동적 교체. (3) 이미 자동확정 대기 중이면 카드에 '상대방의 확정 대기 중 (자동확정 23h 남음)' 카운트다운. (4) 완료 후 [리뷰 쓰기] 자동 prompt(imp-0086 과 연계)."
+  effort: medium
+  impact: high
+  evidence: "코드 web/components/chat/reservation-card-message.tsx 와 chats/[id]/page.tsx 어디에도 completeTrade/거래완료 트리거 button 0개. web/lib/api-client.ts L261-269 completeTrade 정의는 있으나 호출처 grep 0건. docs/OPENAPI_DRAFT.md L588 'POST /listings/{listingId}/trade-completions' 엔드포인트와 web UI 비대칭."
+
+- id: imp-0100
+  found_at_iter: 6
+  area: reservation
+  type: performance
+  target: reservation_modal_lazy_mount
+  problem: "ReservationModal 은 ChatDetailPage(L11 import + L176 mount)에 항상 마운트되어 open=false 시에도 useState/Modal portal/form fields 가 메모리에 유지된다. ReportModal 도 동일 패턴(L182). 채팅방 자체가 SSE 폴링/스크롤 등 리소스를 많이 쓰는 페이지라 사용 빈도 낮은 모달들이 항상 React tree 에 있는 것은 의미 있는 누적 비용."
+  proposal: "(1) {reservationOpen && <ReservationModal ... />} 형태로 conditional render 변경 → open=false 시 unmount. (2) 또는 dynamic import: const ReservationModal = dynamic(() => import('@/components/forms/reservation-modal').then(m => m.ReservationModal), { ssr: false }) 로 첫 클릭 시점에 코드도 함께 로드(번들 분할). (3) Modal 컴포넌트 자체에 open=false 시 children 을 return null 하는 패턴이 이미 있으면 dynamic import 만 적용."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/app/chats/[id]/page.tsx L176-188: <ReservationModal open={reservationOpen} ...> + <ReportModal open={reportOpen} ...> 항상 마운트. dynamic import 0건, conditional render 0건. ReservationModal 본체 useState L17 form 객체가 매 마운트 init."
+
+- id: imp-0101
+  found_at_iter: 6
+  area: reservation
+  type: a11y_mobile
+  target: reservation_modal_focus_trap_and_escape
+  problem: "Modal 컴포넌트(@/components/ui/modal) 가 focus trap / aria-modal / Escape 닫기 / overlay 클릭 닫기를 모두 구현했는지 reservation-modal 사용처에서 확인 불가. 일반적으로 form 입력 후 'Tab' 으로 모달 외부로 빠져나가거나, 모바일에서 backdrop 클릭만으로 닫혀 입력 데이터가 사라지는 사고(예약 제안은 한 번 닫히면 데이터 손실)가 흔하다. 또한 sheet 열림 시 body 스크롤 lock 도 없으면 배경이 함께 스크롤된다."
+  proposal: "(1) Modal 에 role='dialog' aria-modal='true' aria-labelledby='reservation-title' 명시. (2) 첫 렌더 시 첫 input 자동 focus, focus trap(예: focus-trap-react 또는 직접 onKeyDown Tab 가드). (3) Escape 키 → onClose 호출. (4) 모바일 backdrop tap 으로 닫기 전 form 변경값이 있으면 confirm '입력 중인 예약 정보가 사라집니다. 닫으시겠어요?'. (5) document.body.style.overflow='hidden' on open / 복구 on close."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/forms/reservation-modal.tsx L42 <Modal title='예약 제안'> — props 에 aria-labelledby/initialFocus/escapeClose 0건 전달. Modal 컴포넌트 자체 정의(@/components/ui/modal) 미확인이지만 form 변경값 보존 로직은 호출처에 0건. 모바일에서 backdrop tap 시 onClose 직행."
+

@@ -1,10 +1,10 @@
 {
-  "iteration": 5,
-  "consecutive_no_new": 1,
-  "last_page_index": 4,
-  "page_queue": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chat"],
-  "pages_visited": ["/", "/listings", "/listings/:id", "/login", "/profile"],
-  "pages_visited_count": 5,
+  "iteration": 6,
+  "consecutive_no_new": 2,
+  "last_page_index": 5,
+  "page_queue": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chats"],
+  "pages_visited": ["/", "/listings", "/listings/:id", "/login", "/profile", "/chats"],
+  "pages_visited_count": 6,
   "sample_listing_id": "b155f6a7-a80b-4db5-ac3f-a080b3ad656d",
   "files_modified_count": {
     "web/components/listing/listing-filters.tsx": 1,
