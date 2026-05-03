@@ -18,3 +18,4 @@ iter 12 | bugs SKIPPED | improvs +18=188 | home round2: filter URL state 부재,
 iter 13 | bugs SKIPPED | improvs +12=200 | listings round2: SEO sitemap/robots, JSON-LD ItemList, price-drop watch, saved searches, listing comparison, RSS/Atom feed; ⭐ 200 milestone
 iter 14 | bugs SKIPPED | improvs +12=212 | listing_detail round2: JSON-LD Product/Offer + BreadcrumbList, item DB link, stale listing warning, counter-offer form, newcomer safe-trade warning, KakaoTalk share
 iter 15 | bugs SKIPPED | improvs +15=227 | listing_create round2: bulk paste-to-create, image OCR 강화 detect, scheduled publish, KRW unit helper, duplication/templates; ⚠️ image contract bug (web 'images' vs backend 'imageIds')
+iter 16 | bugs SKIPPED | improvs +14=241 | chat round2: in-room search, input draft 저장, Web Notification, URL scam warning, chat export 분쟁 증거, scroll-anchor "↓N new" pill

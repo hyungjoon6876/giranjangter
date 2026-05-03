@@ -2499,3 +2499,158 @@
   effort: trivial
   impact: medium
   evidence: "코드 web/app/create/page.tsx L216-228 title <input minLength={2}>, L236-245 textarea <textarea minLength={10}> — maxLength 속성 0건. 글자수 표시 span/div 0건. backend handlers_listing.go L22-23 binding 'min=2,max=100' 'min=10,max=2000' 강제, 위반 시 400 에러."
+
+- id: imp-0228
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: chat_message_search_within_room
+  problem: "수십~수백 개의 메시지가 누적된 채팅방에서 '아까 그 좌표', '얼마였지?', '몇 시 약속이었지?' 같은 정보를 다시 찾으려면 사용자가 위로 스크롤하면서 fetchNextPage 가 5~10회 트리거되어야 한다. 백엔드는 cursor pagination 만 지원하고 메시지 본문 검색 API 가 없다. 거래 협상의 핵심 정보가 묻히면 분쟁/오해 발생률이 높아진다."
+  proposal: "(1) 채팅방 헤더에 돋보기 아이콘 → 클릭 시 inline search bar 'XX방의 메시지 검색' (active chat 만). (2) 백엔드 GET /api/v1/chats/:id/messages?q=... 신규 엔드포인트, ILIKE '%q%' + 최근 30일 제한. (3) 검색 결과는 highlight 후 클릭 시 해당 메시지로 jump-scroll(앵커 ID = messageId). (4) 모바일에서는 헤더 우측 ⋯ → 검색 메뉴."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_chat.go L108-162 handleListMessages 는 cursor 만 파라미터로 받음. q 파라미터 핸들링 0건. web/app/chats/[id]/page.tsx 헤더 영역 L129-142 에 검색 input/button 0개. fetchNextPage 호출 trigger 는 scrollTop<50 한 가지만(L79)."
+
+- id: imp-0229
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: chat_input_draft_persistence
+  problem: "ChatInput 의 text state 가 useState 로만 관리되어 페이지 새로고침/실수로 다른 채팅방 클릭/탭 닫기 시 작성 중이던 긴 메시지가 즉시 휘발된다. 모바일에서 한 손으로 길게 쓴 메시지가 알림 클릭으로 다른 채팅방 진입 시 사라지면 사용자 frustration 이 매우 크다. 거래 협상 중 정성스럽게 작성한 협상 문구도 동일 위험."
+  proposal: "(1) ChatInput 의 onChange 시 localStorage `chat_draft_<chatRoomId>` 에 debounce 500ms 로 저장. (2) 채팅방 진입 시 localStorage 에서 draft 복원, 옆에 작은 '임시 저장 복원됨' 토스트 1.5초. (3) submit 성공 시 draft 삭제. (4) 길이 0 일 때도 삭제. (5) 7일 이상 된 draft 는 mount 시 자동 청소(quota 보호)."
+  effort: trivial
+  impact: medium
+  evidence: "코드 web/components/chat/chat-input.tsx L15 const [text, setText] = useState('') — 외부 persist 0건. localStorage/sessionStorage 사용 0건. activeChatId 변경 시 text 가 그대로(잘못된 chat 에 prefill 가능성). useEffect cleanup 0건."
+
+- id: imp-0230
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: browser_native_notification_permission
+  problem: "현재 새 메시지가 도착해도 OS-level 알림이 발송되지 않는다. 사용자가 다른 탭/창에 있으면 favicon/title 변화도 없어 도착 사실 자체를 모르고, 거래 응답이 30분~1시간 늦어진다(거래 conversion 에 직결). Web Notifications API 권한 요청도 없음."
+  proposal: "(1) 사용자가 처음 채팅방에 진입할 때 일회성 prompt '새 메시지를 데스크탑 알림으로 받을까요?' [허용 / 다음에]. (2) Notification.requestPermission() 결과를 localStorage 에 저장. (3) SSE 의 new_message 수신 시 document.hidden 이거나 활성 chat 이 다르면 new Notification(`${nickname}: ${preview}`, { icon, tag: chatRoomId, body }) 발송. (4) 클릭 시 window.focus() + activeChatId 설정. (5) 안전을 위해 같은 tag 의 새 알림은 기존 알림을 대체."
+  effort: small
+  impact: high
+  evidence: "코드 grep Notification.requestPermission 0건, new Notification 0건. web/lib/hooks/use-sse.ts onmessage 핸들러 (확인 필요) 에는 invalidate/setQueryData 만 있고 OS notification 호출 0건. web/components/chat/chat-panel.tsx L143-155 도 reconnecting/disconnected 만 alert."
+
+- id: imp-0231
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: unread_count_in_document_title_and_favicon
+  problem: "데스크탑 사용자가 다른 탭에서 작업하다 채팅 탭으로 돌아오기 전까지는 새 메시지 도착 사실을 알 수 없다. document.title 은 '기란JT' 고정, favicon 도 정적이라 시각적 시그널 0건. SSE 가 메시지를 받아도 useChats invalidate 만 일어남."
+  proposal: "(1) 전역 unreadTotal = chats.reduce((s, c) => s + c.unreadCount, 0) 계산. (2) useEffect 로 document.title 을 unreadTotal>0 일 때 `(${unreadTotal}) 기란JT — 새 메시지` 로 변경, =0 이면 원복. (3) favicon 도 canvas 로 redraw — 우상단 빨간 dot+숫자 (badge canvas 패턴, 라이브러리 'favico.js' 또는 직접 구현 ~30 lines). (4) cleanup: 페이지 unmount 시 원래 title/favicon 복원."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/layout.tsx 또는 globals 에서 document.title 동적 변경 0건. favicon redraw/canvas 0건. useChats unreadCount 합산 컴포넌트 0건. 모바일은 OS 가 처리하지만 데스크탑은 fallback 필요."
+
+- id: imp-0232
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: link_url_auto_detection_and_safety
+  problem: "ChatMessage 의 bodyText 는 plain text 로 렌더되어 사용자가 'https://disco...' 또는 'kakao.com' 같은 URL 을 보내도 클릭 가능한 링크가 아니다. 거래 외부 채널 유도(피싱 위험)도 감지/경고 없이 표시. 또한 URL preview 도 없어 신뢰성 판단 어려움."
+  proposal: "(1) bodyText 를 정규식 /(https?:\\/\\/[^\\s]+)/g 로 split → 일반 텍스트는 span, URL 은 <a target='_blank' rel='noopener noreferrer nofollow'>. (2) 외부 채널(disco.gg, kakao.com, telegram.org, line.me, naver.com) 도메인은 노란 배경 + '⚠️ 외부 메신저 링크 — 거래 사기 주의' badge. (3) 신뢰 도메인(giranjt.com, nccsoft.co.kr 등)은 일반 링크 색. (4) 향후 OG preview 로 확장 가능."
+  effort: small
+  impact: medium
+  evidence: "코드 web/components/chat/chat-message.tsx L94 {message.bodyText} — 단순 문자열 렌더, parsing 0건. <a> 태그 0개. 외부 메신저 유도는 거래 사기 패턴(상대 사이트 안내 → 환불 분쟁) 의 전형이지만 차단/경고 0건."
+
+- id: imp-0233
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: chat_export_archive_for_dispute
+  problem: "거래 분쟁 발생 시 사용자가 채팅 기록을 외부에 증거로 제출하려면 현재는 메시지를 일일이 스크롤+스크린샷해야 한다. 100+ 메시지 채팅을 포착하려면 수십 장의 스크린샷이 필요하고, 시간순서/발신자 식별이 어렵다. 운영팀에게 신고할 때도 동일한 burden."
+  proposal: "(1) 채팅방 헤더 ⋯ 메뉴에 '대화 내보내기' 추가. (2) 클릭 시 GET /api/v1/chats/:id/export 호출 → 백엔드가 모든 메시지를 시간순으로 모아 .txt(plain) 또는 .json 파일로 응답. 헤더에 채팅방 ID/매물/참여자/내보낸 시각 포함. (3) 내보낸 파일에 hash(SHA256) 푸터로 위변조 방지 시그널. (4) 신고 모달의 '증거 첨부' 자동 export 옵션 — 신고 시 자동 export → backend admin 에 첨부."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend/cmd/server/handlers_chat.go: export 엔드포인트 0건(GET /chats 만, 또 message list 만). web 앱: download/export/blob.createObjectURL 호출 0건. 신고 모달 web/components/forms/report-modal.tsx 도 첨부 옵션 0개."
+
+- id: imp-0234
+  found_at_iter: 16
+  area: chat
+  type: ux
+  target: timestamp_localized_relative_per_message
+  problem: "ChatMessage 의 formatMessageTime L4-26 은 '오후 3:42' / 'M월 D일 오후 3:42' 형식만 사용해 절대 시간을 보여준다. 거래 직후 30초 간격 메시지도 같은 시간으로 보여 빠른 응답 vs 늦은 응답 구분이 어렵고, 채팅 목록의 '몇 분 전' 과 채팅 본문의 '오후 3:42' 표기 일관성도 떨어진다."
+  proposal: "(1) ChatMessage hover/long-press 시 native title 속성 + 풀 datetime 표시 (이미 sentAt 보유). (2) 마지막 메시지가 5분 이내면 '방금 전', 5~60분이면 'XX분 전', 60분 ~ 24시간이면 'X시간 전', 그 이상이면 현재 absolute. (3) 사용자 설정 절대/상대 토글(setting page). (4) chat-list-item 과 동일한 formatTimeAgo 함수 재사용으로 일관성 유지."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/chat/chat-message.tsx formatMessageTime L4-26: 상대 시간 0건, 항상 absolute. utils.ts formatTimeAgo 는 chat-list-item 에서만 사용. title 속성 0건. 가독성 + accessibility(스크린리더) 양쪽 손해."
+
+- id: imp-0235
+  found_at_iter: 16
+  area: chat
+  type: a11y_mobile
+  target: chat_no_swipe_back_gesture_handler
+  problem: "iOS Safari 의 edge-swipe-back gesture 가 모바일 채팅 상세에서 활성화되어 있어, 사용자가 메시지 영역에서 좌우로 스크롤(이미지 캐러셀이 추가될 경우) 하거나 스크롤 끝에서 손가락을 떼면 의도와 무관하게 /chats 로 빠져나가버리는 사고가 빈번하다. 또한 PWA 모드에서 history.back() 이 의도와 다르게 동작한다."
+  proposal: "(1) 채팅 상세 컨테이너에 touch-action: pan-y 또는 onTouchStart 핸들러로 e.touches[0].clientX < 20 인 swipe-from-left 일 때 stopPropagation. (2) 헤더에 명시적 ← back 아이콘 추가(현재 없음 — Header 컴포넌트의 햄버거만). (3) 헤더의 매물 정보 카드 (ListingInfoCard) 좌측에 back arrow 추가. (4) PWA 시 manifest 'standalone' 에서 visible-before-back 효과 보장."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/chats/[id]/page.tsx L124-189: back button 0개. Header 는 가로 메뉴만. touch-action CSS/onTouchStart 0건. iOS Safari 기본 edge swipe back 활성화 상태(meta apple-mobile-web-app-* 미명시)."
+
+- id: imp-0236
+  found_at_iter: 16
+  area: chat
+  type: ux
+  target: scroll_to_bottom_when_user_scrolled_up
+  problem: "사용자가 이전 메시지를 보려 위로 스크롤한 상태에서 새 메시지가 도착하면, useEffect L106-108 가 항상 bottomRef.scrollIntoView 를 호출해 스크롤 위치가 강제로 끌려간다. 사용자는 읽고 있던 위치를 잃고 다시 스크롤해야 함 — 협상 중 필요한 정보를 다시 찾을 때 마찰. 또한 새 메시지 도착 인디케이터도 없어 '아래에 새 메시지가 있다'는 신호 0건."
+  proposal: "(1) scrollRef 의 scrollTop 과 scrollHeight-clientHeight 차이 < 100px 일 때만 자동 스크롤. (2) 차이가 크면 우하단 floating button '↓ 새 메시지 N' 표시 → 클릭 시 bottomRef 로 점프. (3) 사용자 메시지 전송 시는 항상 강제 점프(intent 명확). (4) 신규 카운터는 마지막 본 messageId 와의 차이로 계산."
+  effort: small
+  impact: medium
+  evidence: "코드 web/app/chats/[id]/page.tsx L106-108: useEffect 가 messages.length 변경 시 무조건 scrollIntoView. floating '새 메시지' 버튼 0개. scrollRef.current.scrollTop 검사 로직 0건. 사용자 의도 보호 가드 부재."
+
+- id: imp-0237
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: copy_message_text_action
+  problem: "사용자가 상대방이 보낸 메시지(예: 약속 시간, 좌표, 입금 계좌)를 복사하려면 텍스트를 길게 눌러 OS 텍스트 선택 핸들을 띄워야 하는데, 모바일에서는 메시지 버블 모서리에서 정확히 잡기 어렵고 데스크탑에서도 ChatMessage 가 selectable 여부 보장 0건. 거래에서는 '계좌번호 복사' 가 빈번해 마찰 큰 동작이다."
+  proposal: "(1) ChatMessage hover 시(데스크탑) 또는 long-press 시(모바일) 메시지 옆에 '⧉ 복사' 아이콘 노출. (2) 클릭 시 navigator.clipboard.writeText(bodyText) + toast '복사되었어요'. (3) URL 만 포함된 메시지는 '링크 복사', 일반 텍스트는 '메시지 복사' 라벨 분기. (4) ⌘C 가 활성화될 수 있도록 message bubble 에 user-select: text 명시(현재 default)."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/chat/chat-message.tsx: hover/long-press 핸들러 0건, copy 아이콘/버튼 0개. navigator.clipboard 호출 web/lib/ 전반 0건(profile/listing 도). 메시지 bubble 의 user-select CSS 미명시(Tailwind default 는 inherit 라 가능하지만 명시적 indicator 없음)."
+
+- id: imp-0238
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: scam_keyword_filter_warning
+  problem: "거래 사기 관련 키워드(예: '디스코드로 와서', '카카오톡으로 송금', '먼저 입금', '구글기프트카드', '안전결제 링크')가 채팅에서 발견되어도 어떠한 경고/필터링도 없다. 신규 사용자는 이런 패턴을 모를 가능성 높고, 신고가 누적된 후에야 대응 가능. 백엔드 도메인 검증도 없고 프런트엔드 표시 보호도 없다."
+  proposal: "(1) 백엔드에 keyword blocklist (예: ['카톡', '디코', '먼저 입금', '안전결제', '문화상품권']) — domain validation 으로 정의. (2) handleSendMessage 에 키워드 매칭 시 metadataJson.scamFlags=['offsite_channel', 'prepay'] 추가. (3) 프런트는 scamFlags 가 있으면 ChatMessage 의 메시지 버블 상단에 '⚠️ 거래 사기 의심 패턴' 작은 banner. (4) 신고 모달 진입 시 자동으로 의심 메시지 highlight."
+  effort: medium
+  impact: high
+  evidence: "코드 backend/cmd/server/handlers_chat.go L164-232 handleSendMessage: text validation 은 'oneof=text image' 만, 본문 키워드 0건 검사. 백엔드 internal/domain 영역에 scam_filter.go 또는 유사 파일 0개. 프런트 ChatMessage 도 scam 분기 0건. 거래 사기 관련 사용자 보호 zero."
+
+- id: imp-0239
+  found_at_iter: 16
+  area: chat
+  type: ux
+  target: send_button_loading_disabled_state_visible
+  problem: "ChatInput 의 전송 버튼은 useSendMessage.isPending 상태와 무관하게 disabled={disabled || !text.trim()} 만 평가한다. 사용자가 빠르게 두 번 클릭하거나 Enter 를 연속 누르면 같은 텍스트가 두 번 mutate 될 수 있고(clientMessageId 중복 검사가 백엔드에 있지만 Race), 사용자는 첫 클릭이 처리되었는지 시각적 피드백을 얻지 못해 '내가 보낸 거 맞나?' 인지 부조화."
+  proposal: "(1) ChatInput 에 isSending: boolean prop 추가 (parent 가 sendMessage.isPending 전달). (2) isSending 일 때 button disabled + 아이콘을 회전 spinner '⟳' 로 교체 + 라벨 '전송중'. (3) 메시지 보낸 직후 즉시 textarea clear(이미 됨) 는 유지하되 placeholder 를 '전송 중...' 로 잠깐 표시. (4) 동일 텍스트를 5초 이내에 보낸 경우 토스트 'X초 전에 보낸 동일 메시지가 있어요. 다시 보낼까요?'."
+  effort: trivial
+  impact: low
+  evidence: "코드 web/components/chat/chat-input.tsx L65-72 button: disabled={disabled || !text.trim()} — pending 상태 0건. 호출처 web/app/chats/[id]/page.tsx L174 onSend={... sendMessage.mutate(...)} 도 isPending 미전달. 같은 텍스트 중복 송신 가드 백엔드 ClientMessageID 만 의존(race window 존재)."
+
+- id: imp-0240
+  found_at_iter: 16
+  area: chat
+  type: feature
+  target: chat_room_archive_hide_completed
+  problem: "거래 완료(deal_completed) 또는 매물 삭제(listingStatus='deleted') 후에도 채팅방이 영구히 list 에 남는다. 활성 거래 사용자는 수십 개의 끝난 채팅방 사이에서 진행 중인 채팅을 찾기 위해 매번 스크롤. 또한 끝난 채팅방을 다시 확인하고 싶을 때 검색/필터도 없어 결국 '안 사라짐 = 노이즈' 인 상태."
+  proposal: "(1) 백엔드 chat_rooms 에 archived_at TIMESTAMP NULL 추가 + POST /api/v1/chats/:id/archive 엔드포인트. (2) deal_completed 또는 listing_deleted + 7일 경과 시 자동 archive(스케줄러). (3) 사용자도 채팅방 메뉴에서 '아카이브' 가능. (4) ChatPanel 의 chats list 는 archive 제외하고 표시, 상단 토글 '아카이브 보기' 클릭 시만 노출. (5) 아카이브된 채팅에 새 메시지 도착 시 자동 unarchive."
+  effort: medium
+  impact: medium
+  evidence: "코드 backend chat_rooms 스키마: archived_at 컬럼 미존재 추정(handlers_chat.go ListChatRooms 가 모든 row 반환). 프런트 web/app/chats/page.tsx 는 chats.map 만 — 필터 toggle 0개. 사용자 chat 정리 entry 0건."
+
+- id: imp-0241
+  found_at_iter: 16
+  area: chat
+  type: performance
+  target: optimistic_message_dedupe_on_sse_arrival
+  problem: "SSE 의 new_message 이벤트와 useSendMessage 의 onSuccess 응답이 동시에 도착할 수 있어 동일 메시지가 캐시에 두 번 추가될 가능성이 있다. 백엔드는 broker.SendToUser 를 counterpart 한 명에게만 보내지만, sender 가 multi-tab 인 경우(탭 A 송신 → 탭 B 수신) 또는 광범위한 invalidate 결과 동일. 또한 clientMessageId 는 sender 측에서만 매칭되므로 receiver 측에서는 messageId 중복 가드가 필수."
+  proposal: "(1) SSE new_message handler 에서 setQueryData 하기 전 기존 pages 를 순회해 messageId 중복이면 무시. (2) optimistic prepend 시 senderUserId='_optimistic_' 마커 사용 중 — onSuccess 시 clientMessageId 매칭으로 교체하지만, 실패 시 이중 노출. (3) Map<messageId, Message> 자료구조로 dedupe 후 array 반환하는 selector 도입. (4) sender 측에도 broker 가 echo 보내면 자기 메시지 dedupe 보장."
+  effort: small
+  impact: low
+  evidence: "코드 web/lib/hooks/use-chats.ts L73-89 onSuccess: messageId === clientMessageId 일 때 교체 — SSE 가 server 응답 도착 전 먼저 도달하면? clientMessageId 가 metadata 에 보관되지 않아 매칭 실패. backend handlers_chat.go L211-218 msgPayload 에 clientMessageId 미포함. SSE handler 에서 dedupe 로직 미확인(use-sse.ts 추가 점검 필요)."
+
