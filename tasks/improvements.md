@@ -2071,3 +2071,134 @@
   impact: medium
   evidence: "Playwright: 노출 가격 ['200,000원','43,680,742원','1원','10원']. Intl.compact 테스트 결과 '4368.1만'. 7자리 천 단위 콤마는 인지에 약 1.5x 시간 더 걸림(인지 부하 연구)."
 
+- id: imp-0189
+  found_at_iter: 13
+  area: listings
+  type: performance
+  target: sitemap_xml_missing
+  problem: "/sitemap.xml 이 404, robots.txt 에도 Sitemap: 디렉티브가 없다. 검색엔진(Google/Naver/Bing)이 매물 상세 URL(/listings/<UUID>) 을 발견할 경로가 카드 href crawling 한 단계뿐이라 인덱싱 커버리지가 매우 낮다. 매물이 100건 이상 쌓여도 첫 페이지 카드 4개만 SEO 노출, 나머지는 영구 미발견."
+  proposal: "Next.js App Router의 app/sitemap.ts 동적 라우트로 /sitemap.xml 생성. (1) 정적: /, /create, /login. (2) 동적: 모든 status='available' 매물의 /listings/<id> 를 lastmod=lastActivityAt 으로. (3) /robots.txt 에 'Sitemap: https://giranjt.com/sitemap.xml' 추가. 매물 100건 미만이면 단일 sitemap, 50000건 초과 시 sitemap_index.xml 분할."
+  effort: small
+  impact: high
+  evidence: "curl https://giranjt.com/sitemap.xml → HTTP 404 (Next.js prerender 404 페이지). curl https://giranjt.com/robots.txt → 27라인 content-signal 정책만, Sitemap 디렉티브 0건. 매물 상세 URL 4개 모두 클라이언트 클릭으로만 도달, 정적 sitemap 미존재."
+
+- id: imp-0190
+  found_at_iter: 13
+  area: listings
+  type: performance
+  target: jsonld_itemlist_structured_data
+  problem: "/ (마켓 메인)에 JSON-LD structured data가 전혀 없다. 검색엔진이 매물 그리드를 ItemList 로, 각 카드를 Product/Offer 로 인식하면 가격/가용성 리치 결과(rich snippet)로 노출 가능한데, 현재는 일반 검색 결과로만 표시되어 CTR 손실."
+  proposal: "app/page.tsx 에 server-side fetched listings 로 <script type='application/ld+json'> 주입. ItemList { itemListElement: [{ '@type': 'Offer', name: title, price: priceAmount, priceCurrency: 'KRW', availability: status==='available' ? InStock : OutOfStock, url: '/listings/<id>', seller: { '@type': 'Person', name: nickname } }] }. /listings/<id> 페이지에는 Product 단일 객체."
+  effort: medium
+  impact: medium
+  evidence: "curl https://giranjt.com/ | grep 'ld+json' → 0건. <script type='application/ld+json'> 검색 결과 없음. Google Search Central 가이드: ItemList 마크업 시 SERP CTR 평균 +20~40%."
+
+- id: imp-0191
+  found_at_iter: 13
+  area: listings
+  type: bug
+  target: og_image_localhost_url
+  problem: "OG/Twitter 메타에 og:image='http://localhost:3000/images/og-image.png' 가 그대로 배포되어 있다. 카카오톡/디스코드/트위터/슬랙 등 어떤 SNS 에 매물 링크를 공유해도 미리보기 이미지가 깨진다(localhost 는 외부에서 도달 불가). 매물 공유 = 마케팅 핵심 채널인데 통째로 망가진 상태."
+  proposal: "next.config.ts 에 metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://giranjt.com') 설정. app/layout.tsx 의 openGraph.images / twitter.images 를 상대경로 '/images/og-image.png' 로 두면 metadataBase 가 자동으로 절대 URL 합성. 빌드 ENV NEXT_PUBLIC_SITE_URL=https://giranjt.com 보장."
+  effort: trivial
+  impact: high
+  evidence: "curl https://giranjt.com/ | grep og:image → '<meta property=\"og:image\" content=\"http://localhost:3000/images/og-image.png\"/>'. 동일하게 twitter:image 도 localhost. 외부 도달 불가 URL → 모든 SNS 미리보기 깨짐."
+
+- id: imp-0192
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: price_range_filter_ui
+  problem: "API 는 ?priceMin=&priceMax= 쿼리를 받지만(요청 시 200 OK 반환) 메인 페이지의 ListingFilters 컴포넌트 어디에도 가격 범위 입력 UI 가 없다. 사용자는 '500만원 이하 무기' 같은 가장 자연스러운 필터 의도를 표현할 방법이 없다. 단일 매물의 가격 차이가 1원~4368만원으로 4자리수 차이가 나는 마켓에선 결정적 누락."
+  proposal: "ListingFilters 에 가격 범위 슬라이더 또는 두 개 input[type='number'] 'X만원 ~ Y만원' 추가. 빠른 칩으로 '~50만', '50~500만', '500만~' 3-4개 프리셋. URL 동기화(imp-0027 의존). 모바일은 collapsed → '가격 ▾' 아코디언."
+  effort: medium
+  impact: high
+  evidence: "Code web/components/listing/listing-filters.tsx: priceMin/priceMax/priceRange 키워드 0건. API curl ?priceMin=100000 → 200(필터 동작은 됨, 단 현재 데이터 4건 모두 통과). use-listings.ts 훅 시그니처에 priceMin/priceMax 파라미터 미존재."
+
+- id: imp-0193
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: listing_type_filter_buy_sell
+  problem: "ListingFilters 컴포넌트에 listingType(판매/구매) 필터 칩이 없다. 카드 좌측 border-l-4 색상으로 sell=gold, buy=blue 구분만 시각적으로 표현될 뿐, '구매 글만 보기' 같은 능동적 필터링이 불가능. 판매자는 자기 아이템에 매칭되는 '구매 요청'만 골라 보고 싶어함."
+  proposal: "서버 칩과 같은 패턴으로 [전체 | 판매 | 구매] 3개 button[aria-pressed] 칩 그룹을 결과 헤더 좌측에 둔다. URL 쿼리 ?type=buy|sell. 색상 토큰: 판매=gold, 구매=blue 로 카드 border-l 와 일치."
+  effort: small
+  impact: medium
+  evidence: "Code web/components/listing/listing-filters.tsx: listingType 칩 검색 0건. listing-card.tsx L10 만 'listingType === sell' 체크(border 색). use-listings.ts 훅은 listingType 파라미터를 받음(L9) — 이미 백엔드 지원 완료, UI 만 빠짐."
+
+- id: imp-0194
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: realtime_new_listing_toast
+  problem: "사용자가 마켓 페이지에 머무는 동안 새 매물이 등록돼도 화면이 갱신되지 않는다. EventSource/SSE 사용 흔적 0건. 거래는 '먼저 본 사람이 먼저 사는' 시간경쟁이 있는데 사용자는 새로고침을 반복하거나 알림을 영영 못 받음."
+  proposal: "Backend 에 GET /api/v1/listings/stream (SSE) 추가. domain.ListingCreated 이벤트를 구독해 push. Web 은 useEffect 로 EventSource 연결, 새 매물 도착 시 화면 상단에 '새 매물 N건 ▾' sticky toast/banner 표시 → 클릭 시 InfiniteQuery refetch + scrollTo top. 30초 idle 시 자동 disconnect 로 NAS 부하 보호."
+  effort: large
+  impact: high
+  evidence: "Code grep web/app/page.tsx 'EventSource|sse|realtime' → 0건. 백엔드 internal/event 디렉토리는 존재하나 listings.stream 핸들러 미존재. 채팅에서는 SSE 사용중(채팅 SSE 재연결 PR 최근 머지) — 인프라는 있으나 listings 에 미적용."
+
+- id: imp-0195
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: saved_search_email_push_alert
+  problem: "사용자가 ?server=zillian&category=weapon_mace&priceMax=500000 같은 조건을 자주 검색해도 '저장' 또는 '이 조건으로 새 매물이 나오면 알림' 기능이 없다. 매물이 드물게 등장하는 희귀 아이템(예: 풀강 무기)을 노리는 사용자는 매일 수동 새로고침해야 함."
+  proposal: "Backend: saved_searches 테이블(user_id, query_json, alert_channel:none|push|email, created_at). 핸들러 POST /api/v1/saved-searches, GET (내 목록), DELETE. 새 매물 등록 이벤트 시 query_json 매칭하는 saved_searches 의 user 에게 NotificationCreate. Web: 필터 영역 우측에 '이 검색 저장 ★' 버튼 → 비로그인은 useAuthGuard."
+  effort: large
+  impact: medium
+  evidence: "Code grep '/api/v1/saved-searches' → backend 핸들러 0건. curl https://giranjt.com/api/v1/listings/saved-searches → 404. 사용자 페르소나 분석: 풀강 +9 도리깨 매물은 평균 30일에 1회 등록 → 수동 모니터링 비현실적."
+
+- id: imp-0196
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: price_drop_watch_notify
+  problem: "사용자가 특정 매물을 보고 '가격이 떨어지면 사겠다'고 결정한 경우, 현재는 매번 매물 상세에 들어가 가격 변경 여부를 확인해야 한다. 찜(favorite) 은 현재 즐겨찾기일 뿐 가격 변경 트리거가 없다."
+  proposal: "Backend: listing_watches 테이블(user_id, listing_id, target_price, original_price, created_at). Listing PATCH 핸들러에서 priceAmount 가 감소하면 watches 조회 → 매칭(target_price>=new_price)되는 user 에게 알림('관심 매물 가격이 N% 인하되었습니다'). Web 은 매물 상세 액션바에 '가격 알림 받기 (목표가 입력)' 버튼."
+  effort: medium
+  impact: medium
+  evidence: "Backend grep 'priceAlert|priceDrop|listing_watch' → 0건. listing_favorites 테이블만 존재(웹사이트 상의 찜 토글). 가격 변경 이벤트(ListingPriceChanged) 도메인 이벤트 카탈로그(EVENT_CATALOG.md) 부재 추정 — 별도 검증 필요."
+
+- id: imp-0197
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: listing_compare_side_by_side
+  problem: "도리깨 +10 매물이 3개 등장했을 때 사용자는 가격/판매자평판/거래방식을 동시에 비교하고 싶다. 현재는 카드를 클릭→상세 진입→뒤로→다음 카드 클릭의 반복인데 뒤로갈 때마다 필터 상태 초기화(imp-0029)까지 겹쳐 비교가 사실상 불가능."
+  proposal: "카드 우상단에 작은 체크박스 '비교 추가'. 최대 3개까지 sticky 하단 비교 트레이('비교 (2/3) ▶'). 클릭 시 /compare?ids=a,b 라우트로 가서 가격/서버/거래방식/판매자뱃지/등록일/조회·찜·채팅수를 표 형태로 비교. 비로그인도 sessionStorage 기반 동작."
+  effort: medium
+  impact: low
+  evidence: "Code grep 'compareListings|ListingCompare' → 0건. /compare 라우트 미존재. 현재 카드 click 패턴: 상세→뒤로 시 React state 손실 = 비교 비효율."
+
+- id: imp-0198
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: rss_atom_feed
+  problem: "/api/v1/listings.rss, .atom 모두 404. 매물 알림을 외부 도구(IFTTT, Slack RSS 봇, Feedly)로 받고 싶은 파워유저 니즈를 충족 못 함. 모바일 푸시 알림 인프라가 없는 현재 상태(웹뿐) 에서 RSS 는 가장 저비용의 외부 알림 채널."
+  proposal: "Backend handler GET /api/v1/listings.rss → application/rss+xml. <channel> title='기란JT 신규 매물', <item>은 최근 50건 ?serverId=&categoryId= 쿼리도 받아 필터링된 피드 가능. /api/v1/listings.atom 도 함께. robots.txt 와 layout.tsx <link rel='alternate' type='application/rss+xml' href='/api/v1/listings.rss' />."
+  effort: small
+  impact: low
+  evidence: "curl /api/v1/listings.rss → 404, .atom → 404. 매물 등록 알림을 외부로 push할 채널 0개(이메일/푸시 미구현). RSS 는 추가 구독 인프라 0원, gem-stable feature."
+
+- id: imp-0199
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: anti_spam_listing_throttle
+  problem: "단일 사용자(da1e387a-fd67-4189-8475-b1a379e9a2a2)가 4개 매물 중 3개를 등록했고, 그중 2개가 명백한 자판 노이즈('123ㄱ1ㄱㅈㄷㄹ', '111233')다. 매물 등록 횟수 제한(throttle) 또는 신규 계정의 시간당/일당 등록 한도가 없어 spam/test 등록이 정상 매물을 밀어낸다."
+  proposal: "Backend: trustBadge='newcomer' (가입<7d 또는 거래<3) 인 유저는 시간당 최대 3건, 일당 10건으로 제한. POST /api/v1/listings 응답 429 + Retry-After. 한 시간 내 같은 itemMasterId+priceAmount 중복 등록은 409 + 'similar listing already exists'. middleware 에 user-scoped rate limit Redis (또는 in-memory map for NAS 단일 노드)."
+  effort: medium
+  impact: high
+  evidence: "API 응답: 4매물 중 75%가 한 신규유저(trustBadge='newcomer')의 자판 노이즈 매물. Backend grep 'rateLimit|throttle' → 0건(매물 생성 핸들러에 rate-limit 미적용). 노이즈 매물은 imp-0038 의 '데모트' 만으로는 발생 자체를 못 막음."
+
+- id: imp-0200
+  found_at_iter: 13
+  area: listings
+  type: feature
+  target: fraud_signal_price_outlier
+  problem: "'머꼬' 매물이 43,680,742원(4,368만원), '도리깨 +10'이 200,000원, '111233'이 10원 — 동일 카테고리/유사 아이템의 시장가 대비 극단치를 자동 감지하는 신호가 없다. 가격 1원/10원 매물은 명백한 테스트/사기 의심이지만 정상 매물처럼 노출."
+  proposal: "Backend: 카테고리별 priceAmount 의 P5/P95/median 을 1시간마다 머터리얼라이즈드 뷰로 계산. Listing 응답 또는 별도 필드 priceOutlierFlag: 'too_low' | 'too_high' | 'normal'. Web 카드에 '⚠️ 시세 대비 매우 낮음' 작은 라벨 + admin 모더레이션 큐 자동 진입. 너무 거짓양성 많으면 P1/P99 로 완화."
+  effort: large
+  impact: medium
+  evidence: "API: 카테고리=무기 매물 가격 [200000, 43680742, 1, 10] — std 가 평균보다 높은 long-tail. fraud/anomaly/outlier grep 백엔드 0건. 가격 1원·10원 매물은 100% 사기 또는 테스트일 확률 높지만 일반 사용자에 노출."
